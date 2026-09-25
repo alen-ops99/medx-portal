@@ -40,16 +40,16 @@ export default {
     <div style="background:#191512;padding:16px 32px;display:flex;align-items:center">
       <a href="/app/home"><img src="/assets/logo-white.png" alt="med&amp;X" style="height:18px;display:block"></a>
       <div style="flex:1"></div>
-      <span style="font:600 9px Inter,sans-serif;letter-spacing:.2em;color:#c9a962">${COPY.kicker}</span>
+      <span style="font:600 12px Inter,sans-serif;letter-spacing:.12em;color:#c9a962">${COPY.kicker}</span>
     </div>
     <div data-enter="rise" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px">
       <span style="font-family:Fraunces,serif;font-style:italic;font-size:90px;line-height:1;color:rgba(25,21,18,.14)">${COPY.code}</span>
       <span style="width:28px;height:1px;background:#c9a962;margin:18px 0 14px"></span>
       <div class="mx-display-30" style="font-family:Fraunces,serif;font-size:30px;line-height:1.15">${COPY.headline}</div>
-      <div style="font-size:13.5px;color:#4a4239;line-height:1.6;max-width:420px;margin-top:12px">${COPY.why}</div>
+      <div style="font-size:16px;color:#4a4239;line-height:1.5;max-width:420px;margin-top:12px">${COPY.why}</div>
       <div style="display:flex;gap:12px;margin-top:24px;flex-wrap:wrap;justify-content:center">
-        <a href="/app/home" style="padding:13px 24px;background:#9b1b22;color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.home}</a>
-        <a href="/app/messages" style="padding:13px 24px;border:1px solid rgba(25,21,18,.3);color:#191512;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap" data-hover="border-color:#191512;color:#191512">${COPY.message}</a>
+        <a href="/app/home" style="padding:16px 26px;background:#9b1b22;color:#f7f1e6;font:600 13px Inter,sans-serif;letter-spacing:.12em;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.home}</a>
+        <a href="/app/messages" style="padding:15px 26px;border:1px solid rgba(25,21,18,.3);color:#191512;font:600 13px Inter,sans-serif;letter-spacing:.12em;white-space:nowrap" data-hover="border-color:#191512;color:#191512">${COPY.message}</a>
       </div>
     </div>
   </div>

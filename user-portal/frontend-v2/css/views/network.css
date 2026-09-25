@@ -6,44 +6,51 @@
    overrides and behaviour — never look.
    ========================================================================== */
 
-/* the 36px-headline is nowrap on the artboard (desktop); let it wrap on small screens */
-@media (max-width: 900px) {
-  .mx-net-h1 { white-space: normal !important; font-size: 30px !important; }
-}
-@media (max-width: 500px) {
-  .mx-net-h1 { font-size: 25px !important; }
-  /* search field + button keep one line but shrink */
-  .mx-net-search input { min-width: 0; }
-  /* directory / results / my-network rows: identity takes the full first line,
-     state chip + actions wrap underneath (buttons never squeeze or wrap mid-label) */
-  .mx-net-row { flex-wrap: wrap !important; row-gap: 10px !important; }
-  .mx-net-id { flex-basis: 100% !important; }
-}
+/* ---- phone calm pass (2026-09-25): large title, one search field, people as rows (DESIGN-RULES §11) ---- */
+/* the PEOPLE / MESSAGES strip is for wider screens; on a phone the tab bar already says where you are */
+@media (max-width: 500px) { .mx-net-screen .mx-net-tabs { display: none !important; } }
 
-/* row hover — the artboard's list rows are plain; give pointer feedback only (hover-capable pointers,
-   so a tapped row on a phone never keeps a stuck wash). The portal's one row tint (tokens.css --row-hover);
-   the rows carry no side padding, so the wash reaches 12 px past each edge by shadow, not by layout */
-@media (hover: hover) {
-  .mx-net-row:hover { background: var(--row-hover); box-shadow: -12px 0 0 var(--row-hover), 12px 0 0 var(--row-hover); }
-}
+.mx-net-search { display: flex; gap: 10px; margin-top: 20px; max-width: 640px; }
+.mx-net-field { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 14px; box-sizing: border-box;
+  background: var(--card); border: 1px solid rgba(25,21,18,.22); color: var(--soft); cursor: text; }
+.mx-net-field input { flex: 1 1 auto; min-width: 0; border: 0; background: transparent; padding: 0; height: 50px; font: 400 16px var(--font-ui); color: var(--ink); outline: none !important; }
+.mx-net-field input::-webkit-search-decoration { -webkit-appearance: none; }
+.mx-net-field:focus-within { border-color: var(--crimson); box-shadow: inset 0 0 0 1px var(--crimson); }
+.mx-net-go { flex: none; }
+/* a phone searches as you type (and on the keyboard's search key): no second button beside the field */
+@media (max-width: 500px) { .mx-net-go { display: none !important; } }
 
-/* keep the connect/message buttons from collapsing on narrow rows */
-.mx-net-act { flex: none; }
+/* a person: the circle and the words open the profile sheet, the action and the ⋯ sit at the end */
+.mx-net-peek { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 14px; cursor: pointer; color: inherit; }
+.mx-net-row .mx-person-act { gap: 2px; }
+.mx-net-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 36px; padding: 0 14px; box-sizing: border-box; flex: none;
+  border: 1px solid rgba(25,21,18,.3); background: transparent; color: var(--ink); font: 500 14px/1 var(--font-ui); white-space: nowrap; cursor: pointer; }
+.mx-net-btn.is-fill { background: var(--crimson); border-color: var(--crimson); color: var(--cream); }
+.mx-net-btn.is-quiet { border-color: transparent; color: var(--soft); padding: 0 8px; }
+.mx-net-btn[aria-disabled="true"] { cursor: default; }
+/* a request: Accept / Ignore sit under the words, lined up with them */
+.mx-net-row.is-request { flex-wrap: wrap; row-gap: 4px; padding-bottom: 14px; }
+.mx-net-reqbtns { flex-basis: 100%; display: flex; gap: 8px; padding-left: 78px; }
+.mx-sh-count { flex: none; margin-left: auto; font: 400 14px/20px var(--font-ui); color: var(--soft); white-space: nowrap; }
+.mx-net-dir { margin-top: 8px; }
+.mx-net-note { margin: 16px 0; font-size: 14px; color: var(--soft); }
+.mx-net-pager { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 0 0; }
+.mx-net-pager [aria-disabled="true"] { opacity: .35; }
+.mx-net-page { font: 500 14px/20px var(--font-ui); color: var(--soft); font-variant-numeric: tabular-nums; }
+.mx-net-blocked { display: flex; justify-content: center; margin-top: 32px; }
+@media (min-width: 901px) { .mx-net-screen .mx-person-rows, .mx-net-screen .mx-list { max-width: 760px; } }
 
-/* phone: a person card turns sideways — portrait on the left, name and actions on the right — so
-   eight suggestions read as a list instead of eight full-width 150px portrait slabs */
-@media (max-width: 560px) {
-  /* the sideways card needs the full width: a two-column grid (the ≤900 rule, up to 500 px) left each card
-     229 px wide at iPad Split View, with MESSAGE and the ⋯ hanging over its edge */
-  .mx-net-screen .mx-grid-4 { grid-template-columns: 1fr !important; }
-  .mx-net-card { display: grid !important; grid-template-columns: 104px 1fr; }
-  .mx-net-face { height: auto !important; min-height: 128px; }
-  .mx-net-face .mx-mono { font-size: 30px !important; }
-  .mx-net-face .mx-mono::after { inset: 6px; }
-  .mx-net-chip { top: auto !important; bottom: 7px; left: 7px !important; right: 7px; text-align: center; white-space: normal;
-    font-size: 7.5px !important; letter-spacing: .1em !important; padding: 2px 4px !important; }
-}
-@media (min-width: 561px) { .mx-net-face .mx-net-chip { top: 16px !important; left: 16px !important; } }
+/* the person sheet (the profile peek) */
+.mx-sheet-person { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding-top: 4px; }
+.mx-sheet-person > .mx-pic { margin-bottom: 8px; }
+.mx-sheet-more { position: absolute; top: -12px; right: -12px; color: var(--soft); }
+.mx-sheet-name { margin: 0; font: 400 var(--fs-title2)/28px var(--font-display); color: var(--ink); }
+.mx-sheet-role { margin: 0; font: 400 14px/20px var(--font-ui); color: var(--soft); }
+.mx-sheet-line { margin: 0; display: inline-flex; align-items: center; gap: 6px; font: 400 14px/20px var(--font-ui); color: var(--ink); }
+.mx-sheet-line .mx-ic { color: var(--gold-dark); }
+.mx-sheet-bio { margin: 8px 0 0; font: 400 16px/24px var(--font-ui); color: var(--soft); display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+.mx-sheet-acts { align-self: stretch; display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+.mx-sheet-state { font: 500 14px/20px var(--font-ui); color: var(--soft); padding: 12px 0; }
 
 /* ============================================================================
    MOTION + HOVER (polish pass 2026-09-22). The shared layer in app.css carries
@@ -103,6 +110,9 @@
 }
 
 @media (hover: hover) {
+  .mx-net-btn:not(.is-fill):not(.is-quiet):hover { border-color: var(--ink); }
+  .mx-net-btn.is-fill:hover { background: var(--crimson-hover); border-color: var(--crimson-hover); }
+  .mx-net-peek:hover .mx-person-name { color: var(--crimson); }
   /* a filled CONNECT / ACCEPT darkens like every crimson button; the outlined faces firm up to ink */
   .mx-net-act[data-face="fill"]:hover,
   .mx-net-act[data-act="accept"]:hover { background: #7e151b !important; border-color: #7e151b !important; }

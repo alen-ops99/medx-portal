@@ -49,10 +49,70 @@
    the OFFICIAL · MED&X TEAM tag under ARCHIVE. The back and archive controls keep their size; the tag
    steps aside (the sub-line under the name already says "Official team inbox"). */
 @media (max-width: 480px) {
-  .mx-msg-head { gap: 11px !important; padding-left: 18px !important; padding-right: 18px !important; }
-  .mx-msg-head .mx-msg-back, .mx-msg-head [data-act="archive"], .mx-msg-head > span:nth-child(2) { flex: none; min-width: auto; }
-  .mx-msg-head .mx-msg-tag { display: none; }
+  .mx-msg-head .mx-msg-back, .mx-msg-head [data-act="archive"], .mx-msg-head > .mx-pic { flex: none; min-width: auto; }
 }
+
+/* ---- phone calm pass (2026-09-25): a large title and a compose button, one search field, 44 circles, 16px
+   bubbles, a growing field with a paperclip and a crimson send square (DESIGN-RULES §11 › /app/messages) ---- */
+@media (max-width: 500px) { .mx-msg-screen .mx-net-tabs { display: none !important; } }
+.mx-msg-list { border-right: 1px solid var(--hair); display: flex; flex-direction: column; min-height: 0; }
+.mx-msg-list-head { display: flex; align-items: center; gap: 8px; padding: 16px 12px 8px 20px; }
+.mx-msg-title { flex: 1 1 auto; margin: 0; font: 400 var(--fs-title1)/36px var(--font-display); color: var(--ink); }
+.mx-msg-compose { color: var(--crimson); }
+.mx-msg-search { padding: 4px 20px 12px; }
+.mx-msg-searchbox { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 12px; box-sizing: border-box; background: var(--card);
+  border: 1px solid rgba(25,21,18,.18); color: var(--soft); cursor: text; }
+.mx-msg-searchbox input { flex: 1 1 auto; min-width: 0; border: 0 !important; outline: none !important; background: transparent; padding: 0; height: 42px; font: 400 16px var(--font-ui); color: var(--ink); }
+.mx-msg-searchbox:focus-within { border-color: var(--crimson); }
+.mx-msg-rows { flex: 1; overflow-y: auto; min-height: 0; }
+.mx-msg-row { display: flex; gap: 12px; align-items: center; min-height: 72px; padding: 12px 20px; box-sizing: border-box; cursor: pointer; position: relative; }
+.mx-msg-row + .mx-msg-row::before { content: ""; position: absolute; top: 0; left: 76px; right: 0; height: 1px; background: var(--hair-soft); }
+.mx-msg-row.is-cur { background: rgba(201,169,98,.12); box-shadow: inset 2px 0 0 var(--gold); }
+@media (hover: hover) { .mx-msg-row:not(.is-cur):hover { background: var(--row-hover); } }
+.mx-msg-row-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mx-msg-row-top { display: flex; align-items: baseline; gap: 8px; }
+.mx-msg-row-name { flex: 1 1 auto; min-width: 0; font: 600 16px/22px var(--font-ui); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mx-msg-row-when { flex: none; font: 400 12px/16px var(--font-ui); color: var(--muted); white-space: nowrap; }
+.mx-msg-row.is-unread .mx-msg-row-when { color: var(--crimson); font-weight: 600; }
+.mx-msg-arch { color: var(--gold-dark); letter-spacing: .08em; }
+.mx-msg-row-prev { display: flex; align-items: center; gap: 8px; min-width: 0; font: 400 14px/20px var(--font-ui); color: var(--soft); }
+.mx-msg-row-prev > span:last-child { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mx-msg-row.is-unread .mx-msg-row-prev { color: var(--ink); font-weight: 600; }
+.mx-msg-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--crimson); }
+.mx-msg-none { padding: 18px 20px; font-size: 14px; color: var(--soft); }
+.mx-msg-archtoggle { padding: 4px 20px 16px; }
+.mx-msg-archtoggle .mx-msg-link { display: inline-flex; min-height: 44px; align-items: center; }
+.mx-msg-link { font: 500 14px/20px var(--font-ui); color: var(--soft); cursor: pointer; white-space: nowrap; }
+/* the team's circle: ink with the real X mark */
+.mx-msg-team { background: var(--ink) !important; }
+.mx-msg-team > .mx-msg-x { position: absolute; inset: 25%; width: 50%; height: 50%; object-fit: contain; border-radius: 0; }
+.mx-msg-team::after { display: none; }
+
+.mx-msg-head { display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 8px 12px 8px 20px; box-sizing: border-box; border-bottom: 1px solid var(--hair); }
+@media (max-width: 700px) { .mx-msg-head { padding-left: 4px; gap: 8px; } }
+.mx-msg-back { color: var(--crimson); }
+.mx-msg-head-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.mx-msg-head-name { font: 600 16px/22px var(--font-ui); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mx-msg-head-sub { font: 400 12px/16px var(--font-ui); color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mx-msg-head .mx-msg-link { padding: 12px 8px; }
+.mx-msg-compose-wrap { border-top: 1px solid var(--hair); background: var(--card); }
+.mx-msg-topicrow { padding: 8px 12px 0 16px; }
+.mx-msg-topic { display: inline-flex; align-items: center; gap: 4px; min-height: 36px; padding: 0 4px; font: 400 14px/20px var(--font-ui); color: var(--soft); cursor: pointer; }
+.mx-msg-topic b { font-weight: 600; color: var(--ink); }
+.mx-msg-topic .mx-ic { color: var(--soft); }
+.mx-msg-attached { display: flex; align-items: center; gap: 4px; padding: 6px 8px 0 16px; }
+.mx-msg-attached-name { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 80%; padding: 6px 10px; background: rgba(201,169,98,.18); color: var(--gold-dark); font: 500 14px/20px var(--font-ui); }
+.mx-msg-attached-name > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mx-msg-err { margin: 0; padding: 10px 16px 0; font-size: 14px; line-height: 1.45; color: var(--crimson); }
+.mx-msg-composer { display: flex; align-items: flex-end; gap: 6px; padding: 8px 12px 12px; }
+.mx-msg-draft { flex: 1 1 auto; min-width: 0; min-height: 44px; max-height: 132px; box-sizing: border-box; border: 1px solid rgba(25,21,18,.22); background: var(--cream);
+  padding: 10px 12px; font: 400 16px/22px var(--font-ui); color: var(--ink); resize: none; overflow-y: auto; }
+.mx-msg-send { flex: none; }
+.mx-msg-send[aria-disabled="true"] { opacity: .6; }
+.mx-msg-attach { color: var(--soft); cursor: pointer; }
+.mx-modal .mx-msg-pick { cursor: pointer; }
+.mx-msg-pick-name { font: 600 16px/22px var(--font-ui); color: var(--ink); }
+.mx-msg-topics .mx-row > .mx-ic:last-child { color: var(--crimson); }
 
 /* Attachments (team review Aug 2026): a thumbnail or file chip never widens its bubble —
    the look itself (borders, spacing) stays inline in the view templates per ARCHITECTURE.md §4. */

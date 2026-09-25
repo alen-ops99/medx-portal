@@ -34,7 +34,7 @@ export const COPY = {
   crumb: { a: 'NETWORK', b: 'MESSAGES' },
   tabs: { people: 'PEOPLE', messages: 'MESSAGES', card: 'MY CARD' },
   inboxTitle: 'Inbox',
-  newMessage: 'NEW MESSAGE →',
+  newMessage: 'NEW MESSAGE →', newMessageT: 'New message',
   searchPh: 'Search conversations…',
   // where replies arrive — one sentence across the portal: the team's reply is written into this inbox (and
   // pushed to the member's devices); no email copy goes out
@@ -43,22 +43,23 @@ export const COPY = {
           meta: 'MED&X TEAM',                                        // rows from before sender_name existed (ask 1 backfill)
           staff: name => `${String(name).toUpperCase()} · MED&X`,     // staff identity on replies — "LAURA · MED&X"
           nudge: 'Write to the team — replies land right here in your portal inbox.' },
-  composer: { ph: 'Write a message…', attach: 'ATTACH', attachTitle: 'Attach one image or PDF — up to 5 MB', send: 'SEND →', topicLabel: 'TOPIC' },
+  composer: { ph: 'Write a message…', attach: 'ATTACH', attachTitle: 'Attach one image or PDF — up to 5 MB', send: 'SEND →', topicLabel: 'TOPIC', topicT: 'Topic: ', topicSheet: 'TOPIC' },
   // topic keys must match user-portal/backend/v2/messages.js › TOPICS
   topics: [['general', 'GENERAL'], ['plexus', 'PLEXUS'], ['gala', 'GALA'], ['accelerator', 'ACCELERATOR'], ['bridges', 'BUILDING BRIDGES'], ['forum', 'FORUM'], ['membership', 'MEMBERSHIP']],
   empty: {
     line: 'No messages — yet.',
     why: 'Write to the Med&amp;X team about anything — tickets, programs, travel. Replies land right here in your portal inbox.',
-    cta: 'START A MESSAGE →'
+    cta: 'START A MESSAGE →',
+    whyT: 'Tickets, programs, travel: the team replies right here.', ctaT: 'Write a message'
   },
   emptyDm: name => `Say hello — this is the start of your conversation with ${name}.`,
-  you: 'YOU', read: 'READ', today: 'TODAY', yesterday: 'YESTERDAY',
+  you: 'YOU', read: 'READ', today: 'TODAY', yesterday: 'YESTERDAY', youT: 'You', readT: 'Read',
   back: '← INBOX',
-  archive: 'ARCHIVE', unarchive: 'UNARCHIVE',
+  archive: 'Archive', unarchive: 'Restore',
   archivedToast: 'Conversation archived — it comes back the moment something new arrives.',
   unarchivedToast: 'Conversation restored.',
   archivedTag: 'ARCHIVED',
-  showArchived: n => `SHOW ARCHIVED (${n})`, hideArchived: 'HIDE ARCHIVED',
+  showArchived: n => `Show archived (${n})`, hideArchived: 'Hide archived',
   attachTooBig: 'That file is over 5 MB — pick a smaller one.',
   attachBadType: 'Images (JPG, PNG, WebP, GIF) or PDF only.',
   fileFallback: 'FILE',
@@ -67,7 +68,7 @@ export const COPY = {
   pickTopic: 'Pick a topic for your message.',
   emptyDraft: 'Write a message first.',
   loadFail: 'Your inbox could not be loaded.', retry: 'TRY AGAIN',
-  newModal: { eyebrow: 'MESSAGES · NEW', title: 'Who is it for?', teamSub: 'Official team inbox — tickets, programs, travel, anything.', noConns: 'Message your accepted connections — meet people in the Network first.', openNetwork: 'OPEN THE NETWORK →', connsFail: 'Your connections could not be loaded right now.' },
+  newModal: { eyebrow: 'MESSAGES · NEW', title: 'Who is it for?', teamSub: 'Official team inbox — tickets, programs, travel, anything.', noConns: 'Message your accepted connections — meet people in the Network first.', openNetwork: 'OPEN THE NETWORK →', openNetworkT: 'Open the network', connsFail: 'Your connections could not be loaded right now.' },
   blockedGate: {
     line: name => `You blocked ${name}.`,
     why: 'Unblock them to find each other again — then a new connection opens messaging.',
@@ -108,13 +109,14 @@ function sqlDate(v) {
 const DAY3 = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 const DAYF = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
 function daysApart(d) { const a = new Date(); a.setHours(0, 0, 0, 0); const b = new Date(d); b.setHours(0, 0, 0, 0); return Math.round((a - b) / 86400000); }
-function whenLabel(v) {           // thread list: TODAY · FRI · JUL 28
+const sent1 = w => String(w).charAt(0) + String(w).slice(1).toLowerCase();
+function whenLabel(v) {           // thread list: 14:05 · Yesterday · Fri · Jul 28
   const d = sqlDate(v); if (!d) return '';
   const n = daysApart(d);
-  if (n <= 0) return COPY.today;
-  if (n === 1) return COPY.yesterday;
-  if (n < 7) return DAY3[d.getDay()];
-  return fmt.shortDate(d);
+  if (n <= 0) return timeLabel(v);
+  if (n === 1) return sent1(COPY.yesterday);
+  if (n < 7) return sent1(DAY3[d.getDay()]);
+  return fmt.shortDate(d).replace(/^([A-Z])([A-Z]+)/, (x, a, b) => a + b.toLowerCase());
 }
 function dayLabel(d) {            // conversation day divider: TODAY · YESTERDAY · FRIDAY · JUL 28
   if (!d) return '';
@@ -162,19 +164,19 @@ function previewOf(t) {
 // ---------------------------------------------------------------- templates
 function blockCrumb() { return `
   <!-- dc: Messages.dc.html › "Breadcrumb" -->
-  <div class="mx-gutter" style="display:flex;align-items:center;gap:13px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16)">
-    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239">${COPY.crumb.a}</span>
-    <span style="color:rgba(25,21,18,.35);font-size:10px">→</span>
-    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#191512">${COPY.crumb.b}</span>
+  <div class="mx-gutter mx-crumbs" style="display:flex;align-items:center;gap:13px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16)">
+    <span style="font:600 12px Inter,sans-serif;letter-spacing:.12em;color:#4a4239">${COPY.crumb.a}</span>
+    <span style="color:rgba(25,21,18,.35);font-size:12px">→</span>
+    <span style="font:600 12px Inter,sans-serif;letter-spacing:.12em;color:#191512">${COPY.crumb.b}</span>
   </div>
   <!-- /dc -->`; }
 
 function blockTabs() { return `
   <!-- dc: Messages.dc.html › "Network tabs" -->
   <!-- the shared section-tab strip (app.css › .mx-tab), keyed like Network's so the underline slides across -->
-  <div class="mx-tabs mx-gutter" data-tabs="network" style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;border-bottom:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
-    <a href="/app/network" class="mx-tab" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#4a4239" data-hover="color:#191512">${COPY.tabs.people}</a>
-    <span class="mx-tab is-on" aria-current="page" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;cursor:default">${COPY.tabs.messages}</span>
+  <div class="mx-tabs mx-gutter mx-net-tabs" data-tabs="network" style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;border-bottom:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
+    <a href="/app/network" class="mx-tab" style="font:600 12px Inter,sans-serif;letter-spacing:.12em;color:#4a4239" data-hover="color:#191512">${COPY.tabs.people}</a>
+    <span class="mx-tab is-on" aria-current="page" style="font:600 12px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;cursor:default">${COPY.tabs.messages}</span>
   </div>
   <!-- /dc -->`; }
 
@@ -189,25 +191,25 @@ function unreadDot(key, unread) {
   const now = performance.now();
   if (!st.dotAt.has(key)) st.dotAt.set(key, now);
   const age = Math.round(now - st.dotAt.get(key)), popping = age < DOT_POP;
-  return `<span class="mx-msg-dot${popping ? ' mx-msg-dot-in' : ''}" style="width:7px;height:7px;background:#9b1b22;flex:none;margin-top:5px${popping ? `;animation-delay:-${age}ms` : ''}"></span>`;
+  return `<span class="mx-msg-dot${popping ? ' mx-msg-dot-in' : ''}"${popping ? ` style="animation-delay:-${age}ms"` : ''} aria-label="Unread"></span>`;
+}
+// a thread's circle: the team is an ink circle with the real X mark; a member is ui.portrait (their photo, else initials)
+function threadPic(t, size) {
+  if (t.kind === 'team') return `<span class="mx-pic mx-pic-${size} mx-msg-team" aria-hidden="true"><img src="/assets/mark-x.png" alt="" class="mx-msg-x"></span>`;
+  const src = t.photo_url || t.profile_photo || '';
+  return ui.portrait({ name: memberName(t), src: src ? (String(src).startsWith('/') ? api.url(src) : src) : '', size, alt: '' });
 }
 function threadRow(t, i) {
   const cur = t.key === st.cur;
   const unread = t.unread > 0 && !cur;
-  const av = avatarOf(t);
-  const when = t.archived ? `<span style="color:#6e5626">${COPY.archivedTag}</span>` : esc(whenLabel(t.last && t.last.created_at));
+  const when = t.archived ? `<span class="mx-msg-arch">${COPY.archivedTag}</span>` : esc(whenLabel(t.last && t.last.created_at));
   return `
-      <div data-act="open" data-key="${esc(t.key)}" role="listitem" aria-current="${cur}" class="mx-msg-row" style="display:flex;gap:13px;align-items:flex-start;padding:14px 22px;cursor:pointer;border-top:1px solid rgba(25,21,18,.1);background:${cur ? 'rgba(201,169,98,.12)' : 'transparent'};border-left:2px solid ${cur ? '#c9a962' : 'transparent'}"${cur ? '' : ' data-hover="background:var(--row-hover)"'}>
-        <span style="width:36px;height:36px;background:${av.bg};color:${av.fg};display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif;flex:none">${esc(threadInit(t))}</span>
-        <span style="flex:1;min-width:0">
-          <span style="display:flex;align-items:baseline;gap:8px">
-            <span style="font-size:13px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(threadName(t))}</span>
-            <span style="font:600 9px Inter,sans-serif;letter-spacing:.1em;color:#4a4239;flex:none">${when}</span>
-          </span>
-          <span style="display:block;font-size:11px;color:#4a4239;margin-top:2px">${esc(threadSub(t))}</span>
-          <span style="display:block;font-size:12px;color:${unread ? '#191512' : '#4a4239'};margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:${unread ? '600' : '400'}">${esc(previewOf(t))}</span>
+      <div data-act="open" data-key="${esc(t.key)}" role="listitem" aria-current="${cur}" class="mx-msg-row${cur ? ' is-cur' : ''}${unread ? ' is-unread' : ''}">
+        ${threadPic(t, 44)}
+        <span class="mx-msg-row-text">
+          <span class="mx-msg-row-top"><span class="mx-msg-row-name">${esc(threadName(t))}</span><span class="mx-msg-row-when">${when}</span></span>
+          <span class="mx-msg-row-prev">${unreadDot(t.key, unread)}<span>${esc(previewOf(t))}</span></span>
         </span>
-        ${unreadDot(t.key, unread)}
       </div>`;
 }
 
@@ -215,22 +217,20 @@ function blockList() {
   const rows = visibleThreads();
   const archivedCount = allThreads().filter(t => t.archived).length;
   return `
-  <!-- dc: Messages.dc.html › "Inbox" -->
-  <div class="mx-msg-list" style="border-right:1px solid rgba(25,21,18,.16);display:flex;flex-direction:column;min-height:0">
-    <div style="display:flex;align-items:center;gap:12px;padding:16px 22px 12px">
-      <span style="font-family:Fraunces,serif;font-size:22px">${COPY.inboxTitle}</span>
-      <div style="flex:1"></div>
-      <span data-act="newMsg" class="mx-msg-link" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;cursor:pointer;white-space:nowrap">${COPY.newMessage}</span>
+  <!-- dc: Messages.dc.html › "Inbox" (phone calm pass: a large title, a compose button, one search field, rows) -->
+  <div class="mx-msg-list">
+    <div class="mx-msg-list-head">
+      <h1 class="mx-msg-title">${COPY.inboxTitle}</h1>
+      <span data-act="newMsg" role="button" tabindex="0" aria-label="${COPY.newMessageT}" title="${COPY.newMessageT}" class="mx-iconbtn mx-msg-compose">${ui.icon('compose', 22)}</span>
     </div>
-    <div style="padding:0 22px 12px">
-      <input data-role="search" type="search" class="mx-msg-field" placeholder="${COPY.searchPh}" value="${esc(st.filter || '')}" aria-label="Search conversations" style="width:100%;box-sizing:border-box;border:1px solid rgba(25,21,18,.25);background:#fdfaf3;padding:9px 12px;font-size:12.5px;color:#191512">
+    <div class="mx-msg-search">
+      <label class="mx-msg-searchbox">${ui.icon('search', 18)}<input data-role="search" type="search" class="mx-msg-field" placeholder="${COPY.searchPh}" value="${esc(st.filter || '')}" aria-label="Search conversations"></label>
     </div>
-    <div data-role="rows" data-v2="scrolling thread list (replaces the artboard's flex spacer)" role="list" aria-label="Conversations" style="flex:1;overflow-y:auto;min-height:0">
+    <div data-role="rows" data-v2="scrolling thread list (replaces the artboard's flex spacer)" role="list" aria-label="Conversations" class="mx-msg-rows">
       ${rows.map((t, i) => threadRow(t, i)).join('')}
-      ${!rows.length ? `<div style="padding:18px 22px;font-size:12px;color:#4a4239;border-top:1px solid rgba(25,21,18,.1)">${st.filter ? 'Nothing matches your search.' : 'No conversations yet.'}</div>` : ''}
-      ${archivedCount ? `<div data-v2="archived toggle" style="padding:12px 22px;border-top:1px solid rgba(25,21,18,.1)"><span data-act="toggleArchived" class="mx-msg-link" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#6e5626;cursor:pointer">${st.showArchived ? COPY.hideArchived : COPY.showArchived(archivedCount)}</span></div>` : ''}
+      ${!rows.length ? `<div class="mx-msg-none">${st.filter ? 'Nothing matches your search.' : 'No conversations yet.'}</div>` : ''}
+      ${archivedCount ? `<div data-v2="archived toggle" class="mx-msg-archtoggle"><span data-act="toggleArchived" class="mx-msg-link">${st.showArchived ? COPY.hideArchived : COPY.showArchived(archivedCount)}</span></div>` : ''}
     </div>
-    <div style="padding:14px 22px;border-top:1px solid rgba(25,21,18,.16);font-size:11px;color:#4a4239;line-height:1.5">${COPY.footer(esc(session.displayName()))}</div>
   </div>
   <!-- /dc -->`;
 }
@@ -238,7 +238,7 @@ function blockList() {
 function dayDivider(label) { return `
         <div data-v2="day divider" style="display:flex;align-items:center;gap:10px;margin:2px 0">
           <span style="flex:1;height:1px;background:rgba(25,21,18,.1)"></span>
-          <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.16em;color:#9b8f80">${esc(label)}</span>
+          <span style="font:600 12px Inter,sans-serif;letter-spacing:.1em;color:#9b8f80">${esc(label)}</span>
           <span style="flex:1;height:1px;background:rgba(25,21,18,.1)"></span>
         </div>`; }
 
@@ -252,7 +252,7 @@ function bubbleAttachment(m, mine) {
   const name = m.attachment_name || COPY.fileFallback;
   const bd = mine ? 'rgba(247,241,230,.4)' : 'rgba(25,21,18,.25)';
   const img = attachIsImage(m) ? `<a href="${esc(url)}" target="_blank" rel="noopener" style="display:block;margin-top:9px"><img src="${esc(url)}" alt="${esc(name)}" loading="lazy" style="max-width:100%;max-height:180px;border:1px solid ${bd};display:block"></a>` : '';
-  return `${img}<a href="${esc(url)}" target="_blank" rel="noopener" data-v2="attachment download (served with Content-Disposition: attachment)" style="display:inline-flex;align-items:center;gap:6px;margin-top:8px;padding:6px 10px;border:1px solid ${bd};font:600 9px Inter,sans-serif;letter-spacing:.12em;color:inherit;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">\u2295 ${esc(name)}</a>`;
+  return `${img}<a href="${esc(url)}" target="_blank" rel="noopener" data-v2="attachment download (served with Content-Disposition: attachment)" style="display:inline-flex;align-items:center;gap:6px;margin-top:8px;padding:6px 10px;border:1px solid ${bd};font:500 14px Inter,sans-serif;color:inherit;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ui.icon('clip', 16)}${esc(name)}</a>`;
 }
 function bubble(m, meta, thread, isNew) {
   const mine = !!m.mine;
@@ -264,9 +264,9 @@ function bubble(m, meta, thread, isNew) {
   // App Store 1.2: a message another MEMBER sent you can be reported on its own (never the team's, never yours)
   const report = (!mine && thread.kind === 'member' && m.id != null) ? msgMoreButton({ id: m.id, name: threadName(thread) }) : '';
   return `
-        <div class="mx-msg-bubble${mine ? ' mx-msg-mine' : ''}${isNew ? ' mx-msg-new' : ''}"${report ? ` data-mid="${esc(m.id)}"` : ''} style="display:flex;flex-direction:column;gap:4px;align-self:${side};max-width:62%;align-items:${side}">
-          <span style="display:inline-flex;align-items:center;font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">${esc(meta)}${report}</span>
-          <span style="padding:12px 15px;font-size:13px;line-height:1.55;background:${bg};color:${fg};border:1px solid ${bd};white-space:pre-wrap;word-break:break-word">${title}${esc(m.content)}${bubbleAttachment(m, mine)}</span>
+        <div class="mx-msg-bubble${mine ? ' mx-msg-mine' : ''}${isNew ? ' mx-msg-new' : ''}"${report ? ` data-mid="${esc(m.id)}"` : ''} style="display:flex;flex-direction:column;gap:4px;align-self:${side};max-width:78%;align-items:${side}">
+          <span class="mx-msg-meta" style="display:inline-flex;align-items:center;font:500 12px Inter,sans-serif;letter-spacing:.04em;color:#4a4239">${esc(meta)}${report}</span>
+          <span class="mx-msg-text" style="padding:12px 15px;font-size:16px;line-height:1.5;background:${bg};color:${fg};border:1px solid ${bd};white-space:pre-wrap;word-break:break-word">${title}${esc(m.content)}${bubbleAttachment(m, mine)}</span>
         </div>`;
 }
 
@@ -285,30 +285,27 @@ function convMessages(thread) {
     if (thread.kind === 'team') return `
         <!-- dc: Empty States.dc.html › "MESSAGES · EMPTY INBOX" -->
         <div class="empty" style="margin:auto">
-          <span style="width:28px;height:1px;background:#c9a962;margin-bottom:6px"></span>
-          <span style="font-family:Fraunces,serif;font-style:italic;font-size:17px">${COPY.empty.line}</span>
-          <span style="font-size:12.5px;color:#4a4239;max-width:400px;line-height:1.55">${COPY.empty.why}</span>
-          <span data-act="startMsg" class="mx-msg-btn" style="margin-top:8px;padding:11px 20px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer">${COPY.empty.cta}</span>
+          <span class="empty-line">${COPY.empty.line}</span>
+          <span class="empty-why">${COPY.empty.whyT}</span>
+          <span data-act="startMsg" role="button" tabindex="0" class="btn-ghost btn-sm mx-msg-btn">${COPY.empty.ctaT}</span>
         </div>
         <!-- /dc -->`;
     if (thread.virtual && st.peer && st.peer.blocked) return `
         <div class="empty" style="margin:auto" data-v2="blocked peer (App Store 1.2 — v2/safety.js)">
-          <span style="width:28px;height:1px;background:#c9a962;margin-bottom:6px"></span>
-          <span style="font-family:Fraunces,serif;font-style:italic;font-size:17px">${esc(COPY.blockedGate.line(memberName(thread)))}</span>
-          <span style="font-size:12.5px;color:#4a4239;max-width:400px;line-height:1.55">${COPY.blockedGate.why}</span>
-          <span data-act="unblockPeer" class="mx-msg-btn" style="margin-top:8px;padding:11px 20px;border:1px solid rgba(25,21,18,.3);color:#191512;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer">${COPY.blockedGate.cta}</span>
+          <span class="empty-line">${esc(COPY.blockedGate.line(memberName(thread)))}</span>
+          <span class="empty-why">${COPY.blockedGate.why}</span>
+          <span data-act="unblockPeer" role="button" tabindex="0" class="btn-ghost btn-sm mx-msg-btn">${COPY.blockedGate.cta}</span>
         </div>`;
     if (thread.virtual && st.peer && !st.peer.connected) return `
         <div class="empty" style="margin:auto" data-v2="connection gate (POST /api/messages requires an accepted connection)">
-          <span style="width:28px;height:1px;background:#c9a962;margin-bottom:6px"></span>
-          <span style="font-family:Fraunces,serif;font-style:italic;font-size:17px">${esc(COPY.gate.line(memberName(thread)))}</span>
-          <span style="font-size:12.5px;color:#4a4239;max-width:400px;line-height:1.55">${st.peer.pending === 'received' ? esc(COPY.gate.pendingIn(threadName(thread))) : COPY.gate.why}</span>
+          <span class="empty-line">${esc(COPY.gate.line(memberName(thread)))}</span>
+          <span class="empty-why">${st.peer.pending === 'received' ? esc(COPY.gate.pendingIn(threadName(thread))) : COPY.gate.why}</span>
           ${st.peer.pending ? (st.peer.pending === 'received'
-            ? `<a href="/app/network" class="mx-msg-btn" style="margin-top:8px;padding:11px 20px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em">${COPY.gate.openNet}</a>`
-            : `<span style="margin-top:8px;padding:11px 20px;border:1px solid rgba(25,21,18,.3);color:#4a4239;font:600 10px Inter,sans-serif;letter-spacing:.16em">${COPY.gate.pending}</span>`)
-            : `<span data-act="connectPeer" class="mx-msg-btn" style="margin-top:8px;padding:11px 20px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer">${COPY.gate.cta}</span>`}
+            ? `<a href="/app/network" class="btn-primary btn-sm mx-msg-btn">${COPY.gate.openNet}</a>`
+            : `<span class="btn-ghost btn-sm" aria-disabled="true">${COPY.gate.pending}</span>`)
+            : `<span data-act="connectPeer" role="button" tabindex="0" class="btn-primary btn-sm mx-msg-btn">${COPY.gate.cta}</span>`}
         </div>`;
-    return `<div class="empty" style="margin:auto" data-v2="empty 1:1 thread"><span style="font-family:Fraunces,serif;font-style:italic;font-size:15px;color:#4a4239">${esc(COPY.emptyDm(memberName(thread)))}</span></div>`;
+    return `<div class="empty" style="margin:auto" data-v2="empty 1:1 thread"><span class="empty-why">${esc(COPY.emptyDm(memberName(thread)))}</span></div>`;
   }
   const out = [];
   let lastDay = null;
@@ -318,58 +315,57 @@ function convMessages(thread) {
     const d = sqlDate(m.created_at);
     const dk = d ? d.toDateString() : '';
     if (dk !== lastDay) { out.push(dayDivider(dayLabel(d))); lastDay = dk; }
-    const who = m.mine ? COPY.you
+    const who = m.mine ? COPY.youT
       : (thread.kind === 'team' ? (m.sender_name ? COPY.team.staff(m.sender_name) : COPY.team.meta) : memberName(thread).toUpperCase());
     let meta = who + ' · ' + timeLabel(m.created_at);
-    if (m.mine && m.topic) { const t = COPY.topics.find(x => x[0] === m.topic); if (t) meta += ' · ' + t[1]; }
-    if (lastReadMine && m.id === lastReadMine.id) meta += ' · ' + COPY.read;
+    if (m.mine && m.topic) { const t = COPY.topics.find(x => x[0] === m.topic); if (t) meta += ' · ' + topicName(t[1]); }
+    if (lastReadMine && m.id === lastReadMine.id) meta += ' · ' + COPY.readT;
     out.push(bubble(m, meta, thread, repaint && !st.shownIds.has(msgKey(m))));
   });
   return out.join('');
 }
 
+const topicName = label => String(label).charAt(0) + String(label).slice(1).toLowerCase().replace(/\bbridges\b/, 'Bridges');
+// the topic is ONE control ("Topic: General ▾") that opens a sheet with the same seven values (data-act="topic")
 function topicChips() {
+  const cur = COPY.topics.find(t => t[0] === st.topic);
   return `
-    <div data-v2="topic picker (team messages carry a topic — admin README note 24)" data-role="topics" style="border-top:1px solid rgba(25,21,18,.16);padding:12px 26px 0;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-      <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#4a4239;margin-right:2px">${COPY.composer.topicLabel}</span>
-      ${COPY.topics.map(([key, label]) => `<span data-act="topic" data-topic="${key}" class="chip${st.topic === key ? ' on' : ''}" role="radio" aria-checked="${st.topic === key}">${label}</span>`).join('')}
+    <div data-v2="topic picker (team messages carry a topic — admin README note 24)" data-role="topics" class="mx-msg-topicrow">
+      <span data-act="topicOpen" role="button" tabindex="0" aria-haspopup="dialog" class="mx-msg-topic">${COPY.composer.topicT}<b>${esc(cur ? topicName(cur[1]) : '—')}</b>${ui.icon('chevron-down', 16)}</span>
     </div>`;
 }
 
 function blockConv() {
   const t = currentThread();
   if (!t) return `<div class="mx-msg-conv" style="display:flex;flex-direction:column;background:#fdfaf3;min-height:0"></div>`;
-  const av = avatarOf(t);
   const isTeam = t.kind === 'team';
   const canWrite = isTeam || !t.virtual || (st.peer && st.peer.connected);
   const attachChip = (isTeam && st.attach) ? `
-    <div data-v2="pending attachment — uploads on SEND via POST /api/v2/messages/attach" style="display:flex;align-items:center;gap:10px;padding:10px 26px 0">
-      <span style="font:600 9px Inter,sans-serif;letter-spacing:.12em;color:#6e5626;background:rgba(201,169,98,.18);padding:5px 10px;max-width:70%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">\u2295 ${esc(st.attach.name)}</span>
-      <span data-act="attachClear" role="button" aria-label="Remove attachment" style="font:600 11px Inter,sans-serif;color:#4a4239;cursor:pointer" data-hover="color:#9b1b22">\u2715</span>
+    <div data-v2="pending attachment — uploads on SEND via POST /api/v2/messages/attach" class="mx-msg-attached">
+      <span class="mx-msg-attached-name">${ui.icon('clip', 16)}<span>${esc(st.attach.name)}</span></span>
+      <span data-act="attachClear" role="button" tabindex="0" aria-label="Remove attachment" class="mx-iconbtn">${ui.icon('x', 18)}</span>
     </div>` : '';
   return `
-  <!-- dc: Messages.dc.html › "Conversation" -->
+  <!-- dc: Messages.dc.html › "Conversation" (phone calm pass: a 32 circle header, 16px bubbles, an icon composer) -->
   <div class="mx-msg-conv" style="display:flex;flex-direction:column;background:#fdfaf3;min-height:0">
-    <div class="mx-msg-head" style="display:flex;align-items:center;gap:13px;padding:14px 26px;border-bottom:1px solid rgba(25,21,18,.16)">
-      <span data-act="backList" class="mx-msg-back" data-v2="mobile back to list" aria-label="Back to inbox" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer;white-space:nowrap;align-items:center">${COPY.back}</span>
-      <span style="width:34px;height:34px;background:${av.bg};color:${av.fg};display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif">${esc(threadInit(t))}</span>
-      <span style="display:flex;flex-direction:column;line-height:1.3;min-width:0">
-        <span style="font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(threadName(t))}</span>
-        <span style="font-size:11px;color:#4a4239;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(threadSub(t))}</span>
+    <div class="mx-msg-head">
+      <span data-act="backList" class="mx-msg-back mx-iconbtn" data-v2="mobile back to list" role="button" tabindex="0" aria-label="Back to inbox">${ui.icon('chevron-left', 24)}</span>
+      ${threadPic(t, 32)}
+      <span class="mx-msg-head-text">
+        <span class="mx-msg-head-name">${esc(threadName(t))}</span>
+        <span class="mx-msg-head-sub">${esc(threadSub(t))}</span>
       </span>
-      <div style="flex:1"></div>
-      ${isTeam ? `<span class="mx-msg-tag" style="padding:3px 9px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 9px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${COPY.team.tag}</span>` : ''}
-      ${t.virtual ? '' : `<span data-act="archive" data-v2="archive = hide, never delete" class="mx-msg-link" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#4a4239;cursor:pointer;white-space:nowrap" data-hover="color:#191512">${t.archived ? COPY.unarchive : COPY.archive}</span>`}
+      ${t.virtual ? '' : `<span data-act="archive" role="button" tabindex="0" data-v2="archive = hide, never delete" class="mx-msg-link">${t.archived ? COPY.unarchive : COPY.archive}</span>`}
       ${isTeam || (t.virtual && st.peer && st.peer.blocked) || !partnerResolved(t) ? '' : moreButton({ id: t.key, name: threadName(t), cls: 'mx-msg-more' })}
     </div>
-    <div data-role="msgs" aria-live="polite" class="mx-msg-pane${st.msgsKey === t.key && st.shownKey !== t.key ? ' mx-msg-fresh' : ''}" style="flex:1;padding:22px 26px;display:flex;flex-direction:column;gap:14px;overflow-y:auto">${convMessages(t)}</div>
-    ${canWrite ? `${isTeam ? topicChips() : ''}${attachChip}
-    ${st.sendError && st.sendError.key === t.key ? `<p data-role="sendErr" role="alert" data-v2="a send the server refused (403 suspended / blocked · 422 content filter) — the draft stays" style="margin:0;padding:12px 26px 0;${isTeam ? '' : 'border-top:1px solid rgba(25,21,18,.16);'}font-size:12px;line-height:1.5;color:#9b1b22">${esc(st.sendError.text)}</p>` : ''}
-    <div style="display:flex;gap:12px;align-items:flex-end;padding:16px 26px 20px;${isTeam || (st.sendError && st.sendError.key === t.key) ? '' : 'border-top:1px solid rgba(25,21,18,.16)'}">
-      <textarea data-role="draft" data-key="${esc(t.key)}" class="mx-msg-field" placeholder="${COPY.composer.ph}" rows="2" aria-label="${COPY.composer.ph}" style="flex:1;border:1px solid rgba(25,21,18,.25);background:#f7f1e6;padding:11px 13px;font-size:13px;color:#191512;resize:none">${esc(st.drafts[t.key] || '')}</textarea>
-      ${isTeam ? `<label class="mx-msg-attach" tabindex="0" role="button" aria-label="${COPY.composer.attachTitle}" data-v2="ONE image/PDF per message — label wraps the hidden input so the OS picker opens without ui.bind's preventDefault (the profile-photo trap)" title="${COPY.composer.attachTitle}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#4a4239;cursor:pointer;padding-bottom:12px" data-hover="color:#191512">${COPY.composer.attach}<input type="file" data-role="attachFile" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" style="display:none"></label>` : ''}
-      <span data-act="send" role="button" aria-label="Send message" ${st.sending ? 'aria-disabled="true"' : ''} class="mx-msg-btn" style="padding:12px 18px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${COPY.composer.send}</span>
-    </div>` : ''}
+    <div data-role="msgs" aria-live="polite" class="mx-msg-pane${st.msgsKey === t.key && st.shownKey !== t.key ? ' mx-msg-fresh' : ''}" style="flex:1;padding:20px;display:flex;flex-direction:column;gap:14px;overflow-y:auto">${convMessages(t)}</div>
+    ${canWrite ? `<div class="mx-msg-compose-wrap">${isTeam ? topicChips() : ''}${attachChip}
+    ${st.sendError && st.sendError.key === t.key ? `<p data-role="sendErr" role="alert" data-v2="a send the server refused (403 suspended / blocked · 422 content filter) — the draft stays" class="mx-msg-err">${esc(st.sendError.text)}</p>` : ''}
+    <div class="mx-msg-composer">
+      ${isTeam ? `<label class="mx-msg-attach mx-iconbtn" tabindex="0" role="button" aria-label="${COPY.composer.attachTitle}" data-v2="ONE image/PDF per message — label wraps the hidden input so the OS picker opens without ui.bind's preventDefault (the profile-photo trap)" title="${COPY.composer.attachTitle}">${ui.icon('clip', 22)}<input type="file" data-role="attachFile" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" style="display:none"></label>` : ''}
+      <textarea data-role="draft" data-key="${esc(t.key)}" class="mx-msg-field mx-msg-draft" placeholder="${COPY.composer.ph}" rows="1" aria-label="${COPY.composer.ph}">${esc(st.drafts[t.key] || '')}</textarea>
+      <span data-act="send" role="button" tabindex="0" aria-label="Send message" ${st.sending ? 'aria-disabled="true"' : ''} class="mx-msg-btn mx-iconbtn mx-iconbtn--fill mx-msg-send">${ui.icon('send', 22)}</span>
+    </div></div>` : ''}
   </div>
   <!-- /dc -->`;
 }
@@ -380,9 +376,8 @@ function template() {
   ${blockCrumb()}
   ${blockTabs()}
   <div class="empty" style="padding:64px 22px" data-v2="inbox unavailable">
-    <span style="width:28px;height:1px;background:#c9a962;margin-bottom:6px"></span>
-    <span style="font-family:Fraunces,serif;font-style:italic;font-size:17px">${COPY.loadFail}</span>
-    <span data-act="retry" class="mx-msg-btn" style="margin-top:8px;padding:11px 20px;border:1px solid rgba(25,21,18,.3);color:#191512;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer">${COPY.retry}</span>
+    <span class="empty-line">${COPY.loadFail}</span>
+    <span data-act="retry" role="button" tabindex="0" class="btn-ghost btn-sm mx-msg-btn">${COPY.retry}</span>
   </div>
 </div>`;
   return `
@@ -454,7 +449,7 @@ function sizeGrid() {
 function wireList() {
   const s = rootEl && rootEl.querySelector('[data-role="search"]');
   if (s) {
-    s.addEventListener('input', () => { st.filter = s.value; const rows = rootEl.querySelector('[data-role="rows"]'); if (rows) { const keep = visibleThreads(); rows.innerHTML = keep.map((t, i) => threadRow(t, i)).join('') + (!keep.length ? `<div style="padding:18px 22px;font-size:12px;color:#4a4239;border-top:1px solid rgba(25,21,18,.1)">Nothing matches your search.</div>` : ''); } });
+    s.addEventListener('input', () => { st.filter = s.value; const rows = rootEl.querySelector('[data-role="rows"]'); if (rows) { const keep = visibleThreads(); rows.innerHTML = keep.map((t, i) => threadRow(t, i)).join('') + (!keep.length ? `<div class="mx-msg-none">Nothing matches your search.</div>` : ''); } });
     s.addEventListener('keydown', e => { if (e.key === 'ArrowDown') { const first = rootEl.querySelector('[data-role="rows"] [data-act="open"]'); if (first) { e.preventDefault(); first.focus(); } } });
   }
   const rows = rootEl && rootEl.querySelector('[data-role="rows"]');
@@ -469,7 +464,11 @@ function wireList() {
 function wireConv() {
   const ta = rootEl && rootEl.querySelector('[data-role="draft"]');
   if (!ta) return;
+  // the field grows with what is typed, up to five lines, then scrolls
+  const grow = () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight + 2, 132) + 'px'; };
+  grow();
   ta.addEventListener('input', () => {
+    grow();
     const k = ta.dataset.key || st.cur; if (k) st.drafts[k] = ta.value;
     if (st.sendError) { st.sendError = null; const e = rootEl.querySelector('[data-role="sendErr"]'); if (e) e.remove(); }
   });
@@ -563,6 +562,12 @@ const handlers = {
     const on = rootEl.querySelector(`[data-role="topics"] [data-topic="${CSS.escape(st.topic)}"]`);
     if (on) on.classList.add('mx-msg-pop');                                              // the picked chip settles in
   },
+  // the topic sheet: the seven values as rows; a pick runs the same `topic` handler and closes the sheet
+  topicOpen: () => {
+    const body = `<div class="mx-list mx-list--plain mx-msg-topics">${COPY.topics.map(([key, label]) => `<span data-act="topic" data-topic="${key}" role="radio" aria-checked="${st.topic === key}" tabindex="0" class="mx-row"><span class="mx-row-l">${esc(topicName(label))}</span>${st.topic === key ? ui.icon('check', 20) : ''}</span>`).join('')}</div>`;
+    const m = ui.modal({ eyebrow: COPY.composer.topicSheet, title: '', body });
+    ui.bind(m.el, { topic: (el) => { handlers.topic(el); m.close(); } });
+  },
   archive: async () => {
     const t = currentThread(); if (!t || t.virtual) return;
     const next = !t.archived;
@@ -654,18 +659,18 @@ const handlers = {
       return { id: pid, name: [c.first_name, c.last_name].filter(Boolean).join(' ') || COPY.unknownMember,
                init: fmt.initials(c.first_name, c.last_name) || 'M', inst: c.institution || '' };
     }).filter(c => c.id && c.id !== myId);
-    const row = (act, extra, avBg, avFg, init, name, sub) => `
-      <div data-act="${act}" ${extra} role="button" tabindex="0" class="mx-msg-pick" style="display:flex;gap:12px;align-items:center;padding:11px 2px;border-bottom:1px solid rgba(25,21,18,.1);cursor:pointer">
-        <span style="width:32px;height:32px;background:${avBg};color:${avFg};display:inline-flex;align-items:center;justify-content:center;font:600 11px Fraunces,serif;flex:none">${esc(init)}</span>
-        <span style="min-width:0"><span style="display:block;font-size:13px;font-weight:600;color:#191512">${esc(name)}</span><span style="display:block;font-size:11px;color:#4a4239">${esc(sub)}</span></span>
+    const row = (act, extra, pic, name, sub) => `
+      <div data-act="${act}" ${extra} role="button" tabindex="0" class="mx-msg-pick mx-person-row">
+        ${pic}
+        <span class="mx-person-text"><span class="mx-msg-pick-name">${esc(name)}</span><span class="mx-person-role">${esc(sub)}</span></span>
       </div>`;
     const body = `
       <div>
-        ${row('pickTeam', '', AV_TEAM.bg, AV_TEAM.fg, COPY.team.init, COPY.team.name, COPY.newModal.teamSub)}
+        ${row('pickTeam', '', threadPic({ kind: 'team' }, 44), COPY.team.name, COPY.newModal.teamSub)}
         ${conns.length
-          ? conns.map((c, i) => row('pickConn', `data-id="${esc(c.id)}"`, AV_MEMBER[i % 2].bg, AV_MEMBER[i % 2].fg, c.init, c.name, c.inst || COPY.memberFallbackSub)).join('')
-          : `<div style="padding:14px 2px 4px;font-size:12.5px;color:#4a4239;line-height:1.55">${D.conns ? COPY.newModal.noConns : COPY.newModal.connsFail}</div>
-             <div style="padding:10px 2px 2px"><a href="/app/network" data-act="closeModal" class="mx-msg-btn" style="display:inline-block;padding:10px 16px;border:1px solid rgba(25,21,18,.35);font:600 9.5px Inter,sans-serif;letter-spacing:.15em;color:#191512">${COPY.newModal.openNetwork}</a></div>`}
+          ? conns.map(c => row('pickConn', `data-id="${esc(c.id)}"`, ui.portrait({ name: c.name, size: 44, alt: '' }), c.name, c.inst || COPY.memberFallbackSub)).join('')
+          : `<p style="margin:14px 0 4px;font-size:14px;color:#4a4239;line-height:1.45">${D.conns ? COPY.newModal.noConns : COPY.newModal.connsFail}</p>
+             <div style="padding:10px 0 2px"><a href="/app/network" data-act="closeModal" class="btn-ghost btn-sm mx-msg-btn">${COPY.newModal.openNetworkT}</a></div>`}
       </div>`;
     const m = ui.modal({ eyebrow: COPY.newModal.eyebrow, title: COPY.newModal.title, body });
     ui.bind(m.el, {

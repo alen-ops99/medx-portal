@@ -54,7 +54,8 @@ function handleEntry() {
   const pay = paymentReturn(q);
   if (pay) { ['payment', 'type', 'reg', 'app', 'gala', 'session_id'].forEach(take); after.push(() => { ui.toast(pay.msg, { kind: pay.ok ? 'ok' : 'error', ms: 5000 }); router.replace(pay.to); }); }
   const view = take('view'); take('app');
-  if (view) after.push(() => router.replace(view === 'ticket' ? '/app/me' : view === 'schedule' ? '/app/plexus/program' : '/app/home'));
+  // ?view=ticket (the legacy "view my ticket" links) opens the member card on its QR side (me.js › ?open=qr)
+  if (view) after.push(() => router.replace(view === 'ticket' ? '/app/me?open=qr' : view === 'schedule' ? '/app/plexus/program' : '/app/home'));
   if (take('login') === 'true') after.push(() => { if (!session.isAuthed) router.replace('/app/auth/signin'); });
   if (take('register')) after.push(() => ui.toast('Direct registration links open the Plexus form — use the link from your email.', { ms: 5000 }));
   // hashes

@@ -52,3 +52,25 @@
   .mx-auth-link:hover { color: #191512 !important; }
   .mx-auth-screen [data-act="tgTerms"][aria-checked="false"]:hover .mx-auth-box { border-color: #191512 !important; }
 }
+
+/* ============================================================================
+   PHONE CALM PASS (2026-09-25, DESIGN-RULES §11 › /app/auth/*): the photo band is a short strip above the form
+   (200px; 160 on sign in and reset) with the logo and the one-line quote; the welcome keeps two buttons.
+   ========================================================================== */
+.mx-auth-steps { display: flex; flex-direction: column; gap: 10px; }
+.mx-auth-seg { display: flex; gap: 6px; }
+.mx-auth-seg > i { flex: 1; height: 3px; background: rgba(25,21,18,.12); }
+.mx-auth-seg > i.is-done { background: var(--gold); }
+.mx-auth-seg > i.is-on { background: var(--crimson); }
+@media (max-width: 719px) {
+  .mx-auth-panel .mx-auth-band { min-height: 0 !important; height: 200px; }
+  .mx-auth-screen:is([data-auth="signin"], [data-auth="reset"]) .mx-auth-band { height: 160px; }
+  .mx-auth-panel .mx-auth-q { font-size: 20px !important; line-height: 1.3 !important; max-width: 300px !important; }
+  .mx-auth-panel .mx-auth-col { padding-top: 28px !important; padding-bottom: 24px !important; justify-content: flex-start !important; }
+  .mx-auth-panel > div:last-child { padding-top: 0 !important; }
+  .mx-auth-welcome-cta > a { flex: 1 1 100% !important; }
+}
+@media (max-width: 400px) { .mx-auth-panel .mx-grid-2 { grid-template-columns: 1fr !important; } }
+/* stacked, the short band keeps its height and the form column takes the rest of the screen (the grid used to
+   stretch the band's row and show the ink ground under the photo) */
+@media (max-width: 719px) { .mx-auth-panel { grid-template-rows: auto 1fr; } }

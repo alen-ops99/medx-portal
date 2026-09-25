@@ -30,6 +30,7 @@ export const SOURCE = 'Profile.dc.html';
 // ---- COPY: every string that may change in a revision lives here --------------------------------
 export const COPY = {
   crumbs: { my: 'MY MED&amp;X', here: 'PROFILE &amp; SETTINGS' },
+  titleT: 'Profile &amp; settings',
   title: { main: 'Profile &amp; <i style="color:#9b1b22">Settings</i>', sub: 'How you appear to other members, and how the portal reaches you.' },
   identity: {
     n: '01', title: 'IDENTITY',
@@ -39,7 +40,8 @@ export const COPY = {
     placeholders: { title: 'e.g. Postdoctoral researcher', city: 'e.g. Boston' },
     photoTooBig: 'That image is larger than 5 MB — pick a smaller one.',
     photoBadType: 'Use a JPG, PNG or WebP image.',
-    photoSaved: 'Portrait saved — visible across the portal.'
+    photoSaved: 'Portrait saved — visible across the portal.',
+    titleT: 'Identity', addT: 'Add photo', changeT: 'Change photo', uploadingT: 'Uploading…'
   },
   about: {
     n: '02', title: 'ABOUT', sub: 'Shown on your member card and in the directory.',
@@ -47,10 +49,12 @@ export const COPY = {
     addPlaceholder: 'Add your own — e.g. Sleep medicine',
     addHint: 'Add as many as apply — selected tags show on your member card.',
     bio: 'SHORT BIO',
-    bioPlaceholder: "Two or three sentences on your work and what you're looking for in the Med&X network…"
+    bioPlaceholder: "Two or three sentences on your work and what you're looking for in the Med&X network…",
+    titleT: 'About', addBtnT: 'Add', addPlaceholderT: 'Add your own, e.g. Sleep medicine', bioPlaceholderT: 'Your work, in two or three sentences.'
   },
   account: {
-    n: '03', title: 'ACCOUNT &amp; PREFERENCES',
+    n: '03', title: 'ACCOUNT &amp; PREFERENCES', titleT: 'Account &amp; preferences', resendT: 'Resend', nonShort: 'None',
+    saveNoteT: 'Visible across the portal and the directory.',
     email: 'Email', notConfirmed: 'not yet confirmed', confirmed: 'confirmed', resend: 'RESEND LINK',
     resent: 'Link sent — check your inbox (and spam).',
     // UX audit 2026-09-02 › item 8 — Profile & settings is the ONE place account settings live.
@@ -58,8 +62,8 @@ export const COPY = {
     // they were a second, differently-styled copy of this screen. These three save on the spot (they
     // are not part of the profile draft), which is why each carries its own action.
     pw: { t: 'Password', s: 'Changed here — you need your current one.', change: 'CHANGE →' },
-    follow: { t: 'Projects I follow', s: 'Announcements and reminders for these reach your inbox and alerts.', add: '+ ADD', none: 'Following nothing yet.' },
-    interests: { t: 'My interests', s: 'Used to suggest people worth meeting in the member directory.', add: '+ ADD', none: 'No interests added yet.' },
+    follow: { t: 'Projects I follow', s: 'Announcements and reminders for these reach your inbox and alerts.', add: '+ ADD', addT: 'Add', none: 'Following nothing yet.' },
+    interests: { t: 'My interests', s: 'Used to suggest people worth meeting in the member directory.', add: '+ ADD', addT: 'Add', none: 'No interests added yet.' },
     pwTitle: 'Change your password', pwCur: 'CURRENT PASSWORD', pwNew: 'NEW PASSWORD', pwNew2: 'REPEAT NEW PASSWORD',
     pwHint: 'At least 8 characters', pwSaved: 'Password changed.',
     pwMismatch: 'The passwords do not match.', pwShort: 'At least 8 characters.',
@@ -68,18 +72,18 @@ export const COPY = {
     interestsOwn: 'OR TYPE YOUR OWN', interestsAllAdded: 'All suggestions added — type your own below.',
     projects: { plexus: 'Plexus Conference', gala: 'Gala Evening', accelerator: 'The Accelerator', forum: 'Biomedical Forum', bridges: 'Building Bridges' },
     suggestions: ['Neuroscience', 'Sleep Medicine', 'Oncology', 'Public Health', 'Biotech', 'AI in Medicine', 'Mental Health', 'Genetics'],
-    dir: { t: 'Directory visibility', s: 'Let other members find you and send connection requests.',
+    dir: { t: 'Directory visibility', s: 'Let other members find you and send connection requests.', sT: 'Members can find you',
            // App Store 1.2 — shown instead of the line above while the Med&X team keeps the profile hidden
            modHidden: 'Your profile was hidden from the directory by the Med&amp;X team. Questions: <a href="mailto:info@medx.hr">info@medx.hr</a>',
            modHiddenToast: 'The Med&X team hid your profile from the directory. Questions: info@medx.hr' },
-    upd: { t: 'Event updates', s: 'News from projects you follow · Plexus, Gala, the Accelerator.' },
+    upd: { t: 'Event updates', s: 'News from projects you follow · Plexus, Gala, the Accelerator.', sT: 'News from projects you follow' },
     save: 'SAVE CHANGES', saving: 'SAVING…', saved: '✓ SAVED',
     saveNote: 'Changes apply across the portal and the member directory.',
     savedToast: 'CHANGES SAVED — VISIBLE ACROSS THE PORTAL',
     nothingToSave: 'Nothing changed yet — edit a field first.'
   },
   completion: {
-    title: 'PROFILE COMPLETION', complete: 'COMPLETE',
+    title: 'PROFILE COMPLETION', complete: 'COMPLETE', titleT: 'Profile', of: (a, b) => `${a} of ${b}`,
     note: 'At 100%, the reminder on your Home page disappears.',
     offline: 'The completion service is unreachable right now — your edits still save.'
   },
@@ -87,7 +91,8 @@ export const COPY = {
     title: 'DIRECTORY PREVIEW', memberSince: y => `Member since ${y}`,
     emptyBio: 'Your bio will appear here.', view: 'VIEW PROFILE', connect: 'CONNECT',
     connectSelf: 'This is your own card — other members see CONNECT here.',
-    modalEyebrow: 'DIRECTORY · AS OTHERS SEE YOU', hiddenNote: 'Directory visibility is OFF — only you can see this card.'
+    modalEyebrow: 'DIRECTORY · AS OTHERS SEE YOU', hiddenNote: 'Directory visibility is OFF — only you can see this card.',
+    titleT: 'How others see you', hiddenNoteT: 'Directory visibility is off: only you see this.'
   },
   card: {
     title: 'YOUR MEMBER CARD',
@@ -95,7 +100,8 @@ export const COPY = {
   },
   // what is erased / kept mirrors DELETE /api/auth/account (server.js) — change the two together
   del: {
-    title: 'DELETE ACCOUNT',
+    title: 'DELETE ACCOUNT', titleT: 'Delete account', rowS: 'Erase your account and its data',
+    goneTT: 'What is deleted', keptTT: 'What Med&amp;X keeps',
     sub: 'Close your Med&amp;X account and erase the personal data it holds, whenever you choose.',
     goneT: 'WHAT IS DELETED',
     gone: ['Your profile, photo and directory listing', 'Connections, meeting requests and messages',
@@ -125,8 +131,8 @@ export const COPY = {
 };
 
 const FIELD_KEYS = ['first_name', 'last_name', 'title', 'institution', 'city', 'country', 'bio'];
-const LABEL = 'font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239';
-const INPUT = 'border:1px solid rgba(25,21,18,.25);background:#f7f1e6;padding:10px 12px;font-size:13px;color:#191512';
+const LABEL = 'font:600 12px Inter,sans-serif;letter-spacing:.12em;color:#4a4239';
+const INPUT = 'border:1px solid rgba(25,21,18,.25);background:#fdfaf3;padding:13px 14px;font-size:16px;color:#191512;min-height:52px;box-sizing:border-box';
 
 let D = null, unbind = null, timers = [], previewTimer = null, savedTimer = null, resendTimer = null, rootEl = null, meterIO = null;
 
@@ -179,68 +185,67 @@ function draftBody() {
 const initials = () => fmt.initials(D.draft.first_name, D.draft.last_name) || (D.profile.email || 'M')[0].toUpperCase();
 const photoSrc = () => (D.photoPreview ? D.photoPreview : (D.profile.photo_url ? api.url(D.profile.photo_url) : null));
 
-// ---------------------------------------------------------------- blocks (artboard markup verbatim)
+// ---------------------------------------------------------------- blocks
+// Phone calm pass (2026-09-25, DESIGN-RULES §11 › /app/profile): the Settings pattern. A header (96 circle, name,
+// "Change photo"); the completion as one accordion row; identity fields (16px inputs, 12 labels); About (14px chips,
+// 16px bio); Account & preferences as grouped rows (switches and ›); ONE Save at the end of the form; "How others see
+// you" folded away; Delete account as one crimson row (its what-is-deleted / what-is-kept copy lives in its sheet).
+// Hooks kept: .mx-profile-sec around [data-block="prefs"] (the iOS shell inserts "ON THIS IPHONE" after it),
+// data-act="deleteAccount", every data-act / data-field / data-role the handlers read.
+const specLabel = v => { const t = String(v || ''); return t === t.toUpperCase() ? t.charAt(0) + t.slice(1).toLowerCase() : t; };
 function blockCrumbs() {
   return `
-  <!-- dc: Profile.dc.html › "Breadcrumb" -->
-  <div class="mx-profile-pad" style="display:flex;align-items:center;gap:13px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16)">
-    <a href="/app/me" data-dir="back" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em">${COPY.crumbs.my}</a>
-    <span style="color:rgba(25,21,18,.35);font-size:10px">→</span>
-    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#191512">${COPY.crumbs.here}</span>
-  </div>
-  <!-- /dc -->`;
-}
-function blockTitle() {
-  return `
-  <!-- dc: Profile.dc.html › "Profile & Settings" -->
-  <div class="mx-profile-pad mx-profile-head" style="display:flex;align-items:baseline;gap:16px;padding:24px 36px 4px;flex-wrap:wrap">
-    <span class="mx-profile-title" style="font-family:Fraunces,serif;font-size:34px;white-space:nowrap">${COPY.title.main}</span>
-    <span style="font-size:12.5px;color:#4a4239">${COPY.title.sub}</span>
+  <!-- dc: Profile.dc.html › "Breadcrumb" (hidden on phones: app.css › .mx-crumbs) -->
+  <div class="mx-profile-pad mx-crumbs" style="display:flex;align-items:center;gap:13px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16)">
+    <a href="/app/me" data-dir="back" style="font:600 12px Inter,sans-serif;letter-spacing:.12em">${COPY.crumbs.my}</a>
+    <span style="color:rgba(25,21,18,.35);font-size:12px">→</span>
+    <span style="font:600 12px Inter,sans-serif;letter-spacing:.12em;color:#191512">${COPY.crumbs.here}</span>
   </div>
   <!-- /dc -->`;
 }
 function photoCell() {
   const src = photoSrc();
-  return src
-    ? `<img data-role="photo" src="${esc(src)}" alt="Your portrait" class="mx-profile-photo${D.photoBusy ? ' busy' : ''}" style="width:74px;height:74px;object-fit:cover;flex:none">`
-    : `<span data-role="initials" class="mx-profile-photo${D.photoBusy ? ' busy' : ''}" style="width:74px;height:74px;background:#191512;color:#f7f1e6;display:inline-flex;align-items:center;justify-content:center;font:600 26px Fraunces,serif;flex:none">${esc(initials())}</span>`;
+  const name = [D.draft.first_name, D.draft.last_name].filter(Boolean).join(' ') || D.profile.email || 'Member';
+  return `<span class="mx-profile-photo${D.photoBusy ? ' busy' : ''}" data-role="${src ? 'photo' : 'initials'}">${ui.portrait({ name, src: src || '', size: 96, alt: 'Your portrait' })}</span>`;
 }
-function photoBtnLabel() { return D.photoBusy ? COPY.identity.uploading : (photoSrc() ? COPY.identity.replace : COPY.identity.upload); }
+function photoBtnLabel() { return D.photoBusy ? COPY.identity.uploadingT : (photoSrc() ? COPY.identity.changeT : COPY.identity.addT); }
+function blockTitle() {
+  const d = D.draft;
+  return `
+  <!-- dc: Profile.dc.html › "Profile & Settings" (header: the circle, the name, Change photo) -->
+  <header class="mx-profile-hero">
+    <span data-block="photoCell" class="mx-profile-photocell">${photoCell()}</span>
+    <h1 class="mx-profile-name" data-role="heroName">${esc([d.first_name, d.last_name].filter(Boolean).join(' ') || COPY.titleT)}</h1>
+    <label data-act="pickPhoto" role="button" tabindex="0" aria-label="Upload a portrait photo" class="mx-profile-photolink"><span data-role="photoBtn">${photoBtnLabel()}</span><input data-role="photoInput" type="file" accept="image/jpeg,image/png,image/webp" style="display:none"></label>
+  </header>
+  <!-- /dc -->`;
+}
 const fieldCell = (label, key, value, placeholder, autocomplete) => `
-          <label style="display:flex;flex-direction:column;gap:6px">
-            <span style="${LABEL}">${label}</span>
-            <input data-field="${key}" value="${esc(value)}"${placeholder ? ` placeholder="${esc(placeholder)}"` : ''}${autocomplete ? ` autocomplete="${autocomplete}"` : ''} style="${INPUT}">
+          <label class="mx-profile-field">
+            <span class="label">${label}</span>
+            <input data-field="${key}" class="input" value="${esc(value)}"${placeholder ? ` placeholder="${esc(placeholder)}"` : ''}${autocomplete ? ` autocomplete="${autocomplete}"` : ''}>
           </label>`;
 function countrySelect() {
   const cur = D.draft.country || '';
   const known = COUNTRIES.includes(cur);
   return `
-          <label style="display:flex;flex-direction:column;gap:6px">
-            <span style="${LABEL}">${COPY.identity.fields.country}</span>
-            <select data-field="country" autocomplete="country-name" style="${INPUT}">
+          <label class="mx-profile-field">
+            <span class="label">${COPY.identity.fields.country}</span>
+            <select data-field="country" class="input" autocomplete="country-name">
               ${cur === '' ? '<option value="" selected></option>' : ''}
               ${!known && cur !== '' ? `<option value="${esc(cur)}" selected>${esc(cur)}</option>` : ''}
               ${COUNTRIES.map(c => `<option value="${esc(c)}"${c === cur ? ' selected' : ''}>${esc(c)}</option>`).join('')}
             </select>
           </label>`;
 }
+function sh(n, title) { return `<div class="mx-sh"><span class="mx-sh-n">${n}</span><h2 class="mx-sh-t">${title}</h2></div>`; }
 function blockIdentity() {
   const f = COPY.identity.fields, ph = COPY.identity.placeholders, d = D.draft;
   return `
       <!-- dc: Profile.dc.html › "01 · IDENTITY" -->
-      <div class="mx-profile-sec" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3">
-        <div class="mx-cardrow" style="display:flex;align-items:baseline;gap:14px;padding:20px 26px 4px">
-          <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.identity.n}</span>
-          <span style="font:600 13px Inter,sans-serif;letter-spacing:.14em">${COPY.identity.title}</span>
-        </div>
-        <div class="mx-cardrow mx-profile-photo-row" style="display:flex;gap:22px;align-items:center;padding:16px 26px 4px">
-          <span data-block="photoCell" style="display:contents">${photoCell()}</span>
-          <span style="display:flex;flex-direction:column;gap:7px;align-items:flex-start">
-            <span style="font-size:12px;color:#4a4239">${COPY.identity.photoWhy}</span>
-            <label data-act="pickPhoto" role="button" tabindex="0" aria-label="Upload a portrait photo" class="mx-profile-btn" style="padding:8px 13px;border:1px solid rgba(25,21,18,.3);font:600 9.5px Inter,sans-serif;letter-spacing:.16em;cursor:pointer" data-hover="border-color:#191512"><span data-role="photoBtn">${photoBtnLabel()}</span><input data-role="photoInput" type="file" accept="image/jpeg,image/png,image/webp" style="display:none"></label>
-          </span>
-        </div>
-        <div class="mx-cardrow mx-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:16px 20px;padding:18px 26px 24px">
+      <section class="mx-sec mx-profile-sec-i">
+        ${sh(COPY.identity.n, COPY.identity.titleT)}
+        <div class="mx-profile-fields">
           ${fieldCell(f.first, 'first_name', d.first_name, '', 'given-name')}
           ${fieldCell(f.last, 'last_name', d.last_name, '', 'family-name')}
           ${fieldCell(f.title, 'title', d.title, ph.title, 'organization-title')}
@@ -248,7 +253,7 @@ function blockIdentity() {
           ${fieldCell(f.city, 'city', d.city, ph.city, 'address-level2')}
           ${countrySelect()}
         </div>
-      </div>
+      </section>
       <!-- /dc -->`;
 }
 function chipRow() {
@@ -256,203 +261,137 @@ function chipRow() {
   const all = COPY.fixedSpecs.concat(D.custom.filter(c => !COPY.fixedSpecs.includes(c)));
   return all.map(label => {
     const a = on(label);
-    return `<span data-act="tgSpec" data-spec="${esc(label)}" role="button" tabindex="0" aria-pressed="${a}" style="padding:6px 11px;border:1px solid ${a ? '#9b1b22' : 'rgba(25,21,18,.22)'};background:${a ? '#9b1b22' : 'transparent'};color:${a ? '#f7f1e6' : '#191512'};font:600 9.5px Inter,sans-serif;letter-spacing:.14em;cursor:pointer">${esc(label)}</span>`;
+    return `<span data-act="tgSpec" data-spec="${esc(label)}" role="button" tabindex="0" aria-pressed="${a}" class="chip${a ? ' on' : ''}">${esc(specLabel(label))}</span>`;
   }).join('\n            ');
 }
 function blockAbout() {
   return `
       <!-- dc: Profile.dc.html › "02 · ABOUT" -->
-      <div class="mx-profile-sec" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3">
-        <div class="mx-cardrow" style="display:flex;align-items:baseline;gap:14px;padding:20px 26px 4px;flex-wrap:wrap">
-          <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.about.n}</span>
-          <span style="font:600 13px Inter,sans-serif;letter-spacing:.14em">${COPY.about.title}</span>
-          <span style="font-size:11.5px;color:#4a4239">${COPY.about.sub}</span>
-        </div>
-        <div class="mx-cardrow" style="padding:16px 26px 6px">
-          <span style="${LABEL}">${COPY.about.specialty}</span>
-          <div data-block="chips" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+      <section class="mx-sec">
+        ${sh(COPY.about.n, COPY.about.titleT)}
+        <span class="label">${COPY.about.specialty}</span>
+        <div data-block="chips" class="mx-profile-chips">
             ${chipRow()}
-          </div>
-          <div class="mx-profile-row" style="display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap">
-            <input data-role="specDraft" class="mx-w230" placeholder="${esc(COPY.about.addPlaceholder)}" aria-label="Add a specialty" style="border:1px solid rgba(25,21,18,.25);background:#f7f1e6;padding:8px 11px;font-size:12.5px;color:#191512;width:230px">
-            <span data-act="addSpec" role="button" tabindex="0" class="mx-profile-btn" style="padding:8px 13px;border:1px solid rgba(25,21,18,.3);font:600 9.5px Inter,sans-serif;letter-spacing:.14em;cursor:pointer" data-hover="border-color:#191512">${COPY.about.addBtn}</span>
-            <span style="font-size:11px;color:#4a4239">${COPY.about.addHint}</span>
-          </div>
         </div>
-        <div class="mx-cardrow" style="padding:16px 26px 24px">
-          <label style="display:flex;flex-direction:column;gap:6px">
-            <span style="${LABEL}">${COPY.about.bio}</span>
-            <textarea data-field="bio" rows="3" placeholder="${esc(COPY.about.bioPlaceholder)}" style="border:1px solid rgba(25,21,18,.25);background:#f7f1e6;padding:10px 12px;font-size:13px;color:#191512;line-height:1.55;resize:vertical">${esc(D.draft.bio)}</textarea>
-          </label>
+        <div class="mx-profile-addspec">
+          <input data-role="specDraft" class="input" placeholder="${esc(COPY.about.addPlaceholderT)}" aria-label="Add a specialty">
+          <span data-act="addSpec" role="button" tabindex="0" class="btn-ghost mx-profile-btn">${COPY.about.addBtnT}</span>
         </div>
-      </div>
+        <label class="mx-profile-field mx-profile-bio">
+          <span class="label">${COPY.about.bio}</span>
+          <textarea data-field="bio" class="input" rows="4" placeholder="${esc(COPY.about.bioPlaceholderT)}">${esc(D.draft.bio)}</textarea>
+        </label>
+      </section>
       <!-- /dc -->`;
 }
-const toggle = (act, on, label) => `<span data-act="${act}" role="switch" tabindex="0" aria-checked="${on}" aria-label="${esc(label)}" class="mx-profile-switch" style="width:34px;height:18px;flex:none;cursor:pointer;background:${on ? '#9b1b22' : 'rgba(25,21,18,.25)'};position:relative"><span style="position:absolute;top:2px;left:2px;width:14px;height:14px;background:#f7f1e6;transform:translateX(${on ? '16px' : '0'})"></span></span>`;
-// flip a switch where it stands, so the knob glides (css .mx-profile-switch) instead of being re-rendered
+// a switch in the calm kit's look (.mx-switch — app.css draws it 44×26 inside a row); the state is aria-checked
+const toggle = (act, on, label, locked) => `<span data-act="${act}" role="switch" tabindex="0" aria-checked="${on}" aria-label="${esc(label)}" class="mx-switch mx-profile-switch"${locked ? ' aria-disabled="true" aria-describedby="mx-dir-locked"' : ''}><span></span></span>`;
+// flip a switch where it stands, so the knob glides instead of being re-rendered
 function setSwitch(el, on) {
   if (!el) return;
   el.setAttribute('aria-checked', String(on));
-  el.style.background = on ? '#9b1b22' : 'rgba(25,21,18,.25)';
-  if (el.firstElementChild) el.firstElementChild.style.transform = `translateX(${on ? '16px' : '0'})`;
 }
 function prefRows() {
   const d = D.draft, a = COPY.account, locked = !!D.modHidden;
-  const dirSwitch = toggle('tgDir', locked ? false : d.is_public_profile, a.dir.t);
   return `
-        <div class="mx-cardrow" style="display:flex;gap:16px;align-items:center;padding:12px 26px;border-top:1px solid rgba(25,21,18,.1)">
-          <span style="flex:1"><span style="display:block;font-size:13px;font-weight:600">${a.dir.t}</span><span data-role="dirLine" style="display:block;font-size:11.5px;color:#4a4239;margin-top:2px">${locked ? a.dir.modHidden : a.dir.s}</span></span>
-          ${locked ? dirSwitch.replace('role="switch"', 'role="switch" aria-disabled="true" aria-describedby="mx-dir-locked"').replace('cursor:pointer', 'cursor:default;opacity:.45') : dirSwitch}
-        </div>${locked ? '<span id="mx-dir-locked" hidden>Hidden from the directory by the Med&amp;X team.</span>' : ''}
-        <div class="mx-cardrow" style="display:flex;gap:16px;align-items:center;padding:12px 26px;border-top:1px solid rgba(25,21,18,.1)">
-          <span style="flex:1"><span style="display:block;font-size:13px;font-weight:600">${a.upd.t}</span><span style="display:block;font-size:11.5px;color:#4a4239;margin-top:2px">${a.upd.s}</span></span>
-          ${toggle('tgUpd', d.updates_opt_in, a.upd.t)}
-        </div>`;
+        <span class="mx-row">${ui.icon('globe')}<span class="mx-row-l">${a.dir.t}<span class="mx-row-s" data-role="dirLine">${locked ? a.dir.modHidden : a.dir.sT}</span></span>${toggle('tgDir', locked ? false : d.is_public_profile, a.dir.t, locked)}</span>${locked ? '<span id="mx-dir-locked" hidden>Hidden from the directory by the Med&amp;X team.</span>' : ''}
+        <span class="mx-row">${ui.icon('bell')}<span class="mx-row-l">${a.upd.t}<span class="mx-row-s">${a.upd.sT}</span></span>${toggle('tgUpd', d.updates_opt_in, a.upd.t)}</span>`;
 }
-// The three settings that moved here from My Med&X. They save immediately (own routes), so they sit
-// above SAVE CHANGES with their own actions rather than inside the profile draft.
+// the removable list inside the follow / interests sheet (the same handlers as before: followRm · followAdd · intRm · intAdd)
 function settingChips(list, rmAct, addAct, addLabel, noneLabel) {
-  return `<span style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
-            ${list.length ? list.map(v => `<span style="padding:5px 10px;border:1px solid rgba(25,21,18,.22);font-size:12px;white-space:nowrap">${esc(v.label)} <span data-act="${rmAct}" data-key="${esc(v.key)}" role="button" tabindex="0" aria-label="Remove ${esc(v.label)}" class="mx-profile-x" style="cursor:pointer;color:#9b1b22">×</span></span>`).join('') : `<span style="font-size:12px;color:#4a4239;align-self:center">${noneLabel}</span>`}
-            <span data-act="${addAct}" role="button" tabindex="0" class="mx-profile-btn mx-profile-add" style="padding:5px 10px;border:1px dashed rgba(25,21,18,.35);font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer;white-space:nowrap">${addLabel}</span>
-          </span>`;
+  return `<div class="mx-profile-manage">
+            ${list.length ? list.map(v => `<span class="chip mx-profile-tag">${esc(v.label)}<span data-act="${rmAct}" data-key="${esc(v.key)}" role="button" tabindex="0" aria-label="Remove ${esc(v.label)}" class="mx-profile-x">${ui.icon('x', 16)}</span></span>`).join('') : `<span class="mx-profile-none">${noneLabel}</span>`}
+            <span data-act="${addAct}" role="button" tabindex="0" class="chip mx-profile-add">${ui.icon('plus', 16)}${addLabel}</span>
+          </div>`;
 }
+const followList = () => (D.topics || []).map(k => ({ key: k, label: COPY.account.projects[k] || k }));
+const interestList = () => (D.interests || []).map(k => ({ key: k, label: k }));
 function accountExtraRows() {
   const a = COPY.account;
-  const follows = (D.topics || []).map(k => ({ key: k, label: a.projects[k] || k }));
-  const interests = (D.interests || []).map(k => ({ key: k, label: k }));
+  const f = followList(), n = interestList();
   return `
-        <div class="mx-cardrow mx-profile-row" style="display:flex;gap:16px;align-items:center;padding:12px 26px;border-top:1px solid rgba(25,21,18,.1)">
-          <span style="flex:1"><span style="display:block;font-size:13px;font-weight:600">${a.pw.t}</span><span style="display:block;font-size:11.5px;color:#4a4239;margin-top:2px">${a.pw.s}</span></span>
-          <span data-act="chgPw" role="button" tabindex="0" class="mx-profile-link" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;cursor:pointer;white-space:nowrap">${a.pw.change}</span>
-        </div>
-        <div class="mx-cardrow mx-profile-row" style="display:flex;gap:16px;align-items:center;padding:12px 26px;border-top:1px solid rgba(25,21,18,.1);flex-wrap:wrap">
-          <span style="flex:1;min-width:200px"><span style="display:block;font-size:13px;font-weight:600">${a.follow.t}</span><span style="display:block;font-size:11.5px;color:#4a4239;margin-top:2px">${a.follow.s}</span></span>
-          ${settingChips(follows, 'followRm', 'followAdd', a.follow.add, a.follow.none)}
-        </div>
-        <div class="mx-cardrow mx-profile-row" style="display:flex;gap:16px;align-items:center;padding:12px 26px;border-top:1px solid rgba(25,21,18,.1);flex-wrap:wrap">
-          <span style="flex:1;min-width:200px"><span style="display:block;font-size:13px;font-weight:600">${a.interests.t}</span><span style="display:block;font-size:11.5px;color:#4a4239;margin-top:2px">${a.interests.s}</span></span>
-          ${settingChips(interests, 'intRm', 'intAdd', a.interests.add, a.interests.none)}
-        </div>`;
+        <span class="mx-row" data-act="chgPw" role="button" tabindex="0">${ui.icon('lock')}<span class="mx-row-l">${a.pw.t}</span>${ui.icon('chevron-right', 18)}</span>
+        <span class="mx-row" data-act="followOpen" role="button" tabindex="0">${ui.icon('star')}<span class="mx-row-l">${a.follow.t}</span><span class="mx-row-v">${f.length ? esc(f.length === 1 ? f[0].label : f.length + ' projects') : a.nonShort}</span>${ui.icon('chevron-right', 18)}</span>
+        <span class="mx-row" data-act="intOpen" role="button" tabindex="0">${ui.icon('sparkle')}<span class="mx-row-l">${a.interests.t}</span><span class="mx-row-v">${n.length ? esc(n.length === 1 ? n[0].label : n.length + ' interests') : a.nonShort}</span>${ui.icon('chevron-right', 18)}</span>`;
 }
 function saveRow() {
   const a = COPY.account;
   const label = D.saving ? a.saving : (D.saved ? a.saved : a.save);
   return `
-        <div class="mx-cardrow mx-profile-row" style="display:flex;align-items:center;gap:14px;padding:16px 26px 20px;border-top:1px solid rgba(25,21,18,.16)">
-          <span data-act="save" role="button" tabindex="0"${D.saving ? ' aria-disabled="true"' : ''} class="mx-profile-btn" style="padding:11px 20px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap;flex:none" data-hover="background:#7e151b">${label}</span>
-          ${D.saveError ? `<span data-role="saveErr" role="alert" style="font-size:11.5px;line-height:1.45;color:#9b1b22">${esc(D.saveError)}</span>` : `<span style="font-size:11.5px;color:#4a4239">${a.saveNote}</span>`}
-        </div>`;
+        <span data-act="save" role="button" tabindex="0"${D.saving ? ' aria-disabled="true"' : ''} class="btn-primary btn-block mx-profile-btn">${label}</span>
+        ${D.saveError ? `<p data-role="saveErr" role="alert" class="mx-profile-savenote is-err">${esc(D.saveError)}</p>` : `<p class="mx-profile-savenote">${a.saveNoteT}</p>`}`;
 }
 function blockAccount() {
   const a = COPY.account, p = D.profile;
   const verified = Number(p.email_verified) === 1;
   return `
-      <!-- dc: Profile.dc.html › "03 · ACCOUNT & PREFERENCES" -->
-      <div class="mx-profile-sec" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3">
-        <div class="mx-cardrow" style="display:flex;align-items:baseline;gap:14px;padding:20px 26px 10px">
-          <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${a.n}</span>
-          <span style="font:600 13px Inter,sans-serif;letter-spacing:.14em">${a.title}</span>
+      <!-- dc: Profile.dc.html › "03 · ACCOUNT & PREFERENCES" (grouped rows) -->
+      <section class="mx-sec mx-profile-sec">
+        ${sh(a.n, a.titleT)}
+        <div class="mx-list">
+          <span class="mx-row mx-profile-email">${ui.icon('mail')}<span class="mx-row-l">${a.email}<span class="mx-row-s">${esc(p.email || '')} · ${verified ? `<span class="is-ok">${a.confirmed}</span>` : `<span class="is-no">${a.notConfirmed}</span>`}</span></span>${verified ? '' : `<span data-act="resend" role="button" tabindex="0" class="mx-profile-link">${a.resendT}</span>`}</span>
+          <div data-block="prefs" style="display:contents">${prefRows()}</div>
+          <div data-block="accountExtras" style="display:contents">${accountExtraRows()}</div>
         </div>
-        <div class="mx-cardrow mx-profile-row" style="display:flex;gap:16px;align-items:center;padding:12px 26px;border-top:1px solid rgba(25,21,18,.1)">
-          <span style="flex:1"><span style="display:block;font-size:13px;font-weight:600">${a.email}</span><span style="display:block;font-size:11.5px;color:#4a4239;margin-top:2px">${esc(p.email || '')} · ${verified ? `<span style="color:#6e5626">${a.confirmed}</span>` : `<span style="color:#9b1b22">${a.notConfirmed}</span>`}</span></span>
-          ${verified ? '' : `<span data-act="resend" role="button" tabindex="0" class="mx-profile-link" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;cursor:pointer;white-space:nowrap">${a.resend}</span>`}
-        </div>
-        <span data-block="prefs" style="display:contents">${prefRows()}</span>
-        <span data-block="accountExtras" style="display:contents">${accountExtraRows()}</span>
-        <span data-block="saveRow" style="display:contents">${saveRow()}</span>
-      </div>
+        <div data-block="saveRow" class="mx-profile-save">${saveRow()}</div>
+      </section>
       <!-- /dc -->`;
 }
-// Not in Profile.dc.html (App Store 5.1.1(v)): the same card vocabulary, unnumbered so it stays the last
-// word below the iOS shell's "04 · ON THIS IPHONE", which the app inserts right after 03.
+// Not in Profile.dc.html (App Store 5.1.1(v)): one crimson row, the last word on the screen (below the iOS shell's
+// "ON THIS IPHONE", which the app inserts right after the account section). What is erased and what Med&X keeps
+// is spelled out in the sheet it opens (openDeleteModal), word for word.
 function blockDelete() {
   const c = COPY.del;
   return `
-      <section data-block="deleteAccount" class="mx-profile-sec mx-profile-del" aria-labelledby="mx-del-h" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3">
-        <div class="mx-cardrow" style="display:flex;align-items:baseline;gap:14px;padding:20px 26px 4px;flex-wrap:wrap">
-          <h2 id="mx-del-h" style="margin:0;font:600 13px Inter,sans-serif;letter-spacing:.14em">${c.title}</h2>
-          <span style="font-size:11.5px;color:#4a4239">${c.sub}</span>
-        </div>
-        <div class="mx-cardrow mx-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:18px 26px;padding:14px 26px 20px">
-          <div>
-            <span style="${LABEL}">${c.goneT}</span>
-            <ul style="list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:7px">
-              ${c.gone.map(t => `<li style="display:flex;gap:10px;align-items:flex-start;font-size:12.5px;line-height:1.45"><span class="dot-gold" aria-hidden="true" style="flex:none;margin-top:6px"></span><span>${t}</span></li>`).join('')}
-            </ul>
-          </div>
-          <div>
-            <span style="${LABEL}">${c.keptT}</span>
-            <p style="margin:10px 0 0;font-size:12.5px;line-height:1.55">${c.kept}</p>
-            <p style="margin:10px 0 0;font-size:11.5px;color:#4a4239">${c.contact}</p>
-          </div>
-        </div>
-        <div class="mx-cardrow mx-profile-row" style="display:flex;align-items:center;gap:14px;padding:14px 26px 20px;border-top:1px solid rgba(25,21,18,.1)">
-          <span data-act="deleteAccount" role="button" tabindex="0" aria-haspopup="dialog" class="mx-profile-btn" style="padding:10px 16px;border:1px solid #9b1b22;color:#9b1b22;font:600 9.5px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap;flex:none" data-hover="border-color:#7e151b;color:#7e151b">${c.btn}</span>
-          <span style="font-size:11.5px;color:#4a4239">${c.note}</span>
+      <section data-block="deleteAccount" class="mx-sec mx-profile-del" aria-label="${c.titleT}">
+        <div class="mx-list">
+          <span data-act="deleteAccount" role="button" tabindex="0" aria-haspopup="dialog" class="mx-row is-danger">${ui.icon('logout')}<span class="mx-row-l">${c.titleT}<span class="mx-row-s">${c.rowS}</span></span>${ui.icon('chevron-right', 18)}</span>
         </div>
       </section>`;
 }
-// intro = the screen's first paint: the gold bar fills from zero (css .mx-profile-bar-in). Later refreshes
-// animate from the previous value instead (refreshCompletion).
-function completionCard(intro) {
+// intro = the screen's first paint: the bar fills from zero (css .mx-profile-bar-in). Later refreshes animate from
+// the previous value instead (refreshCompletion). One accordion row: "Profile 35 % · 4 of 9", the checklist inside.
+function completionCard(intro, open) {
   const c = D.completion;
   const rows = c ? c.items.map(i => `
-            <div style="display:flex;gap:11px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(25,21,18,.1)"${i.hint ? ` title="${esc(i.hint)}"` : ''}>
-              <span class="mx-profile-tick" data-label="${esc(i.label)}" data-done="${i.done ? 1 : 0}" style="width:11px;height:11px;border:1px solid ${i.done ? '#c9a962' : 'rgba(25,21,18,.35)'};background:${i.done ? '#c9a962' : 'transparent'};flex:none"></span>
-              <span style="font-size:12px;color:${i.done ? '#191512' : '#4a4239'}">${esc(i.label)}</span>
-            </div>`).join('') : `
-            <div style="padding:8px 0;font-size:12px;color:#4a4239;line-height:1.5">${COPY.completion.offline}</div>`;
+              <li class="mx-profile-check"${i.hint ? ` title="${esc(i.hint)}"` : ''}>
+                <span class="mx-profile-tick" data-label="${esc(i.label)}" data-done="${i.done ? 1 : 0}">${i.done ? ui.icon('check', 14) : ''}</span>
+                <span class="${i.done ? 'is-done' : ''}">${esc(i.label)}</span>
+              </li>`).join('') : `
+              <li class="mx-profile-check">${COPY.completion.offline}</li>`;
   const pct = c ? c.percent + '%' : '—';
+  const done = c ? c.items.filter(i => i.done).length : 0;
   return `
-        <div style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">${COPY.completion.title}</div>
-        <div style="margin-top:12px;display:flex;flex-direction:column">${rows}
-        </div>
-        <div style="display:flex;align-items:baseline;gap:8px;padding-top:14px">
-          <span data-role="pct" style="font-family:Fraunces,serif;font-size:30px;color:#c9a962">${pct}</span>
-          <span style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#4a4239">${COPY.completion.complete}</span>
-        </div>
-        <div style="height:3px;background:rgba(25,21,18,.12);position:relative;margin-top:6px;overflow:hidden"><span class="mx-profile-bar${intro ? ' mx-profile-bar-in' : ''}" style="position:absolute;left:0;top:0;bottom:0;width:100%;background:#c9a962;transform-origin:left center;transform:scaleX(${c ? Math.max(0, Math.min(100, c.percent)) / 100 : 0})"></span></div>
-        <div style="font-size:11px;color:#4a4239;line-height:1.5;margin-top:10px">${COPY.completion.note}</div>`;
+        <details class="mx-acc mx-profile-meter"${open ? ' open' : ''}>
+          <summary>
+            <span class="mx-profile-meter-top"><span>${COPY.completion.titleT} <b data-role="pct">${pct}</b>${c ? ` · ${COPY.completion.of(done, c.items.length)}` : ''}</span>
+            <span class="mx-profile-meter-bar"><span class="mx-profile-bar${intro ? ' mx-profile-bar-in' : ''}" style="transform:scaleX(${c ? Math.max(0, Math.min(100, c.percent)) / 100 : 0})"></span></span></span>
+          </summary>
+          <div class="mx-acc-a"><ul class="mx-profile-checks">${rows}</ul></div>
+        </details>`;
 }
 function previewCard() {
   const d = D.draft, p = D.profile;
   const src = photoSrc();
   const name = [d.first_name, d.last_name].filter(Boolean).join(' ') || (p.email || 'Member');
-  const line = [d.institution, p.member_since ? COPY.preview.memberSince(p.member_since) : ''].filter(Boolean).join(' · ');
+  const line = [d.title, d.institution].filter(Boolean).join(' · ') || (p.member_since ? COPY.preview.memberSince(p.member_since) : '');
   return `
-        <div style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">${COPY.preview.title}</div>
-        <div style="display:flex;gap:13px;align-items:center;margin-top:14px">
-          ${src
-            ? `<img src="${esc(src)}" alt="" style="width:44px;height:44px;object-fit:cover;flex:none">`
-            : `<span style="width:44px;height:44px;background:#c9a962;color:#191512;display:inline-flex;align-items:center;justify-content:center;font:600 15px Fraunces,serif;flex:none">${esc(initials())}</span>`}
-          <span style="display:flex;flex-direction:column;line-height:1.3">
-            <span style="font-family:Fraunces,serif;font-size:16px">${esc(name)}</span>
-            <span style="font-size:11px;color:rgba(247,241,230,.65)">${esc(line)}</span>
-          </span>
-        </div>
-        <div style="font-family:Fraunces,serif;font-style:italic;font-size:12.5px;color:rgba(247,241,230,.55);margin-top:12px">${esc(d.bio.trim() || COPY.preview.emptyBio)}</div>
-        <div style="display:flex;gap:8px;margin-top:14px">
-          <span data-act="viewProfile" role="button" tabindex="0" class="mx-profile-btn" style="flex:1;text-align:center;padding:8px 0;border:1px solid rgba(247,241,230,.3);font:600 9px Inter,sans-serif;letter-spacing:.15em;cursor:pointer" data-hover="border-color:#f7f1e6">${COPY.preview.view}</span>
-          <span data-act="connect" role="button" tabindex="0" class="mx-profile-btn" style="flex:1;text-align:center;padding:8px 0;background:#9b1b22;font:600 9px Inter,sans-serif;letter-spacing:.15em;cursor:pointer" data-hover="background:#7e151b">${COPY.preview.connect}</span>
-        </div>`;
+          <div class="mx-profile-preview">
+            ${ui.portrait({ name, src: src || '', size: 64, alt: '' })}
+            <span class="mx-person-text"><span class="mx-person-name">${esc(name)}</span>${line ? `<span class="mx-person-role">${esc(line)}</span>` : ''}</span>
+          </div>
+          <p class="mx-profile-preview-bio">${esc(d.bio.trim() || COPY.preview.emptyBio)}</p>
+          ${d.is_public_profile ? '' : `<p class="mx-profile-preview-off">${COPY.preview.hiddenNoteT}</p>`}`;
 }
-function blockSidebar() {
+function blockPreview() {
   return `
-    <div style="display:flex;flex-direction:column;gap:14px">
-      <!-- dc: Profile.dc.html › "PROFILE COMPLETION" -->
-      <div data-block="completion" class="mx-profile-sec" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:20px 22px">${completionCard(true)}</div>
-      <!-- /dc -->
-      <!-- dc: Profile.dc.html › "DIRECTORY PREVIEW" -->
-      <div data-block="preview" class="mx-profile-sec" style="border:1px solid rgba(25,21,18,.16);background:#191512;color:#f7f1e6;padding:20px 22px">${previewCard()}</div>
-      <!-- /dc -->
-      <!-- dc: Profile.dc.html › "YOUR MEMBER CARD" -->
-      <div class="mx-profile-sec" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:18px 22px;display:flex;flex-direction:column;gap:8px">
-        <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">${COPY.card.title}</span>
-        <span style="font-size:12px;color:#4a4239;line-height:1.55">${COPY.card.body}</span>
-      </div>
-      <!-- /dc -->
-    </div>`;
+      <!-- dc: Profile.dc.html › "DIRECTORY PREVIEW" (folded away) -->
+      <section class="mx-sec">
+        <div class="mx-accs">
+          <details class="mx-acc"><summary>${ui.icon('user')}${COPY.preview.titleT}</summary><div class="mx-acc-a" data-block="preview">${previewCard()}</div></details>
+        </div>
+      </section>
+      <!-- /dc -->`;
 }
 
 // ---------------------------------------------------------------- targeted re-renders
@@ -460,6 +399,7 @@ const q = sel => rootEl && rootEl.querySelector(sel);
 function rerender(sel, html) { const el = q(sel); if (el) el.innerHTML = html; }
 function refreshPhoto() {
   rerender('[data-block="photoCell"]', photoCell());
+  const hn = q('[data-role="heroName"]'); if (hn) hn.textContent = [D.draft.first_name, D.draft.last_name].filter(Boolean).join(' ') || COPY.titleT;
   const b = q('[data-role="photoBtn"]'); if (b) b.textContent = photoBtnLabel();
   rerender('[data-block="preview"]', previewCard());
 }
@@ -510,7 +450,8 @@ function refreshCompletion() {
   const oldScale = oldBar ? parseFloat((oldBar.style.transform.match(/scaleX\(([\d.]+)\)/) || [])[1]) : NaN;
   const oldPct = pctOf(box && box.querySelector('[data-role="pct"]'));
   const wasDone = new Set(box ? [...box.querySelectorAll('.mx-profile-tick[data-done="1"]')].map(n => n.dataset.label) : []);
-  rerender('[data-block="completion"]', completionCard(false));
+  const wasOpen = !!(box && box.querySelector('details[open]'));
+  rerender('[data-block="completion"]', completionCard(false, wasOpen));
   if (!motionOK() || !box) return;
   // the bar glides from where it stood (a fresh node would otherwise jump straight to the new value)
   const bar = box.querySelector('.mx-profile-bar');
@@ -633,14 +574,14 @@ function toggleSpec(label) {
 
 // ---------------------------------------------------------------- settings modals (moved from My Med&X)
 function modalInput(label, name, type, value, ph) {
-  return `<label style="display:block;margin-top:12px"><span class="label" style="display:block;${LABEL};margin-bottom:5px">${label}</span>
-    <input name="${name}" type="${type || 'text'}" value="${esc(value || '')}" placeholder="${esc(ph || '')}" autocomplete="off" style="${INPUT};width:100%;box-sizing:border-box"></label>`;
+  return `<label style="display:block;margin-top:14px"><span class="label" style="display:block;margin-bottom:6px">${label}</span>
+    <input name="${name}" type="${type || 'text'}" class="input" value="${esc(value || '')}" placeholder="${esc(ph || '')}" autocomplete="off"></label>`;
 }
 function openPasswordModal() {
   const a = COPY.account;
   const m = ui.modal({
     eyebrow: 'SETTINGS · PASSWORD', title: a.pwTitle,
-    body: `${modalInput(a.pwCur, 'cur', 'password')}${modalInput(a.pwNew, 'nw', 'password', '', a.pwHint)}${modalInput(a.pwNew2, 'nw2', 'password')}<p data-role="error" style="color:#9b1b22;font-size:12px;min-height:14px;margin:8px 0 0"></p>`,
+    body: `${modalInput(a.pwCur, 'cur', 'password')}${modalInput(a.pwNew, 'nw', 'password', '', a.pwHint)}${modalInput(a.pwNew2, 'nw2', 'password')}<p data-role="error" style="color:#9b1b22;font-size:14px;min-height:18px;margin:8px 0 0"></p>`,
     actions: [{ label: 'CANCEL' }, {
       label: 'SAVE', kind: 'primary', onClick: () => {
         const cur = m.el.querySelector('[name=cur]').value, nw = m.el.querySelector('[name=nw]').value, nw2 = m.el.querySelector('[name=nw2]').value;
@@ -656,13 +597,13 @@ function openPasswordModal() {
     }]
   });
 }
-function openFollowModal() {
+function openFollowModal(onDone) {
   const a = COPY.account;
   const left = Object.keys(a.projects).filter(k => !(D.topics || []).includes(k));
   if (!left.length) return ui.toast(a.followAll);
   const m = ui.modal({
     eyebrow: 'SETTINGS · PROJECTS I FOLLOW', title: a.followTitle,
-    body: `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">${left.map(k => `<span data-follow="${k}" role="button" style="padding:7px 12px;border:1px solid rgba(25,21,18,.22);font-size:12.5px;cursor:pointer" data-hover="border-color:#9b1b22;color:#9b1b22">${esc(a.projects[k])}</span>`).join('')}</div>`,
+    body: `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">${left.map(k => `<span data-follow="${k}" role="button" class="chip">${esc(a.projects[k])}</span>`).join('')}</div>`,
     actions: [{ label: 'DONE', kind: 'primary' }]
   });
   m.el.querySelectorAll('[data-follow]').forEach(el => {
@@ -673,6 +614,7 @@ function openFollowModal() {
         D.topics.push(el.dataset.follow);
         ui.toast(a.followed); m.close();
         refreshAccountExtras();
+        if (typeof onDone === 'function') onDone();
         chrome.refresh();                          // FOLLOWING in the stats strip appears at 1
       } catch (e) { ui.toast(e.message, { kind: 'error' }); }
     });
@@ -692,13 +634,14 @@ async function saveInterests(next) {
   if (D.net) D.net.research_interests = next;
   ui.toast(COPY.account.interestsSaved);
   refreshAccountExtras();
+  if (manageRedraw) manageRedraw();
 }
 function openInterestsModal() {
   const a = COPY.account;
   const left = a.suggestions.filter(s => !(D.interests || []).some(i => i.toLowerCase() === s.toLowerCase()));
   const m = ui.modal({
     eyebrow: 'SETTINGS · MY INTERESTS', title: a.interestsTitle,
-    body: `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">${left.map(s => `<span data-int="${esc(s)}" role="button" style="padding:7px 12px;border:1px solid rgba(25,21,18,.22);font-size:12.5px;cursor:pointer" data-hover="border-color:#9b1b22;color:#9b1b22">${esc(s)}</span>`).join('') || `<span style="font-size:12.5px;color:#4a4239">${a.interestsAllAdded}</span>`}</div>
+    body: `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">${left.map(s => `<span data-int="${esc(s)}" role="button" class="chip">${esc(s)}</span>`).join('') || `<span style="font-size:14px;color:#4a4239">${a.interestsAllAdded}</span>`}</div>
       ${modalInput(a.interestsOwn, 'custom', 'text', '', 'e.g. Cardiology')}`,
     actions: [{ label: 'CANCEL' }, {
       label: 'ADD', kind: 'primary', onClick: () => {
@@ -714,6 +657,24 @@ function openInterestsModal() {
   });
 }
 
+// Projects I follow · My interests: a row opens a sheet with the list (× removes) and "Add" (the add sheets above);
+// every change also refreshes the row's summary
+let manageRedraw = null;
+function openManage(kind) {
+  const a = COPY.account, follow = kind === 'follow';
+  const inner = () => follow ? settingChips(followList(), 'followRm', 'followAdd', a.follow.addT, a.follow.none) : settingChips(interestList(), 'intRm', 'intAdd', a.interests.addT, a.interests.none);
+  const m = ui.modal({ eyebrow: 'SETTINGS', title: follow ? a.follow.t : a.interests.t, body: `<p class="mx-profile-sheet-s">${follow ? a.follow.s : a.interests.s}</p><div data-block="manage">${inner()}</div>` });
+  const redraw = () => { const b = m.el.isConnected && m.el.querySelector('[data-block="manage"]'); if (b) b.innerHTML = inner(); };
+  manageRedraw = redraw;
+  m.onClose(() => { if (manageRedraw === redraw) manageRedraw = null; });
+  ui.bind(m.el, {
+    followRm: async el => { await handlers.followRm(el); redraw(); },
+    followAdd: () => openFollowModal(redraw),
+    intRm: el => handlers.intRm(el),
+    intAdd: () => openInterestsModal()
+  });
+}
+
 // ---------------------------------------------------------------- delete account
 // The confirm stays disabled until DELETE is typed (any case); Enter in the field confirms, Escape or
 // KEEP MY ACCOUNT closes and hands focus back to the button that opened it.
@@ -724,11 +685,14 @@ function openDeleteModal() {
   const m = ui.modal({
     eyebrow: c.modalEyebrow,
     title: c.modalTitle,
-    body: `<p style="margin:0 0 10px">${c.modalBody}</p>
-      <p style="margin:0">${c.modalKept}</p>
-      <label style="display:block;margin-top:16px"><span style="display:block;${LABEL};margin-bottom:6px">${c.typeLabel}</span>
-        <input data-role="delConfirm" type="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="done" aria-describedby="mx-del-err" style="${INPUT};width:100%;box-sizing:border-box;letter-spacing:.12em"></label>
-      <p id="mx-del-err" data-role="error" role="alert" style="color:#9b1b22;font-size:12px;min-height:14px;margin:8px 0 0"></p>`,
+    body: `<p style="margin:0 0 14px">${c.modalBody}</p>
+      <div class="mx-accs mx-profile-delinfo">
+        <details class="mx-acc"><summary>${c.goneTT}</summary><div class="mx-acc-a"><ul class="mx-profile-gone">${c.gone.map(t => `<li>${t}</li>`).join('')}</ul></div></details>
+        <details class="mx-acc"><summary>${c.keptTT}</summary><div class="mx-acc-a"><p style="margin:0">${c.kept}</p><p style="margin:10px 0 0;font-size:14px">${c.contact}</p></div></details>
+      </div>
+      <label style="display:block;margin-top:18px"><span class="label" style="display:block;margin-bottom:6px">${c.typeLabel}</span>
+        <input data-role="delConfirm" type="text" class="input" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="done" aria-describedby="mx-del-err" style="letter-spacing:.12em"></label>
+      <p id="mx-del-err" data-role="error" role="alert" style="color:#9b1b22;font-size:14px;min-height:18px;margin:8px 0 0"></p>`,
     actions: [
       { label: c.cancel, onClick: refocus },
       { label: c.confirm, kind: 'primary', onClick: () => { runDelete(m); return false; } }
@@ -778,7 +742,9 @@ async function runDelete(m) {
 
 const handlers = {
   chgPw: openPasswordModal,
-  followAdd: openFollowModal,
+  followAdd: () => openFollowModal(),
+  followOpen: () => openManage('follow'),
+  intOpen: () => openManage('interests'),
   followRm: async (el) => {
     try {
       await api.post('/api/notify-topics', { project: el.dataset.key, on: false });
@@ -816,9 +782,9 @@ const handlers = {
     const rows = [
       d.title && `<div style="font-size:13px;color:#4a4239">${esc(d.title)}</div>`,
       (d.institution || d.city || d.country) && `<div style="font-size:13px;color:#4a4239;margin-top:2px">${esc([d.institution, [d.city, d.country].filter(Boolean).join(', ')].filter(Boolean).join(' · '))}</div>`,
-      d.specialties.length && `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:12px">${d.specialties.map(s => `<span style="padding:4px 8px;border:1px solid rgba(25,21,18,.25);font:600 8.5px Inter,sans-serif;letter-spacing:.12em">${esc(s)}</span>`).join('')}</div>`,
+      d.specialties.length && `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:12px">${d.specialties.map(s => `<span class="chip" style="cursor:default">${esc(specLabel(s))}</span>`).join('')}</div>`,
       `<div style="font-size:13px;line-height:1.6;color:#4a4239;margin-top:12px;font-style:italic">${esc(d.bio.trim() || COPY.preview.emptyBio)}</div>`,
-      !d.is_public_profile && `<div style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;margin-top:14px">${COPY.preview.hiddenNote}</div>`
+      !d.is_public_profile && `<div style="font-size:14px;color:#9b1b22;margin-top:14px">${COPY.preview.hiddenNote}</div>`
     ].filter(Boolean).join('');
     ui.modal({
       eyebrow: COPY.preview.modalEyebrow,
@@ -839,7 +805,8 @@ function bindFields() {
     el.addEventListener(ev, () => {
       D.draft[key] = el.value;
       if (D.saveError) { D.saveError = null; refreshSaveRow(); }
-      if (key === 'first_name' || key === 'last_name' || key === 'bio' || key === 'institution') refreshPreviewCard();
+      if (key === 'first_name' || key === 'last_name' || key === 'bio' || key === 'institution' || key === 'title') refreshPreviewCard();
+      if (key === 'first_name' || key === 'last_name') { const hn = q('[data-role="heroName"]'); if (hn) hn.textContent = [D.draft.first_name, D.draft.last_name].filter(Boolean).join(' ') || COPY.titleT; }
       if (FIELD_KEYS.includes(key)) schedulePreview();
     });
   });
@@ -877,15 +844,14 @@ export default {
     root.innerHTML = `
 <div data-screen-label="Profile &amp; Settings" class="mx-profile-screen" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
   ${blockCrumbs()}
-  ${blockTitle()}
-  <div class="mx-profile-grid mx-profile-pad" style="display:grid;grid-template-columns:1fr 300px;gap:26px;padding:20px 36px 30px;align-items:start">
-    <div class="mx-profile-main" style="display:flex;flex-direction:column;gap:22px">
-      ${blockIdentity()}
-      ${blockAbout()}
-      ${blockAccount()}
-      ${blockDelete()}
-    </div>
-    ${blockSidebar()}
+  <div class="mx-p mx-profile-p">
+    ${blockTitle()}
+    <div data-block="completion" class="mx-profile-meterbox">${completionCard(true, false)}</div>
+    ${blockIdentity()}
+    ${blockAbout()}
+    ${blockAccount()}
+    ${blockPreview()}
+    ${blockDelete()}
   </div>
 </div>`;
     unbind = ui.bind(root, handlers);

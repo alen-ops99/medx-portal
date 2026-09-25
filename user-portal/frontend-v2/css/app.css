@@ -1034,11 +1034,10 @@ a.mx-person-row, .mx-person-row[data-act] { cursor: pointer; transition: backgro
    SEARCH / ALERTS rows and the sheets. Ids and data-act hooks are unchanged (the iOS layer styles
    #mx-tabbar > a and #mx-mobile-top; medx-native.css adds its own safe-area padding on top of these).
    ========================================================================== */
+/* opaque cream, no backdrop-filter: a filter here would become the containing block of the fixed SEARCH sheet
+   inside the bar and shrink its scrim to the bar's own box */
 #mx-mobile-top.mx-mt { display: flex; align-items: center; gap: 0; position: relative; min-height: 56px; padding: 6px 8px 6px; box-sizing: border-box;
-  background: rgba(247,241,230,.96); border-bottom: 1px solid var(--hair-soft); }
-@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
-  #mx-mobile-top.mx-mt { background: rgba(247,241,230,.86); -webkit-backdrop-filter: saturate(1.3) blur(18px); backdrop-filter: saturate(1.3) blur(18px); }
-}
+  background: var(--cream); border-bottom: 1px solid var(--hair-soft); }
 .mx-mt-brand { margin-left: 12px; display: block; }
 .mx-mt-fill { flex: 1 1 auto; }
 .mx-mt-btn { flex: none; position: relative; width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; color: var(--ink); cursor: pointer; }
@@ -1170,3 +1169,7 @@ a.mx-home-proj:hover { color: var(--ink); }
 /* wide screens carry today's date in the stats strip already */
 @media (min-width: 501px) { .mx-home-date { display: none; } .mx-home-head .mx-lt { margin-top: 32px; } }
 @media (min-width: 901px) { .mx-home-head .mx-lt { margin-top: 44px; } }
+/* the small "coming soon" screens (views/_stub.js): a label, a large title, one line, one ghost action */
+.mx-stub-eyebrow { display: block; margin-top: 24px; font: 600 var(--fs-label)/16px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--crimson); }
+.mx-stub-cta { margin-top: 24px; }
+@media (min-width: 901px) { .mx-stub-eyebrow { margin-top: 48px; } }

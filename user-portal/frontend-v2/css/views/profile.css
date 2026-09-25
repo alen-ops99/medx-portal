@@ -9,25 +9,56 @@
 .mx-profile-photo { transition: opacity var(--t-quick) var(--ease); }
 .mx-profile-photo.busy { opacity: .45; }
 
-/* completion bar: a full-width gold bar scaled to the percentage (transform, not width) — see MOTION below */
-
-
-/* ---- responsive (desktop-first, matching §9 of ARCHITECTURE.md) -------- */
-@media (max-width: 900px) {
-  .mx-profile-grid { grid-template-columns: 1fr !important; }
-  .mx-profile-pad { padding-left: 18px !important; padding-right: 18px !important; }
-  /* stacked, the sidebar (PROFILE COMPLETION — where Home's "Complete your profile" sends people — the directory
-     preview, the member card) comes before DELETE ACCOUNT, which closes the page: the main column opens up
-     into the grid and the danger zone is ordered last */
-  .mx-profile-main { display: contents !important; }
-  .mx-profile-grid > .mx-profile-main > .mx-profile-del { order: 1; }
-}
-@media (max-width: 500px) {
-  .mx-profile-title { font-size: 26px !important; }
-  .mx-cardrow { padding-left: 16px !important; padding-right: 16px !important; }
-  .mx-profile-row { flex-wrap: wrap; }
-  .mx-profile-photo-row { flex-wrap: wrap; }
-}
+/* ---- phone calm pass (2026-09-25, DESIGN-RULES §11 › /app/profile): the Settings pattern ---- */
+.mx-profile-p { max-width: 760px; }
+@media (min-width: 901px) { .mx-profile-p { margin-left: max(0px, calc((100% - 1180px) / 2)); } }
+.mx-profile-hero { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding-top: 24px; }
+.mx-profile-photocell { display: block; }
+.mx-profile-photo { display: block; line-height: 0; }
+.mx-profile-name { margin: 8px 0 0; font: 400 var(--fs-title2)/28px var(--font-display); color: var(--ink); }
+.mx-profile-photolink { min-height: 44px; display: inline-flex; align-items: center; font: 500 14px/20px var(--font-ui); color: var(--crimson); cursor: pointer; }
+.mx-profile-meterbox { margin-top: 20px; }
+.mx-profile-meter { border-top: 1px solid var(--hair-soft); }
+.mx-profile-meter > summary { min-height: 64px; }
+.mx-profile-meter-top { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 8px; font: 400 16px/22px var(--font-ui); }
+.mx-profile-meter-top b { font-weight: 600; color: var(--crimson); font-variant-numeric: tabular-nums; }
+.mx-profile-meter-bar { position: relative; display: block; height: 3px; background: rgba(25,21,18,.1); overflow: hidden; max-width: 320px; }
+.mx-profile-bar { position: absolute; inset: 0; background: var(--crimson); transform-origin: left center; }
+.mx-profile-checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.mx-profile-check { display: flex; align-items: center; gap: 12px; font: 400 16px/22px var(--font-ui); color: var(--soft); }
+.mx-profile-check .is-done { color: var(--ink); }
+.mx-profile-tick { flex: none; width: 20px; height: 20px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; border: 1px solid rgba(25,21,18,.3); color: var(--cream); }
+.mx-profile-tick[data-done="1"] { background: var(--gold-dark); border-color: var(--gold-dark); }
+.mx-profile-fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+@media (min-width: 701px) { .mx-profile-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 20px; } }
+.mx-profile-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.mx-profile-bio { margin-top: 20px; }
+.mx-profile-bio textarea { resize: vertical; }
+.mx-profile-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.mx-profile-addspec { display: flex; gap: 8px; margin-top: 12px; max-width: 480px; }
+.mx-profile-addspec .input { flex: 1 1 auto; min-width: 0; }
+.mx-profile-addspec .btn-ghost { flex: none; min-height: 52px; }
+.mx-profile-screen .mx-list [data-block] > .mx-row:first-child::before { content: ""; position: absolute; top: 0; left: 16px; right: 0; height: 1px; background: var(--hair-soft); }
+.mx-profile-screen .mx-row .is-ok { color: var(--gold-dark); }
+.mx-profile-screen .mx-row .is-no { color: var(--crimson); }
+.mx-profile-link { flex: none; min-height: 44px; display: inline-flex; align-items: center; font: 600 12px/16px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--crimson); cursor: pointer; }
+.mx-profile-screen .mx-switch[aria-disabled="true"] { opacity: .45; cursor: default; }
+.mx-profile-save { margin-top: 24px; max-width: 720px; }
+.mx-profile-savenote { margin: 10px 0 0; font: 400 14px/20px var(--font-ui); color: var(--soft); text-align: center; }
+.mx-profile-savenote.is-err { color: var(--crimson); }
+.mx-profile-preview { display: flex; align-items: center; gap: 14px; }
+.mx-profile-preview-bio { margin: 12px 0 0; font: italic 400 16px/24px var(--font-display); color: var(--soft); }
+.mx-profile-preview-off { margin: 10px 0 0; font-size: 14px; color: var(--crimson); }
+/* the follow / interests sheet */
+.mx-profile-sheet-s { margin: 0 0 14px; font-size: 16px; line-height: 1.5; }
+.mx-profile-manage { display: flex; gap: 8px; flex-wrap: wrap; }
+.mx-profile-tag { cursor: default; gap: 4px; padding-right: 2px !important; }
+.mx-profile-x { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; color: var(--crimson); cursor: pointer; }
+.mx-profile-add { gap: 6px; color: var(--crimson); border-style: dashed !important; }
+.mx-profile-none { align-self: center; font-size: 14px; color: var(--soft); margin-right: 4px; }
+/* the delete sheet: the erased / kept copy, folded */
+.mx-profile-delinfo { margin-top: 4px; }
+.mx-profile-gone { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
 
 /* ============================================================================
    MOTION + HOVER (polish pass 2026-09-22). The shared layer in app.css carries
@@ -100,7 +131,7 @@
      never keeps the darker crimson until the next tap somewhere else */
   [data-act="tgSpec"][aria-pressed="true"]:hover { background: #7e151b !important; border-color: #7e151b !important; }
   .mx-profile-link:hover, .mx-profile-add:hover { color: #191512 !important; }
-  .mx-profile-add:hover { border-color: #191512 !important; border-style: solid !important; }
+  .mx-profile-add:hover { border-color: #191512 !important; }
   .mx-profile-x:hover { color: #191512 !important; }
   /* a switch under the pointer firms its track — off: the grey deepens; on: the crimson darkens like every crimson control */
   .mx-profile-switch[aria-checked="false"]:hover { background: rgba(25, 21, 18, .38) !important; }

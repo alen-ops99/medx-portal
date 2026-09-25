@@ -32,7 +32,8 @@ export const COPY = {
     // at 390px the long one truncated mid-word ("…a city, ‘sle") — a phone gets a phone-sized prompt
     placeholderShort: 'Name, city, or specialty…',
     button: 'SEARCH',
-    hint: 'One field, every angle — names, institutions, specialties, cities, and programs all match.'
+    hint: 'One field, every angle — names, institutions, specialties, cities, and programs all match.',
+    title: 'People', lede: 'Researchers and clinicians, worldwide.'
   },
   forum: { label: 'FROM THE FORUM', open: 'OPEN FEED →', tag: 'FORUM UPDATE', spotlightTag: 'MEMBER SPOTLIGHT' },
   forYou: {
@@ -41,7 +42,8 @@ export const COPY = {
     accept: 'ACCEPT', decline: 'DECLINE', message: 'MESSAGE',
     emptyLine: 'No one to suggest just yet.',
     emptyWhy: 'Suggestions sharpen as profiles fill in — add your specialty, institution and city, then check back.',
-    emptyCta: 'COMPLETE YOUR PROFILE →'
+    emptyCta: 'COMPLETE YOUR PROFILE →',
+    titleT: 'For you', requestTag: 'Wants to connect', emptyWhyT: 'Suggestions sharpen as profiles fill in.', emptyCtaT: 'Complete your profile'
   },
   reasons: {  // server sends why_label too; this map keeps wording in one place
     mutual: n => `MUTUAL CONTACTS · ${n}`, institution: 'SAME INSTITUTION', specialty: 'SHARED FIELD',
@@ -54,15 +56,20 @@ export const COPY = {
     connected: 'CONNECTED ✓', message: 'MESSAGE', remove: 'REMOVE',
     emptyLine: 'No connections yet.',
     emptyWhy: 'Accept a request or say hello above — everyone you connect with lives here.',
-    emptyCta: 'SEE SUGGESTIONS →'
+    emptyCta: 'SEE SUGGESTIONS →',
+    titleT: 'My network', emptyWhyT: 'Everyone you connect with lives here.'
   },
-  browse: { label: n => `BROWSE ALL ${n} MEMBERS ↓`, close: 'CLOSE THE DIRECTORY ↑', or: 'or search above.', prev: '← PREV', next: 'NEXT →', page: (a, b) => `PAGE ${a} OF ${b}` },
+  browse: { label: n => `BROWSE ALL ${n} MEMBERS ↓`, close: 'CLOSE THE DIRECTORY ↑', or: 'or search above.', prev: '← PREV', next: 'NEXT →', page: (a, b) => `PAGE ${a} OF ${b}`,
+    labelT: n => `Browse all ${n} members`, closeT: 'Close the directory', pageT: (a, b) => `Page ${a} of ${b}`, loading: 'Loading the directory…' },
   results: {
     n: '01', title: 'SEARCH RESULTS', count: (a, b) => `${a} of ${b} members match`,
     noneLine: q => `No members match "${q}".`, noneWhy: 'Try a name, institution, specialty, or city.',
-    matches: f => `matches ${f}`
+    matches: f => `matches ${f}`,
+    titleT: 'Results', countT: n => `${n} found`, searching: 'Searching…'
   },
   btn: { connect: 'CONNECT', sent: 'REQUEST SENT', connected: 'CONNECTED ✓', accept: 'ACCEPT', declined: 'DECLINED' },
+  // the small row actions (sentence case, phone calm pass)
+  row: { connect: 'Connect', sent: 'Requested', connected: 'Connected', accept: 'Accept', ignore: 'Ignore', declined: 'Declined', message: 'Message', remove: 'REMOVE' },
   toast: {
     sent: n => `Request sent to ${n}.`, cancelled: 'Request cancelled.',
     accepted: n => `You are now connected with ${n}.`, declined: 'Request declined.',
@@ -77,11 +84,10 @@ export const COPY = {
     remove: n => ({ eyebrow: 'NETWORK · CONNECTION', title: `Remove ${n}?`, body: 'You will disappear from each other’s network and the message channel closes. No one is notified.', ok: 'REMOVE', no: 'KEEP' }),
     reopen: { eyebrow: 'NETWORK · REQUEST', title: 'Connect after all?', body: 'You declined their request earlier. Clearing it lets a fresh request go out from you now.', ok: 'SEND REQUEST', no: 'NOT NOW' }
   },
-  peek: { eyebrow: 'MEMBER · NETWORK', close: 'CLOSE' },
+  peek: { eyebrow: 'MEMBER', close: 'CLOSE', connect: 'CONNECT', message: 'MESSAGE', accept: 'ACCEPT', empty: 'This member has not filled in their profile yet.' },
   matchedLabels: { name: 'name', institution: 'institution', specialty: 'specialty', city: 'city', country: 'country', title: 'title', bio: 'bio', interests: 'interests', program: 'a program' }
 };
 
-const AV = [['#191512', '#f7f1e6'], ['#9b1b22', '#f7f1e6'], ['#c9a962', '#191512']];   // artboard avatar cycle
 const PAGE_SIZE = 20;
 
 let D = null, st = null, CS = null, rootEl = null, unbind = null, debounceT = null, seq = 0;
@@ -147,23 +153,26 @@ async function load(q) {
 }
 
 // ---------------------------------------------------------------- blocks (artboard order)
+// Phone calm pass (2026-09-25, DESIGN-RULES §11 › /app/network): a large title, the search field and one line; people
+// as rows (a 64 circle, the name, institution · country on one line, the reason as a 12 caps gold line) with ONE small
+// action each — Connect / Requested / Accept, or Message once connected — and the ⋯ menu (report, block, and remove
+// for a connection). Requests come first with Accept / Ignore. The crumb and the PEOPLE / MESSAGES strip stay for
+// wider screens only (the tab bar says where you are on a phone).
 function blockCrumb() { return `
-  <!-- dc: Network.dc.html › "NETWORK → PEOPLE" -->
-  <div class="mx-gutter" style="display:flex;align-items:center;gap:13px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16)">
-    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239">${COPY.crumb.a}</span>
-    <span style="color:rgba(25,21,18,.35);font-size:10px">→</span>
-    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#191512">${COPY.crumb.b}</span>
+  <!-- dc: Network.dc.html › "NETWORK → PEOPLE" (hidden on phones: app.css › .mx-crumbs) -->
+  <div class="mx-gutter mx-crumbs" style="display:flex;align-items:center;gap:13px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16)">
+    <span style="font:600 12px Inter,sans-serif;letter-spacing:.12em;color:#4a4239">${COPY.crumb.a}</span>
+    <span style="color:rgba(25,21,18,.35);font-size:12px">→</span>
+    <span style="font:600 12px Inter,sans-serif;letter-spacing:.12em;color:#191512">${COPY.crumb.b}</span>
   </div>
   <!-- /dc -->`; }
 
 function blockTabs() { return `
-  <!-- dc: Network.dc.html › "PEOPLE · MESSAGES · MY CARD" — MY CARD opened /app/me, another section with no
-       strip: a link dressed as a tab, so the strip keeps the two tabs that are this section -->
-  <!-- the shared section-tab strip (app.css › .mx-tab): data-tabs="network" is shared with Messages, so the
-       underline slides across when the member switches between the two screens -->
-  <div class="mx-tabs mx-gutter" data-tabs="network" style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;border-bottom:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
-    <span class="mx-tab is-on" aria-current="page" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22">${COPY.tabs.people}</span>
-    <a href="/app/messages" class="mx-tab" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#4a4239" data-hover="color:#191512">${COPY.tabs.messages}</a>
+  <!-- dc: Network.dc.html › "PEOPLE · MESSAGES" — the shared section-tab strip (app.css › .mx-tab): data-tabs="network" is
+       shared with Messages, so the underline slides across between the two screens. Hidden on phones (network.css) -->
+  <div class="mx-tabs mx-gutter mx-net-tabs" data-tabs="network" style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;border-bottom:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
+    <span class="mx-tab is-on" aria-current="page" style="font:600 12px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22">${COPY.tabs.people}</span>
+    <a href="/app/messages" class="mx-tab" style="font:600 12px Inter,sans-serif;letter-spacing:.12em;color:#4a4239" data-hover="color:#191512">${COPY.tabs.messages}</a>
   </div>
   <!-- /dc -->`; }
 
@@ -174,102 +183,81 @@ function searchPlaceholder() {
   return narrow ? COPY.hero.placeholderShort : COPY.hero.placeholder;
 }
 function blockHero() { return `
-  <!-- dc: Network.dc.html › "RESEARCHERS & CLINICIANS, WORLDWIDE" -->
-  <div class="mx-gutter mx-pad-hero" style="border-bottom:1px solid rgba(25,21,18,.16);padding:40px 36px 30px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px">
-    <span style="font:600 11px Inter,sans-serif;letter-spacing:.18em;color:#9b1b22">${COPY.hero.eyebrow}</span>
-    <span class="mx-net-h1" style="font-family:Fraunces,serif;font-size:36px;line-height:1.15;white-space:nowrap">${COPY.hero.line}</span>
-    <span style="font-size:13.5px;color:#4a4239;max-width:520px;line-height:1.6">${COPY.hero.sub}</span>
-    <div class="mx-net-search" style="display:flex;gap:10px;margin-top:8px;width:100%;max-width:640px">
-      <input data-role="q" value="${esc(st.q)}" placeholder="${esc(searchPlaceholder())}" aria-label="Search the member directory" autocomplete="off" style="flex:1;border:1px solid rgba(25,21,18,.3);background:#fdfaf3;padding:13px 16px;font-size:13.5px;color:#191512">
-      <span data-act="search" class="mx-net-act" style="padding:13px 20px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap;align-self:stretch;display:inline-flex;align-items:center" data-hover="background:#7e151b">${COPY.hero.button}</span>
-    </div>
-    <span style="font-size:11px;color:#4a4239">${COPY.hero.hint}</span>
+  <!-- dc: Network.dc.html › "RESEARCHERS & CLINICIANS, WORLDWIDE" (large title + the one search field) -->
+  <h1 class="mx-lt">${COPY.hero.title}</h1>
+  <p class="mx-lede">${COPY.hero.lede}</p>
+  <div class="mx-net-search">
+    <label class="mx-net-field">${ui.icon('search', 20)}<input data-role="q" type="search" enterkeyhint="search" value="${esc(st.q)}" placeholder="${esc(searchPlaceholder())}" aria-label="Search the member directory" autocomplete="off"></label>
+    <span data-act="search" role="button" tabindex="0" class="btn-primary mx-net-go">${COPY.hero.button}</span>
   </div>
   <!-- /dc -->`; }
 
-function blockForumTeaser() {
-  const f = D.forumTop;
-  if (!f) return `<!-- dc: Network.dc.html › "FROM THE FORUM" --><!-- hidden: no forum post in GET /api/feed/home (no fallback names by decision) --><!-- /dc -->`;
-  const isSpot = f.type === 'spotlight';
+// the one small action on a person row, from the live connection state (same data-act, same handlers as before)
+function rowAction(m) {
+  const s = cstate(m).state;
+  if (s === 'connected' && canMessage(m)) return `<span data-act="message" data-id="${esc(m.id)}" role="button" tabindex="0" class="mx-net-btn">${COPY.row.message}</span>`;
+  if (s === 'connected') return `<span class="mx-net-btn is-quiet" aria-disabled="true">${COPY.row.connected}</span>`;
+  if (s === 'pending_in') return `<span data-act="connect" data-id="${esc(m.id)}" data-cid="${esc(cstate(m).id)}" role="button" tabindex="0" class="mx-net-btn is-fill">${COPY.row.accept}</span>`;
+  if (s === 'pending_out') return `<span data-act="connect" data-id="${esc(m.id)}" role="button" tabindex="0" class="mx-net-btn is-quiet">${COPY.row.sent}</span>`;
+  if (s === 'declined' || s === 'declined_by_me') return `<span data-act="connect" data-id="${esc(m.id)}" role="button" tabindex="0" class="mx-net-btn is-quiet">${COPY.row.declined}</span>`;
+  return `<span data-act="connect" data-id="${esc(m.id)}" role="button" tabindex="0" class="mx-net-btn">${COPY.row.connect}</span>`;
+}
+function reasonOf(m) {
+  return m.why_label || (COPY.reasons[m.why] ? (typeof COPY.reasons[m.why] === 'function' ? COPY.reasons[m.why]((m.reasons && m.reasons[0] && m.reasons[0].n) || 1) : COPY.reasons[m.why]) : '');
+}
+// a person row: the circle and the words open the profile sheet; the action and the ⋯ sit at the end
+function personRow(m, { sub, tag, action, extra = '' } = {}) {
   return `
-    <!-- dc: Network.dc.html › "FROM THE FORUM" -->
-    <a href="/app/forum" style="display:flex;align-items:center;gap:14px;border:1px solid rgba(25,21,18,.16);border-left:3px solid #c9a962;background:#fdfaf3;padding:14px 18px;margin-top:20px;color:#191512" data-hover="background:#f7efdf">
-      <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#6e5626;flex:none">${COPY.forum.label}</span>
-      <span style="width:1px;height:26px;background:rgba(25,21,18,.15);flex:none"></span>
-      ${isSpot && f.init ? `<span style="width:34px;height:34px;flex:none;background:#191512;color:#c9a962;display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif">${esc(f.init)}</span>` : ''}
-      <span style="flex:1;min-width:0"><span style="display:block;font:600 8px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22">${isSpot ? COPY.forum.spotlightTag : COPY.forum.tag}</span><span style="display:block;font-family:Fraunces,serif;font-size:16px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(f.title)}</span></span>
-      <span style="font-size:11px;color:#4a4239;white-space:nowrap;flex:none">${esc(ago(f.posted_at))}</span>
-      <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;flex:none;white-space:nowrap">${COPY.forum.open}</span>
-    </a>
-    <!-- /dc -->`;
+          <div class="mx-person-row mx-net-row" data-card="${esc(m.id)}">
+            <span class="mx-net-peek" data-act="peek" data-id="${esc(m.id)}" role="button" tabindex="0" aria-label="${esc(m.name)}">
+              ${ui.portrait({ name: m.name, src: photoUrl(m.photo_url), size: 64, alt: '' })}
+              <span class="mx-person-text"><span class="mx-person-name">${esc(m.name)}</span>${sub ? `<span class="mx-person-role">${sub}</span>` : ''}${tag ? `<span class="mx-person-tag">${esc(tag)}</span>` : ''}</span>
+            </span>
+            ${extra}
+            <span class="mx-person-act">${action || ''}${moreButton({ id: m.id, name: m.name })}</span>
+          </div>`;
 }
 
-// CONNECT-button face for a member card/row — extends the artboard's two states (CONNECT /
-// CONNECTED ✓) with the live ones the server knows: pending_out · pending_in · declined.
-// `hv` names the face's hover (network.css › .mx-net-act[data-face]): 'fill' darkens a crimson face, 'line'
-// firms an outlined one to ink, '' = no hover — CONNECTED and a request THEY declined only answer with a
-// line of text, so they never promise an action under the pointer
-function connFace(c) {
-  const s = cstate(c).state;
-  if (s === 'connected') return { label: COPY.btn.connected, bg: 'transparent', fg: '#6e5626', bd: 'rgba(201,169,98,.65)', hv: '' };
-  if (s === 'pending_out') return { label: COPY.btn.sent, bg: 'transparent', fg: '#4a4239', bd: 'rgba(25,21,18,.25)', hv: 'line' };
-  if (s === 'pending_in') return { label: COPY.btn.accept, bg: '#9b1b22', fg: '#f7f1e6', bd: '#9b1b22', hv: 'fill' };
-  if (s === 'declined' || s === 'declined_by_me') return { label: COPY.btn.declined, bg: 'transparent', fg: 'rgba(25,21,18,.45)', bd: 'rgba(25,21,18,.18)', hv: s === 'declined_by_me' ? 'line' : '' };
-  return { label: COPY.btn.connect, bg: '#9b1b22', fg: '#f7f1e6', bd: '#9b1b22', hv: 'fill' };
+function cardRequest(m) {
+  return `
+          <div class="mx-person-row mx-net-row is-request" data-card="${esc(m.id)}">
+            <span class="mx-net-peek" data-act="peek" data-id="${esc(m.id)}" role="button" tabindex="0" aria-label="${esc(m.name)}">
+              ${ui.portrait({ name: m.name, src: photoUrl(m.photo_url), size: 64, alt: '' })}
+              <span class="mx-person-text"><span class="mx-person-name">${esc(m.name)}</span><span class="mx-person-role">${esc(COPY.forYou.requestSub)}${m.institution ? ' · ' + esc(m.institution) : ''}</span><span class="mx-person-tag">${COPY.forYou.requestTag}</span></span>
+            </span>
+            <span class="mx-person-act">${moreButton({ id: m.id, name: m.name })}</span>
+            <span class="mx-net-reqbtns">
+              <span data-act="accept" data-cid="${esc(m.cid)}" data-id="${esc(m.id)}" role="button" tabindex="0" class="mx-net-btn is-fill">${COPY.row.accept}</span>
+              <span data-act="decline" data-cid="${esc(m.cid)}" data-id="${esc(m.id)}" role="button" tabindex="0" class="mx-net-btn">${COPY.row.ignore}</span>
+            </span>
+          </div>`;
 }
-
-function cardRequest(m) { return `
-          <div data-card="${esc(m.id)}" class="mx-net-card" style="border:1px solid rgba(155,27,34,.45);background:#fdfaf3;display:flex;flex-direction:column">
-            <div class="mx-net-face" data-act="peek" data-id="${esc(m.id)}" tabindex="-1" aria-hidden="true" style="height:150px;background:#191512;position:relative;overflow:hidden">${m.photo_url ? `<img src="${esc(photoUrl(m.photo_url))}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 30%">` : ui.monogram(m.name, 44)}<span class="mx-net-chip" style="position:absolute;top:10px;left:10px;padding:2px 7px;border:1px solid #9b1b22;background:#9b1b22;color:#f7f1e6;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">${COPY.forYou.requestChip}</span></div>
-            <div style="padding:13px 15px 15px;display:flex;flex-direction:column;gap:5px;flex:1">
-              <span style="display:flex;align-items:flex-start;gap:6px"><span data-act="peek" data-id="${esc(m.id)}" style="flex:1;min-width:0;font-family:Fraunces,serif;font-size:16.5px;line-height:1.2" data-hover="color:#9b1b22">${esc(m.name)}</span>${moreButton({ id: m.id, name: m.name, cls: 'is-card' })}</span>
-              <span style="font-size:11.5px;color:#4a4239;line-height:1.4">${esc(COPY.forYou.requestSub)}${m.institution ? ' · ' + esc(m.institution) : ''}</span>
-              <span style="display:flex;gap:7px;border-top:1px solid rgba(25,21,18,.1);padding-top:10px;margin-top:auto">
-                <span data-act="accept" data-cid="${esc(m.cid)}" data-id="${esc(m.id)}" class="mx-net-act" style="flex:1;text-align:center;padding:9px 0;background:#9b1b22;color:#f7f1e6;font:600 8.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${COPY.forYou.accept}</span>
-                <span data-act="decline" data-cid="${esc(m.cid)}" data-id="${esc(m.id)}" class="mx-net-act" style="flex:1;text-align:center;padding:9px 0;border:1px solid rgba(25,21,18,.25);font:600 8.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap" data-hover="border-color:#191512">${COPY.forYou.decline}</span>
-              </span>
-            </div>
-          </div>`; }
 
 // MESSAGE is offered where it can work — a connection (or a Med&X team account, which may write to anyone).
-// Before that it only toasted "send a request first": eight dead-end buttons on the first screen.
 function canMessage(m) { return cstate(m).state === 'connected' || !!(session.user || {}).is_admin; }
 function cardSuggestion(m) {
-  const face = connFace(m);
-  const why = m.why_label || (COPY.reasons[m.why] ? (typeof COPY.reasons[m.why] === 'function' ? COPY.reasons[m.why]((m.reasons && m.reasons[0] && m.reasons[0].n) || 1) : COPY.reasons[m.why]) : '');
-  return `
-          <div data-card="${esc(m.id)}" class="mx-net-card" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column">
-            <div class="mx-net-face" data-act="peek" data-id="${esc(m.id)}" tabindex="-1" aria-hidden="true" style="height:150px;background:#191512;position:relative;overflow:hidden">${m.photo_url ? `<img src="${esc(photoUrl(m.photo_url))}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 30%">` : ui.monogram(m.name, 44)}${why ? `<span class="mx-net-chip" style="position:absolute;top:10px;left:10px;padding:2px 7px;border:1px solid rgba(201,169,98,.65);background:#fdfaf3;color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">${esc(why)}</span>` : ''}</div>
-            <div style="padding:13px 15px 15px;display:flex;flex-direction:column;gap:5px;flex:1">
-              <span style="display:flex;align-items:flex-start;gap:6px"><span data-act="peek" data-id="${esc(m.id)}" style="flex:1;min-width:0;font-family:Fraunces,serif;font-size:16.5px;line-height:1.2" data-hover="color:#9b1b22">${esc(m.name)}</span>${moreButton({ id: m.id, name: m.name, cls: 'is-card' })}</span>
-              <span style="font-size:11.5px;color:#4a4239;line-height:1.4">${esc(subLine(m))}</span>
-              <span style="display:flex;gap:7px;border-top:1px solid rgba(25,21,18,.1);padding-top:10px;margin-top:auto">
-                <span data-act="connect" data-id="${esc(m.id)}" data-face="${face.hv}" class="mx-net-act" style="flex:1;text-align:center;padding:9px 0;background:${face.bg};color:${face.fg};border:1px solid ${face.bd};font:600 8.5px Inter,sans-serif;letter-spacing:.13em;cursor:pointer;white-space:nowrap">${face.label}</span>
-                ${canMessage(m) ? `<span data-act="message" data-id="${esc(m.id)}" class="mx-net-act" style="flex:1;text-align:center;padding:9px 0;border:1px solid rgba(25,21,18,.25);font:600 8.5px Inter,sans-serif;letter-spacing:.13em;color:#191512;cursor:pointer;white-space:nowrap" data-hover="border-color:#191512">${COPY.forYou.message}</span>` : ''}
-              </span>
-            </div>
-          </div>`;
+  return personRow(m, { sub: esc(subLine(m)), tag: reasonOf(m), action: rowAction(m) });
+}
+
+function sectionHead(n, title, sub, right = '') {
+  return `<div class="mx-sh"><span class="mx-sh-n">${n}</span><h2 class="mx-sh-t">${title}</h2>${right}</div>${sub ? `<p class="mx-sh-sub">${sub}</p>` : ''}`;
 }
 
 function blockForYou() {
   const requests = D.pending;
   const suggestions = D.sugg.slice(0, Math.max(0, 8 - requests.length));
-  const cards = requests.map(cardRequest).concat(suggestions.map(cardSuggestion));
+  const rows = requests.map(cardRequest).concat(suggestions.map(cardSuggestion));
   return `
       <!-- dc: Network.dc.html › "01 · PEOPLE FOR YOU" -->
-      <div id="foryou" class="mx-wrap-row" style="display:flex;align-items:baseline;gap:14px;padding:22px 0 12px">
-        <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.forYou.n}</span>
-        <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.forYou.title}</span>
-        <span style="font-size:12px;color:#4a4239">${COPY.forYou.sub}</span>
-      </div>
-      ${cards.length ? `<div class="mx-grid-4" style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;padding-bottom:10px">${cards.join('')}</div>` : `
-      <!-- v2: Empty States.dc.html pattern (no requests, no suggestions) -->
-      <div class="empty" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;margin-bottom:10px">
-        <span class="rule-gold" style="margin-bottom:6px"></span>
-        <span class="empty-line">${COPY.forYou.emptyLine}</span>
-        <span class="empty-why">${COPY.forYou.emptyWhy}</span>
-        <a href="/app/profile" class="mx-net-act" style="margin-top:8px;padding:11px 20px;border:1px solid rgba(25,21,18,.3);font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#191512;white-space:nowrap" data-hover="border-color:#191512;color:#191512">${COPY.forYou.emptyCta}</a>
-      </div>`}
+      <section class="mx-sec mx-sec--tight" id="foryou">
+        ${sectionHead(COPY.forYou.n, COPY.forYou.titleT)}
+        ${rows.length ? `<div class="mx-person-rows">${rows.join('')}</div>` : `
+        <div class="empty">
+          <span class="empty-line">${COPY.forYou.emptyLine}</span>
+          <span class="empty-why">${COPY.forYou.emptyWhyT}</span>
+          <a href="/app/profile" class="btn-ghost btn-sm">${COPY.forYou.emptyCtaT}</a>
+        </div>`}
+      </section>
       <!-- /dc -->`;
 }
 
@@ -277,72 +265,50 @@ function blockMyNetwork() {
   const n = D.conns.length;
   return `
       <!-- dc: Network.dc.html › "02 · MY NETWORK" -->
-      <div class="mx-wrap-row" style="display:flex;align-items:baseline;gap:14px;padding:16px 0 12px;border-top:1px solid rgba(25,21,18,.16)">
-        <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.net.n}</span>
-        <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.net.title}</span>
-        <span style="font-size:12px;color:#4a4239">${n === 0 ? COPY.net.zero : COPY.net.count(n)}</span>
-      </div>
-      ${n ? `<div>
-        ${D.conns.map(m => `
-          <div class="mx-net-row" data-card="${esc(m.id)}" style="display:flex;gap:16px;align-items:center;padding:12px 0;border-bottom:1px solid rgba(25,21,18,.12)">
-            <span style="width:40px;height:40px;background:#191512;color:#f7f1e6;display:inline-flex;align-items:center;justify-content:center;font:600 13px Fraunces,serif;flex:none;overflow:hidden">${m.photo_url ? `<img src="${esc(photoUrl(m.photo_url))}" alt="" style="width:100%;height:100%;object-fit:cover">` : esc(initialsOf(m.name))}</span>
-            <span class="mx-net-id" style="flex:1;min-width:0"><span data-act="peek" data-id="${esc(m.id)}" style="display:block;font-family:Fraunces,serif;font-size:16.5px;line-height:1.2">${esc(m.name)}</span><span style="display:block;font-size:11.5px;color:#4a4239;margin-top:2px">${esc(m.institution || 'Med&X member')}</span></span>
-            <span style="padding:3px 9px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${COPY.net.connected}</span>
-            <span data-act="message" data-id="${esc(m.id)}" class="mx-net-act" style="padding:9px 15px;background:#9b1b22;color:#f7f1e6;font:600 9px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.net.message}</span>
-            <span data-act="remove" data-cid="${esc(m.cid)}" data-id="${esc(m.id)}" data-name="${esc(m.name)}" data-v2="remove — required control, not on the artboard" class="mx-net-act" style="padding:9px 12px;border:1px solid rgba(25,21,18,.25);color:#4a4239;font:600 9px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap" data-hover="border-color:#9b1b22;color:#9b1b22">${COPY.net.remove}</span>
-            ${moreButton({ id: m.id, name: m.name })}
-          </div>`).join('')}
-      </div>` : `
-      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:22px;display:flex;flex-direction:column;align-items:center;gap:7px;text-align:center">
-        <span style="width:28px;height:1px;background:#c9a962"></span>
-        <span style="font-family:Fraunces,serif;font-style:italic;font-size:16px;color:#4a4239">${COPY.net.emptyLine}</span>
-        <span style="font-size:12px;color:#4a4239">${COPY.net.emptyWhy}</span>
-        <span data-act="seeSugg" class="mx-net-act" style="margin-top:8px;padding:11px 20px;border:1px solid rgba(25,21,18,.3);font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;color:#191512;white-space:nowrap" data-hover="border-color:#191512">${COPY.net.emptyCta}</span>
-      </div>`}
+      <section class="mx-sec">
+        ${sectionHead(COPY.net.n, COPY.net.titleT, '', n ? `<span class="mx-sh-count">${COPY.net.count(n)}</span>` : '')}
+        ${n ? `<div class="mx-person-rows">
+        ${D.conns.map(m => personRow(m, { sub: esc(m.institution || 'Med&X member'), action: `<span data-act="message" data-id="${esc(m.id)}" role="button" tabindex="0" class="mx-net-btn">${COPY.row.message}</span>` })).join('')}
+        </div>` : `
+        <div class="empty">
+          <span class="empty-line">${COPY.net.emptyLine}</span>
+          <span class="empty-why">${COPY.net.emptyWhyT}</span>
+        </div>`}
+      </section>
       <!-- /dc -->`;
 }
 
 function rowMember(m, i, matched) {
-  const face = connFace(m);
-  const av = AV[i % AV.length];
-  const s = cstate(m).state;
   // point out the match only when it hit a field the row does not already show (name / institution / city / country)
   const hidden = matched && m.matchedOn ? m.matchedOn.filter(f => !['name', 'institution', 'city', 'country'].includes(f)) : [];
-  const matchNote = hidden.length
-    ? ` <span style="color:#6e5626">— ${esc(COPY.results.matches(COPY.matchedLabels[hidden[0]] || hidden[0]))}</span>` : '';
-  return `
-        <div class="mx-net-row" data-card="${esc(m.id)}" style="display:flex;gap:16px;align-items:center;padding:12px 0;border-bottom:1px solid rgba(25,21,18,.12)">
-          <span style="width:40px;height:40px;background:${av[0]};color:${av[1]};display:inline-flex;align-items:center;justify-content:center;font:600 13px Fraunces,serif;flex:none;overflow:hidden">${m.photo_url ? `<img src="${esc(photoUrl(m.photo_url))}" alt="" style="width:100%;height:100%;object-fit:cover">` : esc(m.initials || initialsOf(m.name))}</span>
-          <span class="mx-net-id" style="flex:1;min-width:0"><span data-act="peek" data-id="${esc(m.id)}" style="display:block;font-family:Fraunces,serif;font-size:16.5px;line-height:1.2">${esc(m.name)}</span><span style="display:block;font-size:11.5px;color:#4a4239;margin-top:2px">${esc(subLine(m))}${matchNote}</span></span>
-          <span data-act="connect" data-id="${esc(m.id)}" ${s === 'pending_in' ? `data-cid="${esc(cstate(m).id)}"` : ''} data-face="${face.hv}" class="mx-net-act" style="padding:9px 15px;background:${face.bg};color:${face.fg};border:1px solid ${face.bd};font:600 9px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap">${face.label}</span>
-          ${canMessage(m) ? `<span data-act="message" data-id="${esc(m.id)}" class="mx-net-act" style="padding:9px 15px;border:1px solid rgba(25,21,18,.25);font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#191512;cursor:pointer;white-space:nowrap" data-hover="border-color:#191512">${COPY.net.message}</span>` : ''}
-          ${moreButton({ id: m.id, name: m.name })}
-        </div>`;
+  const tag = hidden.length ? COPY.results.matches(COPY.matchedLabels[hidden[0]] || hidden[0]) : '';
+  return personRow(m, { sub: esc(subLine(m)), tag, action: rowAction(m) });
 }
 
 function pager(act, page, pages) {
   if (pages <= 1) return '';
-  return `<div data-v2="pager" style="display:flex;justify-content:center;align-items:center;gap:14px;padding:16px 0 4px">
-      <span data-act="${act}" data-page="${page - 1}" ${page <= 1 ? 'aria-disabled="true"' : ''} class="mx-net-act" style="padding:9px 14px;border:1px solid rgba(25,21,18,.3);font:600 9px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="border-color:#191512">${COPY.browse.prev}</span>
-      <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#4a4239;white-space:nowrap">${COPY.browse.page(page, pages)}</span>
-      <span data-act="${act}" data-page="${page + 1}" ${page >= pages ? 'aria-disabled="true"' : ''} class="mx-net-act" style="padding:9px 14px;border:1px solid rgba(25,21,18,.3);font:600 9px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="border-color:#191512">${COPY.browse.next}</span>
+  return `<div data-v2="pager" class="mx-net-pager">
+      <span data-act="${act}" data-page="${page - 1}" ${page <= 1 ? 'aria-disabled="true"' : ''} role="button" tabindex="0" class="mx-iconbtn" aria-label="Previous page">${ui.icon('chevron-left', 20)}</span>
+      <span class="mx-net-page">${COPY.browse.pageT(page, pages)}</span>
+      <span data-act="${act}" data-page="${page + 1}" ${page >= pages ? 'aria-disabled="true"' : ''} role="button" tabindex="0" class="mx-iconbtn" aria-label="Next page">${ui.icon('chevron-right', 20)}</span>
     </div>`;
 }
 
 function blockBrowse() {
   const d = st.dir;
   return `
-      <!-- dc: Network.dc.html › "BROWSE ALL 50 MEMBERS ↓" -->
-      <div style="display:flex;justify-content:center;align-items:baseline;gap:14px;padding:20px 0 ${d.open ? '8px' : '30px'}">
-        <span data-act="browse" class="mx-net-act" style="padding:11px 20px;border:1px solid rgba(25,21,18,.3);font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="border-color:#191512">${d.open ? COPY.browse.close : COPY.browse.label(fmt.num(D.total))}</span>
-        <span style="font-size:11.5px;color:#4a4239">${COPY.browse.or}</span>
-      </div>
+      <!-- dc: Network.dc.html › "BROWSE ALL 50 MEMBERS ↓" (one row) -->
+      <section class="mx-sec">
+        <div class="mx-list">
+          <span class="mx-row" data-act="browse" role="button" tabindex="0" aria-expanded="${d.open}">${ui.icon('users')}<span class="mx-row-l">${d.open ? COPY.browse.closeT : COPY.browse.labelT(fmt.num(D.total))}</span>${ui.icon(d.open ? 'chevron-down' : 'chevron-right', 18)}</span>
+        </div>
       ${d.open ? `
-      <!-- v2: paginated directory list (no artboard section — rows reuse the artboard's search-result row) -->
-      <div${fresh === 'dir' ? ' class="mx-net-fresh"' : ''} style="padding-bottom:26px">
-        ${d.loading ? `<div style="padding:18px 0;text-align:center;font-size:12px;color:#4a4239">Loading the directory…</div>`
+      <!-- v2: paginated directory list -->
+      <div class="mx-person-rows mx-net-dir${fresh === 'dir' ? ' mx-net-fresh' : ''}">
+        ${d.loading ? `<p class="mx-net-note">${COPY.browse.loading}</p>`
           : (d.items || []).map((m, i) => rowMember(m, i, false)).join('') + pager('dirPage', d.page, d.pages)}
       </div>` : ''}
+      </section>
       <!-- /dc -->`;
 }
 
@@ -350,22 +316,18 @@ function blockResults() {
   const r = st.res;
   return `
       <!-- dc: Network.dc.html › "01 · SEARCH RESULTS" -->
-      <div class="mx-wrap-row" style="display:flex;align-items:baseline;gap:14px;padding:22px 0 12px">
-        <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.results.n}</span>
-        <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.results.title}</span>
-        <div style="flex:1"></div>
-        <span style="font-size:11.5px;color:#4a4239">${r ? COPY.results.count(fmt.num(r.total), fmt.num(D.total)) : 'Searching…'}</span>
-      </div>
-      <div${fresh === 'res' ? ' class="mx-net-fresh"' : ''}>
-        ${r ? r.items.map((m, i) => rowMember(m, i, true)).join('') : ''}
-      </div>
-      ${r && r.total === 0 ? `
-      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:26px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center">
-        <span style="font-family:Fraunces,serif;font-style:italic;font-size:16px;color:#4a4239">${COPY.results.noneLine(esc(st.q))}</span>
-        <span style="font-size:12px;color:#4a4239">${COPY.results.noneWhy}</span>
-      </div>` : ''}
-      ${r ? pager('resPage', r.page, r.pages) : ''}
-      <div style="padding:14px 0 30px"></div>
+      <section class="mx-sec mx-sec--tight">
+        ${sectionHead(COPY.results.n, COPY.results.titleT, '', `<span class="mx-sh-count">${r ? COPY.results.countT(fmt.num(r.total)) : COPY.results.searching}</span>`)}
+        <div class="mx-person-rows${fresh === 'res' ? ' mx-net-fresh' : ''}">
+          ${r ? r.items.map((m, i) => rowMember(m, i, true)).join('') : ''}
+        </div>
+        ${r && r.total === 0 ? `
+        <div class="empty">
+          <span class="empty-line">${COPY.results.noneLine(esc(st.q))}</span>
+          <span class="empty-why">${COPY.results.noneWhy}</span>
+        </div>` : ''}
+        ${r ? pager('resPage', r.page, r.pages) : ''}
+      </section>
       <!-- /dc -->`;
 }
 
@@ -373,7 +335,7 @@ function blockResults() {
 function blockBlocked() {
   if (!D.blockedCount) return '';
   return `
-      <div data-v2="blocked members — js/views/_safety.js" style="display:flex;justify-content:center;padding:0 0 28px;margin-top:-12px">
+      <div data-v2="blocked members — js/views/_safety.js" class="mx-net-blocked">
         <span data-act="blocked" class="mx-safe-link">${SAFETY.link(D.blockedCount)}</span>
       </div>`;
 }
@@ -381,7 +343,7 @@ function blockBlocked() {
 function contentBlock() {
   const searching = !!st.q.trim();
   const html = `<div data-block="content"${fresh === 'all' ? ' class="mx-net-fresh"' : ''}>
-    ${searching ? blockResults() : blockForumTeaser() + blockForYou() + blockMyNetwork() + blockBrowse() + blockBlocked()}
+    ${searching ? blockResults() : blockForYou() + blockMyNetwork() + blockBrowse() + blockBlocked()}
   </div>`;
   fresh = null;
   return html;
@@ -391,8 +353,8 @@ function template() { return `
 <div data-screen-label="Network" class="mx-net-screen" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
   ${blockCrumb()}
   ${blockTabs()}
-  ${blockHero()}
-  <div class="mx-gutter" style="padding:0 36px 8px">
+  <div class="mx-p">
+    ${blockHero()}
     ${contentBlock()}
   </div>
 </div>`; }
@@ -548,30 +510,50 @@ const handlers = {
     ui.toast(COPY.toast.locked);
   },
 
+  // the person sheet: the 96 circle, name, role, city, fields and bio; ONE primary (Connect / Accept, or Message
+  // when allowed) with Message as a ghost beside Connect only when it can work; REPORT · BLOCK behind the ⋯ top-right;
+  // the × closes (the same handlers as before: connect, accept, message, reportSheet, blockMember)
   peek: (el) => {
     const m = findMember(el.dataset.id);
     if (!m) return ui.toast('Profile details are not loaded for this member.');
-    const parts = [m.title, m.institution, [m.city, m.country].filter(Boolean).join(', ')].filter(Boolean);
-    const chips = (m.specialties || []).concat(m.tags || []);
+    const role = [m.title, m.institution].filter(Boolean).join(' · ');
+    const place = [m.city, m.country].filter(Boolean).join(', ');
+    const fields = m.specialties || [];
+    const caps = t => (String(t) === String(t).toUpperCase() ? String(t).toLowerCase().replace(/(^|\s|·)([a-zšđčćž])/g, (x, a, b) => a + b.toUpperCase()) : String(t));
+    const events = (m.tags || []).map(caps);
     const s = cstate(m).state;
-    const primary = canMessage(m) ? { label: COPY.net.message, run: () => router.navigate('/app/messages?to=' + encodeURIComponent(m.id)) }
-      : s === 'none' ? { label: COPY.btn.connect, run: () => handlers.connect({ dataset: { id: m.id } }) }
-      : s === 'pending_in' ? { label: COPY.btn.accept, run: () => handlers.accept({ dataset: { id: m.id, cid: cstate(m).id } }) } : null;
+    const msgOk = canMessage(m);
+    const primary = msgOk ? { label: COPY.peek.message, act: 'peekMsg' }
+      : s === 'none' ? { label: COPY.peek.connect, act: 'peekConnect' }
+      : s === 'pending_in' ? { label: COPY.peek.accept, act: 'peekAccept' } : null;
+    const state = !primary ? (s === 'pending_out' ? COPY.row.sent : s === 'connected' ? COPY.row.connected : s.startsWith('declined') ? COPY.row.declined : '') : '';
     const md = ui.modal({
       eyebrow: COPY.peek.eyebrow,
-      title: esc(m.name),
-      body: `${parts.length ? `<p style="margin:0 0 10px">${esc(parts.join(' · '))}</p>` : ''}
-        ${chips.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px">${chips.map(t => `<span class="chip" style="cursor:default">${esc(t)}</span>`).join('')}</div>` : ''}
-        ${m.bio ? `<p style="margin:0">${esc(m.bio)}</p>` : (parts.length || chips.length ? '' : '<p style="margin:0">This member has not filled in their profile yet.</p>')}
-        <div data-v2="report · block (App Store 1.2)" style="display:flex;gap:20px;margin-top:18px;padding-top:12px;border-top:1px solid rgba(25,21,18,.1)">
-          <span data-act="peekReport" class="mx-safe-link">${SAFETY.menu.report}</span>
-          ${m.is_team || isTeamMember(m.id) ? '' : `<span data-act="peekBlock" class="mx-safe-link" style="color:#9b1b22">${SAFETY.menu.block}</span>`}
+      title: '',
+      body: `<div class="mx-sheet-person">
+          <span data-act="peekMore" role="button" tabindex="0" aria-haspopup="menu" aria-label="${esc(SAFETY.more(m.name))}" class="mx-iconbtn mx-sheet-more">${ui.icon('more', 22)}</span>
+          ${ui.portrait({ name: m.name, src: photoUrl(m.photo_url), size: 96, alt: '' })}
+          <h2 class="mx-sheet-name">${esc(m.name)}</h2>
+          ${role ? `<p class="mx-sheet-role">${esc(role)}</p>` : ''}
+          ${place ? `<p class="mx-sheet-line">${ui.icon('pin', 16)}<span>${esc(place)}</span></p>` : ''}
+          ${fields.length ? `<p class="mx-sheet-line">${ui.icon('sparkle', 16)}<span>${esc(fields.slice(0, 4).join(' · '))}</span></p>` : ''}
+          ${events.length ? `<p class="mx-sheet-line">${ui.icon('ticket', 16)}<span>${esc(events.slice(0, 4).join(' · '))}</span></p>` : ''}
+          ${m.bio ? `<p class="mx-sheet-bio">${esc(m.bio)}</p>` : (role || place || fields.length || events.length ? '' : `<p class="mx-sheet-bio">${COPY.peek.empty}</p>`)}
+          <div class="mx-sheet-acts">
+            ${primary ? `<span data-act="${primary.act}" role="button" tabindex="0" class="btn-primary btn-block">${primary.label}</span>` : state ? `<span class="mx-sheet-state">${esc(state)}</span>` : ''}
+          </div>
         </div>`,
-      actions: primary ? [{ label: COPY.peek.close }, { label: primary.label, kind: 'primary', onClick: primary.run }] : [{ label: COPY.peek.close }]
+      actions: []
     });
     ui.bind(md.el, {
-      peekReport: () => { md.close(); reportSheet({ kind: 'member', targetId: m.id, name: m.name }); },
-      peekBlock: () => { md.close(); blockMember(m); }
+      peekMsg: () => { md.close(); router.navigate('/app/messages?to=' + encodeURIComponent(m.id)); },
+      peekConnect: () => { md.close(); handlers.connect({ dataset: { id: m.id } }); },
+      peekAccept: () => { md.close(); handlers.accept({ dataset: { id: m.id, cid: cstate(m).id } }); },
+      peekMore: (btn) => {
+        const items = [{ label: SAFETY.menu.report, onPick: () => { md.close(); reportSheet({ kind: 'member', targetId: m.id, name: m.name }); } }];
+        if (!m.is_team && !isTeamMember(m.id)) items.push({ label: SAFETY.menu.block, tone: 'danger', onPick: () => { md.close(); blockMember(m); } });
+        openMenu(btn, items);
+      }
     });
   },
 
@@ -579,6 +561,9 @@ const handlers = {
   more: (el) => {
     const m = findMember(el.dataset.id) || { id: el.dataset.id, name: 'this member' };
     const items = [{ label: SAFETY.menu.report, onPick: () => reportSheet({ kind: 'member', targetId: m.id, name: m.name }) }];
+    // a connection's REMOVE lives in the same menu now (the row keeps one action: Message) — same handler
+    const conn = D.conns.find(x => x.id === m.id);
+    if (conn) items.unshift({ label: COPY.row.remove, onPick: () => handlers.remove({ dataset: { cid: conn.cid, id: conn.id, name: conn.name } }) });
     if (!m.is_team && !isTeamMember(m.id)) items.push({ label: SAFETY.menu.block, tone: 'danger', onPick: () => blockMember(m) });
     openMenu(el, items);
   },

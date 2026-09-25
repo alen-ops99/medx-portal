@@ -261,9 +261,9 @@ export async function openBlockedList({ onUnblock } = {}) {
   catch (e) { ui.toast(e.message, { kind: 'error' }); return; }
   const rows = () => blocks.length ? blocks.map(b => `
       <div class="mx-safe-row" data-row="${esc(b.user_id)}">
-        <span class="mx-safe-av">${esc(fmt.initials(b.first_name, b.last_name) || 'M')}</span>
+        ${ui.portrait({ name: b.name || [b.first_name, b.last_name].filter(Boolean).join(' '), src: b.photo_url ? (String(b.photo_url).startsWith('/') ? api.url(b.photo_url) : b.photo_url) : '', size: 44, alt: '' })}
         <span class="mx-safe-who"><span class="mx-safe-name">${esc(b.name)}</span><span class="mx-safe-sub">${esc([b.institution, L.since(ago(b.created_at))].filter(Boolean).join(' · '))}</span></span>
-        <span data-act="unblock" data-id="${esc(b.user_id)}" data-name="${esc(b.name)}" class="btn-ghost mx-safe-unblock">${L.unblock}</span>
+        <span data-act="unblock" data-id="${esc(b.user_id)}" data-name="${esc(b.name)}" class="btn-ghost btn-sm mx-safe-unblock">${L.unblock}</span>
       </div>`).join('') : `<p class="mx-safe-empty">${L.empty}</p>`;
   const m = ui.modal({
     eyebrow: L.eyebrow, title: L.title,

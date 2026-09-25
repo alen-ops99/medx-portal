@@ -8,40 +8,90 @@
   .mx-me-card { transition: none !important; }
 }
 
-/* ≤900px: hero becomes one column (card panel below the intro), grids collapse via mx-grid-* */
-@media (max-width: 900px) {
-  .mx-me-hero { grid-template-columns: 1fr !important; }
-  .mx-me-intro { padding: 34px 18px 22px !important; }
-  .mx-me-cardpanel { padding: 26px 18px !important; }
-}
+/* ---- phone calm pass (2026-09-25, DESIGN-RULES §11 › /app/me) ---- */
+/* the member card: one ink card with one gold hairline frame; nothing on it under 12px, the name at 26 */
+.mx-me-cardsec { display: flex; flex-direction: column; gap: 16px; max-width: 460px; }
+.mx-me-card { position: relative; width: 100%; box-sizing: border-box; padding: 22px 22px 18px; color: var(--cream); cursor: pointer;
+  background: linear-gradient(135deg, #2a221c 0%, #191512 55%, #120e0b 100%); box-shadow: 0 22px 44px -22px rgba(25,21,18,.7);
+  transition: transform .5s var(--ease); }
+.mx-me-card::before { content: ""; position: absolute; inset: 8px; border: 1px solid rgba(201,169,98,.45); pointer-events: none; }
+.mx-me-card-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.mx-me-card-label { font: 600 12px/16px var(--font-ui); letter-spacing: .12em; color: var(--gold); white-space: nowrap; }
+.mx-me-card-mid { display: flex; align-items: flex-end; gap: 16px; margin-top: 28px; }
+.mx-me-card-who { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.mx-me-card-name { font: 400 26px/30px var(--font-display); color: var(--cream); overflow-wrap: anywhere; }
+.mx-me-card-name i { font-style: italic; color: var(--gold); }
+.mx-me-card-sub { font: 400 14px/20px var(--font-ui); color: rgba(247,241,230,.72); }
+.mx-me-card-standing { align-self: flex-start; margin-top: 8px; padding: 4px 8px; background: rgba(201,169,98,.16); color: var(--gold); font: 600 12px/16px var(--font-ui); letter-spacing: .06em; }
+.mx-me-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; padding-top: 12px; border-top: 1px solid rgba(247,241,230,.14);
+  font: 500 12px/16px var(--font-ui); color: rgba(247,241,230,.6); font-variant-numeric: tabular-nums; }
+.mx-me-qr { flex: none; background: #fff; padding: 8px; box-sizing: border-box; }
+.mx-me-qr img { width: 100%; height: 100%; display: block; }
+.mx-me-qr-wait { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: rgba(25,21,18,.3); }
+.mx-me-back { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding: 8px 0 4px; }
+.mx-me-back .mx-me-qr { padding: 14px; margin-bottom: 8px; }
+.mx-me-back-name { font: 400 22px/28px var(--font-display); color: var(--cream); }
+.mx-me-back-sub { font: 400 16px/24px var(--font-ui); color: rgba(247,241,230,.72); }
+.mx-me-back-go { margin-top: 6px; min-height: 44px; display: inline-flex; align-items: center; font: 600 13px/16px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--gold); cursor: pointer; }
+/* one primary under the card (ink, the wallet's own colour) and a ghost beside it */
+.mx-me-cardacts { display: flex; gap: 10px; }
+/* the two read like the wallet's own buttons: sentence case, an icon each */
+.mx-me-walletbtn { flex: 1 1 0; min-width: 0; min-height: 48px; display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 0 16px; box-sizing: border-box;
+  background: var(--ink); color: var(--cream); font: 600 15px/20px var(--font-ui); letter-spacing: 0; cursor: pointer; white-space: nowrap; }
+.mx-me-dl { flex: 0 0 auto; gap: 8px; display: inline-flex !important; align-items: center; padding: 0 16px !important; font: 600 15px/20px var(--font-ui) !important; letter-spacing: 0 !important; text-transform: none !important; }
+@media (hover: hover) { .mx-me-walletbtn:hover { background: #2a221c; } }
 
-/* ≤700px: record cards single column (mx-grid-3 handles it), wallet cards single column */
-@media (max-width: 700px) {
-  .mx-me-tilt { width: 100%; }
-  .mx-me-card { width: 100% !important; max-width: 450px; }
-}
+/* tickets */
+.mx-me-seg { flex: none; margin-left: auto; display: inline-flex; border: 1px solid var(--hair); background: var(--card); }
+.mx-me-tab { min-height: 36px; display: inline-flex; align-items: center; padding: 0 12px; font: 500 14px/20px var(--font-ui); color: var(--soft); cursor: pointer; white-space: nowrap; }
+.mx-me-tab.is-on { background: var(--ink); color: var(--cream); }
+.mx-me-ticket { display: flex; flex-direction: column; gap: 12px; padding: 16px; box-sizing: border-box; background: var(--card); border: 1px solid var(--hair); min-height: 100%; }
+.mx-me-ticket.is-gala { border-color: rgba(201,169,98,.6); }
+.mx-me-ticket-top { display: flex; gap: 12px; align-items: flex-start; }
+.mx-me-ticket-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.mx-me-ticket-title { font: 400 18px/24px var(--font-display); color: var(--ink); }
+.mx-me-ticket-title i { font-style: italic; }
+.mx-me-ticket-line { font: 400 14px/20px var(--font-ui); color: var(--soft); }
+.mx-me-ticket-status { display: inline-flex; align-items: center; gap: 6px; font: 500 14px/20px var(--font-ui); color: var(--gold-dark); }
+.mx-me-tqr { flex: none; width: 56px; height: 56px; background: #fff; border: 1px solid var(--hair-soft); padding: 3px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; }
+.mx-me-tqr img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.mx-me-tqr.is-wait { color: rgba(25,21,18,.3); background: var(--cream); }
+.mx-me-ticket-acts { display: flex; gap: 18px; flex-wrap: wrap; padding-top: 10px; border-top: 1px solid var(--hair-soft); margin-top: auto; }
+.mx-me-tact { min-height: 32px; display: inline-flex; align-items: center; font: 500 14px/20px var(--font-ui); color: var(--crimson); cursor: pointer; white-space: nowrap; text-decoration: none; }
+.mx-me-tact.is-strong { font-weight: 600; }
+.mx-me-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; padding: 20px 16px 24px; background: var(--card); border: 1px solid var(--hair); }
+.mx-me-empty .mx-ghost-ticket { margin-bottom: 8px; }
+.mx-me-pastlist { border-top: 1px solid var(--hair-soft); }
+.mx-me-past { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 10px 0; border-bottom: 1px solid var(--hair-soft); }
+.mx-me-past-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mx-me-past-title { font: 400 18px/24px var(--font-display); }
+.mx-me-past-sub { font: 400 14px/20px var(--font-ui); color: var(--soft); }
+.mx-me-cards { margin-top: 16px; }
 
-/* ≤500px (and the 430px Mobile Portal pattern): settings rows wrap — the label takes its own
-   line, the action stays reachable; ticket rows wrap the same way */
-@media (max-width: 500px) {
-  .mx-me-row { flex-wrap: wrap !important; row-gap: 6px; }
-  .mx-me-row > .mx-me-label { width: 100% !important; }
-  /* a certificate: the title keeps the row, DOWNLOAD PDF · VERIFY LINK · COPY LINK go on their own line under it
-     (side by side they squeezed the title into a 120 px column five lines tall) */
-  .mx-me-row > span:last-child:not(:first-child) { flex: 1 1 100%; }
-  .mx-me-card { padding: 22px 18px !important; }
+/* certificates */
+.mx-me-certs { border-top: 1px solid var(--hair-soft); max-width: 720px; }
+.mx-me-cert { display: flex; gap: 14px; align-items: flex-start; padding: 14px 0; border-bottom: 1px solid var(--hair-soft); }
+.mx-me-seal { flex: none; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: var(--ink); color: var(--gold); }
+.mx-me-cert-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mx-me-cert-title { font: 400 18px/24px var(--font-display); }
+.mx-me-cert-sub { font: 400 14px/20px var(--font-ui); color: var(--soft); }
+.mx-me-cert-acts { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 4px; }
+
+@media (min-width: 901px) {
+  .mx-me-cardsec { max-width: 520px; }
+  .mx-me-card { padding: 28px 30px 22px; }
 }
 
 /* wallet · no tickets yet — a drawn ticket stub in place of the artboard's striped wireframe box */
 .mx-ghost-ticket { display: flex; width: 280px; max-width: 100%; height: 96px; background: #fdfaf3; border: 1px solid rgba(25,21,18,.16);
   box-shadow: 0 10px 26px -14px rgba(25,21,18,.35); position: relative; transform: rotate(-2deg); text-align: left; }
 .mx-ghost-ticket .gt-stub { width: 64px; flex: none; background: #191512; color: #c9a962; display: flex; flex-direction: column; align-items: center;
-  justify-content: center; gap: 2px; border-right: 1px dashed rgba(201,169,98,.55); font: 600 8px Inter, sans-serif; letter-spacing: .2em; }
+  justify-content: center; gap: 2px; border-right: 1px dashed rgba(201,169,98,.55); font: 600 12px Inter, sans-serif; letter-spacing: .1em; }
 .mx-ghost-ticket .gt-stub b { font: 400 26px Fraunces, serif; letter-spacing: 0; color: #f7f1e6; }
 .mx-ghost-ticket .gt-body { flex: 1; min-width: 0; padding: 14px 16px; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
-.mx-ghost-ticket .gt-eye { font: 600 8.5px Inter, sans-serif; letter-spacing: .18em; color: #9b1b22; }
+.mx-ghost-ticket .gt-eye { font: 600 12px Inter, sans-serif; letter-spacing: .1em; color: #9b1b22; }
 .mx-ghost-ticket .gt-title { font: italic 400 19px Fraunces, serif; color: #191512; line-height: 1.1; }
-.mx-ghost-ticket .gt-meta { font: 600 8.5px Inter, sans-serif; letter-spacing: .14em; color: #6d6459; }
+.mx-ghost-ticket .gt-meta { font: 400 12px Inter, sans-serif; color: #6d6459; }
 .mx-ghost-ticket::before, .mx-ghost-ticket::after { content: ''; position: absolute; left: 56px; width: 16px; height: 16px; border-radius: 50%; background: #f7f1e6; border: 1px solid rgba(25,21,18,.16); }
 .mx-ghost-ticket::before { top: -9px; clip-path: inset(50% 0 0 0); }
 .mx-ghost-ticket::after { bottom: -9px; clip-path: inset(0 0 50% 0); }
@@ -64,7 +114,7 @@
 
 /* member card wrapper: carries the hover tilt (JS sets --rx/--ry) so the card keeps its own flip transform.
    A flex box, so the card stays a flex item that shrinks into narrow panels exactly as it did unwrapped. */
-.mx-me-tilt { position: relative; display: flex; justify-content: center; min-width: 0; }
+.mx-me-tilt { position: relative; display: flex; justify-content: flex-start; min-width: 0; }
 
 @media (prefers-reduced-motion: no-preference) {
   .mx-me-screen .mx-me-card { transition: transform .5s var(--ease), box-shadow var(--t-quick) var(--ease) !important; }
@@ -86,6 +136,7 @@
   .mx-me-intro > :nth-child(4) { animation-delay: .11s; }
   .mx-me-intro > :nth-child(5) { animation-delay: .14s; }
   .mx-me-tilt { animation: mx-me-rise var(--t-reveal) var(--ease) .06s backwards; }
+  #view.mx-vt .mx-me-tilt, #view.mx-vt .mx-me-certhead > * { animation: none; }
   /* the hero carries its own finer entrance — out of the shared grid cascade (app.css), which would lift
      the whole intro column and the card panel on top of it */
   #view.mx-enter .mx-me-hero > * { animation: none; }
@@ -102,8 +153,9 @@
 @media (hover: hover) {
   .mx-me-link:hover { color: #191512 !important; }
   /* the member card flips on a click: under the pointer it answers — the shadow deepens and a gold hairline rises */
-  .mx-me-card:hover { box-shadow: 0 30px 70px rgba(0,0,0,.58), 0 0 0 1px rgba(201,169,98,.4) !important; }
-  .mx-me-tab[aria-selected="false"]:hover { color: #191512 !important; background: var(--row-hover) !important; }
+  .mx-me-card:hover { box-shadow: 0 26px 50px -20px rgba(25,21,18,.75), 0 0 0 1px rgba(201,169,98,.4); }
+  .mx-me-tab[aria-selected="false"]:hover { color: #191512; background: var(--row-hover); }
+  .mx-me-tact:hover { color: var(--ink); }
   /* crimson CTAs without an artboard hover darken like every other crimson button */
   .mx-me-btn[style*="background:#9b1b22"]:hover { background: #7e151b !important; color: #f7f1e6 !important; }
 }
