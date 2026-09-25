@@ -513,8 +513,11 @@ function buildInviteEmail({ name, link, deadlineHr, deadlineEn }) {
         + '<a href="mailto:pr@medx.hr" style="color:#9b1b22;text-decoration:none">pr@medx.hr</a></div>'
         + '<div style="font-size:10.5px;letter-spacing:1.5px;text-transform:uppercase;color:#9b9186;margin-top:10px">Med&amp;X · Plexus Gala 2026 · Hotel Esplanade Zagreb</div></div>';
 
+    // data-mx-layout: this approved design (shared with guest_picker/send_invites.py) is its own
+    // complete Med&X card, so sendEmail()'s layout boundary (shared/email-layout.js ensureBranded)
+    // passes it through as it is instead of nesting it inside a second ink band.
     const html =
-        '<div style="background:#ffffff;padding:24px 8px">'
+        '<div data-mx-layout="picker-invite" style="background:#ffffff;padding:24px 8px">'
         + '<div style="max-width:600px;width:100%;margin:0 auto;background:#ffffff;border:1px solid #eee8dd;box-sizing:border-box">'
         + header
         + '<div style="padding:46px 34px 14px">' + block(hrText) + button + divider + block(enText) + '</div>'

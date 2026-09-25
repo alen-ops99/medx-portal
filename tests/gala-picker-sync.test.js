@@ -223,6 +223,8 @@ async function unitTests() {
     check('mail: personal link present in button + fallback', m1.html.split(link).length >= 3);
     check('mail: no "Kliknite ovdje"', !/kliknite ovdje/i.test(m1.html));
     check('mail: pr@medx.hr footer', m1.html.includes('mailto:pr@medx.hr'));
+    check('mail: sendEmail()\'s layout boundary sends the approved card as it is (no second ink band)',
+        require('../shared/email-layout').ensureBranded(m1.html, { subject: m1.subject }) === m1.html);
     const [hrTxt, enTxt] = m1.text.split('—EN—');
     check('mail: HR block carries HR deadline only', hrTxt.includes('do 15. studenoga 2026.') && !hrTxt.includes('November 15, 2026'));
     check('mail: EN block carries EN deadline only', enTxt.includes('by November 15, 2026') && !enTxt.includes('15. studenoga 2026.'));
