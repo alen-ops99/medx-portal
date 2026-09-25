@@ -3,7 +3,11 @@
 /**
  * shared/ai.js — one AI drafting primitive shared by both MedX portals.
  *
- *   aiDraft({ purpose, context, maxTokens }) -> Promise<{ text, mock, mock_reason }>
+ *   aiDraft({ purpose, context, maxTokens, schema, timeoutMs }) -> Promise<{ text, json, mock, mock_reason }>
+ *
+ * With `schema` (a JSON Schema) the reply is constrained by structured outputs
+ * (output_config.format) and also returned parsed as `json`. Without it the
+ * reply is plain text.
  *
  * When ANTHROPIC_API_KEY is set it calls the Anthropic Messages API
  * (claude-haiku-4-5 by default — cheap) via fetch. When the key is absent
@@ -11,10 +15,12 @@
  * returns { text: '', mock: true, mock_reason } with an EMPTY body, so every
  * caller falls through to its own clean deterministic fallback instead of
  * printing an internal placeholder. mock_reason (no_key, rate_limited,
- * http_error, timeout, empty) lets a UI badge template mode without a body.
+ * http_error, timeout, empty, and with a schema incomplete or bad_json) lets a
+ * UI badge template mode without a body.
  *
- * Contract for callers: aiDraft NEVER throws and NEVER blocks longer than the
- * 8s timeout — it always resolves to { text, mock }. Drafts are advisory text
+ * Contract for callers: aiDraft NEVER throws and NEVER blocks longer than its
+ * timeout (8s default, caller-overridable via timeoutMs) — it always resolves
+ * to { text, mock }. Drafts are advisory text
  * only; nothing here sends an email or mutates data.
  *
  * Adding RESEND_API_KEY does not affect this module — it only reads
@@ -24,7 +30,8 @@
 
 const AI_ENDPOINT = 'https://api.anthropic.com/v1/messages';
 // claude-haiku (cheap) default; env-overridable so a newer Haiku can be adopted
-// without a code change.
+// without a code change. Calls that pass `schema` need a model that supports
+// structured outputs (claude-haiku-4-5 does). On other models they fall back.
 const DEFAULT_MODEL = process.env.AI_DRAFT_MODEL || 'claude-haiku-4-5';
 const ANTHROPIC_VERSION = '2023-06-01';
 const TIMEOUT_MS = 8000;
@@ -80,9 +87,9 @@ function _mock(reason) {
     return { text: '', mock: true, mock_reason: reason };
 }
 
-async function aiDraft({ purpose, context, maxTokens } = {}) {
+async function aiDraft({ purpose, context, maxTokens, schema, timeoutMs } = {}) {
     const apiKey = process.env.ANTHROPIC_API_KEY;
-    const max_tokens = Math.max(64, Math.min(Number(maxTokens) || 600, 4096));
+    const max_tokens = Math.max(64, Math.min(Number(maxTokens) || 600, 8192));
 
     // No key (dev) OR over the rate limit -> empty mock so the caller's clean fallback fires.
     if (!apiKey || !_rateOk()) {
@@ -90,11 +97,11 @@ async function aiDraft({ purpose, context, maxTokens } = {}) {
     }
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), Math.max(1000, Number(timeoutMs) || TIMEOUT_MS));
     try {
         const system =
             'You are drafting content for Med&X, a Croatian biomedical NGO. ' +
-            'Write a clear, ready-to-send draft in American English. No emojis. ' +
+            'Write a clear, ready-to-send draft in American English unless the purpose or context names another language. No emojis. ' +
             'No semicolons. Return only the draft text with no preamble.';
         const user =
             `Purpose: ${purpose || 'Write a short draft.'}\n\n` +
@@ -111,6 +118,8 @@ async function aiDraft({ purpose, context, maxTokens } = {}) {
                 max_tokens,
                 system,
                 messages: [{ role: 'user', content: user }],
+                // Structured outputs: with a schema the API constrains the reply to it.
+                ...(schema ? { output_config: { format: { type: 'json_schema', schema } } } : {}),
             }),
             signal: controller.signal,
         });
@@ -118,13 +127,23 @@ async function aiDraft({ purpose, context, maxTokens } = {}) {
             return _mock('http_error');
         }
         const data = await resp.json();
+        // Token accounting per call. The first 40 characters of the purpose identify the surface
+        // without reaching the names some callers interpolate later in the purpose.
+        const usage = (data && data.usage) || {};
+        const stop_reason = (data && data.stop_reason) || '';
+        console.log(`[aiDraft] model=${DEFAULT_MODEL} stop=${stop_reason} in=${usage.input_tokens || 0} out=${usage.output_tokens || 0} purpose="${String(purpose || '').slice(0, 40)}"`);
         const text = (data && Array.isArray(data.content) ? data.content : [])
             .filter((b) => b && b.type === 'text')
             .map((b) => b.text)
             .join('\n')
             .trim();
         if (!text) return _mock('empty');
-        return { text, mock: false };
+        if (schema) {
+            // A refusal or a max_tokens cut can end the reply before the JSON is complete.
+            if (stop_reason !== 'end_turn') return _mock('incomplete');
+            try { return { text, json: JSON.parse(text), mock: false, stop_reason, usage }; } catch (e) { return _mock('bad_json'); }
+        }
+        return { text, mock: false, stop_reason, usage };
     } catch (e) {
         // Timeout, network error, bad JSON — anything: fall back, never throw.
         return _mock(e && e.name === 'AbortError' ? 'timeout' : 'http_error');

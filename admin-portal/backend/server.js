@@ -1477,7 +1477,7 @@ async function sponsorBuildFollowupEmail(sponsor, payload) {
     const tpl = sponsorTierTemplate(sponsor.tier);
     const contactName = payload.who || sponsor.contact_name || '';
     const tierLabel = tpl ? tpl.label : (sponsor.tier || '');
-    const purpose = 'Write a short, warm and professional follow-up email to a prospective sponsor who was contacted about partnering with Med&X but has not replied. Reference the tier discussed and one or two concrete benefits, and invite a quick call. Keep it under 150 words.';
+    const purpose = 'Write a short, warm and professional follow-up email to a prospective sponsor who was contacted about partnering with Med&X but has not replied. Reference the tier discussed and one or two concrete benefits, and invite a quick call. The reader is a busy sponsor contact, so it should read at a glance.';
     const context = {
         sponsor_org: sponsor.name || payload.org || '', contact_name: contactName,
         tier_discussed: tierLabel,
@@ -1512,7 +1512,7 @@ async function sponsorBuildWrapEmail(sponsor, delivered) {
     const stats = sponsorEventStats();
     const tpl = sponsorTierTemplate(sponsor.tier);
     const contactName = sponsor.contact_name || '';
-    const purpose = 'Write a warm post-event wrap-up and renewal invitation to a sponsor who just fulfilled their partnership with Med&X. Thank them, recap the benefits they received and the event reach, and invite them to renew for next year. Keep it under 180 words.';
+    const purpose = 'Write a warm post-event wrap-up and renewal invitation to a sponsor who just fulfilled their partnership with Med&X. Thank them, recap the benefits they received and the event reach, and invite them to renew for next year. Keep it short enough to read at a glance.';
     const context = {
         sponsor_org: sponsor.name || '', contact_name: contactName,
         tier: tpl ? tpl.label : (sponsor.tier || ''),
@@ -2283,15 +2283,6 @@ function plannerBuildPlan(a, facts, photos) {
     return { items, period_start: a.startISO, period_end: a.endISO };
 }
 
-function plannerExtractJson(text) {
-    if (!text) return null;
-    let t = String(text).trim();
-    const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i); if (fence) t = fence[1].trim();
-    const s = t.indexOf('{'), e = t.lastIndexOf('}');
-    if (s < 0 || e < 0 || e <= s) return null;
-    try { return JSON.parse(t.slice(s, e + 1)); } catch (_) { return null; }
-}
-
 // aiDraft-authored plan (only when a real key is set). Returns null on mock / parse failure -> caller
 // falls back to the deterministic builder. Sanitizes every item and pins images to real filenames.
 async function plannerAiPlan(a, facts, photos) {
@@ -2312,11 +2303,35 @@ async function plannerAiPlan(a, facts, photos) {
         key_dates: kd,
         speakers: spk,
         photo_filenames: fileList,
-        OUTPUT: 'Return ONLY JSON: {"items":[{"date":"YYYY-MM-DD","kind":"social|newsletter","platforms":["instagram"],"title":"...","body":"...","image_suggestion":"<one filename from photo_filenames>","project_key":"plexus|gala|accelerator|forum|bridges|medx","language":"en|hr"}]}. Cluster social posts before key dates. Every item MUST include image_suggestion chosen from photo_filenames. No commentary.'
     };
-    const r = await aiDraft({ purpose: 'Produce a social media and newsletter content plan for Med&X as strict JSON only.', context, maxTokens: 3000 });
-    if (!r || r.mock) return null;
-    const plan = plannerExtractJson(r.text);
+    const photoFiles = [...new Set(photos.map(p => p.file).filter(Boolean))];
+    const schema = {
+        type: 'object', additionalProperties: false, required: ['items'],
+        properties: {
+            items: {
+                type: 'array',
+                items: {
+                    type: 'object', additionalProperties: false,
+                    required: ['date', 'kind', 'platforms', 'title', 'body', 'image_suggestion', 'project_key', 'language'],
+                    properties: {
+                        date: { type: 'string', format: 'date' },
+                        kind: { type: 'string', enum: ['social', 'newsletter'] },
+                        platforms: { type: 'array', items: { type: 'string', enum: ['instagram', 'linkedin', 'facebook', 'twitter', 'email'] } },
+                        title: { type: 'string' },
+                        body: { type: 'string' },
+                        image_suggestion: photoFiles.length ? { type: 'string', enum: photoFiles } : { type: 'string' },
+                        project_key: { type: 'string', enum: ['plexus', 'gala', 'accelerator', 'forum', 'bridges', 'medx'] },
+                        language: { type: 'string', enum: ['en', 'hr'] }
+                    }
+                }
+            }
+        }
+    };
+    const r = await aiDraft({
+        purpose: 'Produce a social media and newsletter content plan for Med&X covering the period in the context. Cluster social posts before key dates, and pick the image_suggestion for each item from the photo filenames in the context.',
+        context, maxTokens: 8192, timeoutMs: 60000, schema
+    });
+    const plan = (r && !r.mock) ? r.json : null;
     if (!plan || !Array.isArray(plan.items)) return null;
     const byFile = new Map(photos.map(p => [p.file, p]));
     let pIdx = 0;
@@ -3036,7 +3051,7 @@ async function surveyAiSummary(eventKey) {
     if (R.responded > 0) {
         try {
             const r = await aiDraft({
-                purpose: 'In 3-4 sentences, summarize post-event attendee survey results for the Med&X team: what people loved, what to fix, and one quotable line suitable for a sponsor. Be specific and grounded in the numbers provided.',
+                purpose: 'Summarize post-event attendee survey results for the Med&X team in one short plain-text paragraph (the dashboard shows it as a single paragraph): what people loved, what to fix, and one quotable line suitable for a sponsor. Be specific and grounded in the numbers provided.',
                 context: {
                     event: R.label, surveyed: R.invited, responded: R.responded, response_rate_percent: R.response_rate,
                     average_rating_out_of_5: R.avg_rating, ratings_counted: R.rating_count,
@@ -12510,12 +12525,25 @@ async function initializeApp() {
         }
         return items;
     }
-    // Best-effort parse of a model JSON array back into our item shape (prod path only).
-    function parseModelTaskJson(text, team) {
+    const TASK_EXTRACT_SCHEMA = {
+        type: 'object', additionalProperties: false, required: ['items'],
+        properties: {
+            items: {
+                type: 'array',
+                items: {
+                    type: 'object', additionalProperties: false, required: ['title', 'assignee', 'due_date'],
+                    properties: {
+                        title: { type: 'string' },
+                        assignee: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+                        due_date: { anyOf: [{ type: 'string', format: 'date' }, { type: 'null' }] }
+                    }
+                }
+            }
+        }
+    };
+    // Map the model's structured-output items back into our item shape (prod path only).
+    function parseModelTaskJson(arr, team) {
         try {
-            const m = String(text || '').match(/\[[\s\S]*\]/);
-            if (!m) return null;
-            const arr = JSON.parse(m[0]);
             if (!Array.isArray(arr)) return null;
             return arr.map((o) => {
                 const title = String((o && (o.title || o.task || o.action)) || '').trim();
@@ -12546,12 +12574,13 @@ async function initializeApp() {
             let mock = true;
             try {
                 const d = await aiDraft({
-                    purpose: 'Extract the action items from these meeting notes. Return ONLY a JSON array of objects with keys "title", "assignee" (a team member name or null), and "due_date" (YYYY-MM-DD or null).',
+                    purpose: 'Extract the action items from these meeting notes. Set assignee to a team member name from Team Names, or null. Set due_date to the date the item is due, or null.',
                     context: { notes, team_names: team.map((t) => t.name).join(', ') || 'none', today: today.toISOString().slice(0, 10) },
-                    maxTokens: 800
+                    maxTokens: 800,
+                    schema: TASK_EXTRACT_SCHEMA
                 });
                 mock = !!d.mock;
-                if (!d.mock) { const parsed = parseModelTaskJson(d.text, team); if (parsed && parsed.length) items = parsed; }
+                if (!d.mock && d.json) { const parsed = parseModelTaskJson(d.json.items, team); if (parsed && parsed.length) items = parsed; }
             } catch (e) { /* deterministic list stands */ }
             res.json({ items, count: items.length, mock });
         } catch (e) { console.error('[ai-inbox] extract', e.message); res.status(500).json({ error: 'Could not read those notes.' }); }
@@ -28461,8 +28490,8 @@ document.getElementById('f').addEventListener('submit', async function (ev) {
     async function pressDraftForLang({ description, lang, city, dateLabel, title }) {
         const hr = String(lang).toLowerCase() === 'hr';
         const purpose = hr
-            ? 'Write the body of an investor-relations style press release in formal Croatian (Vi register). Return 2 to 4 short paragraphs of plain prose only, no headline, no dateline, no contact block, no bullet points.'
-            : 'Write the body of an investor-relations style press release in American English. Return 2 to 4 short paragraphs of plain prose only, no headline, no dateline, no contact block, no bullet points.';
+            ? 'Write the body of an investor-relations style press release in formal Croatian (Vi register). The release template already adds the headline, the dateline, the release line, the About Med&X boilerplate, the media contact, and the end mark, so return only the body itself: a few short paragraphs of plain prose separated by blank lines, concise enough for a journalist to take in at a glance.'
+            : 'Write the body of an investor-relations style press release in American English. The release template already adds the headline, the dateline, the release line, the About Med&X boilerplate, the media contact, and the end mark, so return only the body itself: a few short paragraphs of plain prose separated by blank lines, concise enough for a journalist to take in at a glance.';
         let bodyText = '';
         let mock = true;
         try {
@@ -29279,22 +29308,50 @@ ${showContact ? `<div class="block"><h4>${contactLabel}</h4><p>${contact}</p></d
     // nothing reaches contacts without the explicit to-contacts selection below. Findings are only
     // ever presented for review — the assistant NEVER emails anyone from here.
     const RESEARCH_OWNER_ACTION = 'Set ANTHROPIC_API_KEY on the Render admin service';
-    const RESEARCH_SYSTEM = `You are the web-research assistant of the Med&X admin portal (a Croatian biomedical NGO). You search the live web and report ONLY what you actually find.
-HARD RULES (the portal's grounding contract):
-- NEVER invent names, emails, institutions, or roles. Every finding must come from a page you actually found via web search.
-- Report an email as "listed" ONLY if you saw that exact address on a fetched page, and cite that page's URL in the finding's evidence.
-- If you infer an address from a documented pattern (e.g. first.last@org.edu because the organization publishes that format), mark it "inferred" and explain the pattern in an evidence note. Never present an inferred address as confirmed.
-- If no email can be found, set email to "" and email_confidence to "not_found". That is an acceptable and common answer — always prefer it over guessing.
-- Prefer official/institutional pages (hospital and university sites, staff directories, journal mastheads) over aggregators or people-search sites.
-After searching, reply with ONLY one JSON object — no markdown fences, no commentary before or after:
-{"query": string, "findings": [{"name": string, "role_or_desc": string, "organization": string, "email": string, "email_confidence": "listed"|"inferred"|"not_found", "evidence": [{"url": string, "note": string}], "location": string}], "summary": string}
-At most 10 findings. summary = two or three plain sentences on what you found and how confident the emails are.`;
+    const RESEARCH_SYSTEM = `You are the web-research assistant of the Med&X admin portal (a Croatian biomedical NGO). You search the live web and report what you find there. Admins use these findings to contact real people, so a wrong name or address sends Med&X mail to the wrong person. The portal's grounding contract follows from that:
+- Every name, email, institution, and role in a finding comes from a page in your web search results. Leave out anything you cannot trace to such a page.
+- Report an email as "listed" only when that exact address appears on a page in your web search results, and cite that page's URL in the finding's evidence.
+- If you infer an address from a documented pattern (for example first.last@org.edu because the organization publishes that format), mark it "inferred" and explain the pattern in an evidence note. An inferred address is always presented as unconfirmed.
+- If no email can be found, set email to "" and email_confidence to "not_found". That is a common and acceptable answer, and the portal prefers it to a guess.
+- Prefer official and institutional pages (hospital and university sites, staff directories, journal mastheads) over aggregators or people-search sites.
+When you have finished searching, call report_findings once with everything you found. The portal reads only that call.`;
 
-    // Sanitize the model's JSON into the fixed output contract. Downgrades any "listed" email that
-    // lacks a citing URL to "inferred", and blanks emails marked not_found.
-    function advResearchParse(queryText, text, model) {
-        let obj = null;
-        try { const m = String(text || '').match(/\{[\s\S]*\}/); if (m) obj = JSON.parse(m[0]); } catch (e) { obj = null; }
+    // The finished result arrives as one strict tool call (strict: true under tool_choice auto), so the
+    // API guarantees its shape. Text the model writes around the call is ignored.
+    const RESEARCH_REPORT_TOOL = {
+        name: 'report_findings',
+        description: 'Submit the finished research result. Call it once, after your searches, as your final action. The portal reads only this call and discards any other text you write. findings holds at most 10 entries (the portal keeps the first 10). email is "" whenever email_confidence is "not_found". evidence lists the search-result pages that support the finding, each with a short note on what the page shows. An "inferred" email carries a note naming the address pattern and where the organization publishes it.',
+        strict: true,
+        input_schema: {
+            type: 'object', additionalProperties: false,
+            required: ['query', 'findings', 'summary'],
+            properties: {
+                query: { type: 'string', description: 'The research request as you understood it.' },
+                findings: {
+                    type: 'array',
+                    items: {
+                        type: 'object', additionalProperties: false,
+                        required: ['name', 'role_or_desc', 'organization', 'email', 'email_confidence', 'evidence', 'location'],
+                        properties: {
+                            name: { type: 'string' },
+                            role_or_desc: { type: 'string' },
+                            organization: { type: 'string' },
+                            email: { type: 'string' },
+                            email_confidence: { type: 'string', enum: ['listed', 'inferred', 'not_found'] },
+                            evidence: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['url', 'note'], properties: { url: { type: 'string' }, note: { type: 'string' } } } },
+                            location: { type: 'string' }
+                        }
+                    }
+                },
+                summary: { type: 'string', description: 'A brief plain-language note, for an admin skimming the results, on what you found and how confident the emails are.' }
+            }
+        }
+    };
+
+    // Sanitize the report_findings tool input into the fixed output contract. Downgrades any "listed"
+    // email that lacks a citing URL to "inferred", and blanks emails marked not_found.
+    function advResearchParse(queryText, input, model) {
+        const obj = (input && typeof input === 'object') ? input : null;
         const raw = (obj && Array.isArray(obj.findings)) ? obj.findings : [];
         const findings = raw.slice(0, 10).map((f) => {
             const evidence = (Array.isArray(f && f.evidence) ? f.evidence : []).slice(0, 5)
@@ -29328,6 +29385,11 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         const apiKey = process.env.ANTHROPIC_API_KEY;
         if (!apiKey) return { gated: true, actions: [RESEARCH_OWNER_ACTION] };
         const model = process.env.ASSISTANT_MODEL_COMPLEX || process.env.ASSISTANT_MODEL || 'claude-haiku-4-5';
+        // Opus 4.8 runs without thinking when the field is omitted. Turn adaptive thinking on for that
+        // route only. The Haiku default keeps its current request shape. Thinking counts toward max_tokens.
+        const thinks = /^claude-opus-4-8/.test(model);
+        const usage = { input_tokens: 0, output_tokens: 0, web_search_requests: 0 };
+        const logUsage = () => console.info('[research] usage', model, JSON.stringify(usage));
         const messages = [{ role: 'user', content: String(queryText || '').slice(0, 600) }];
         try {
             for (let round = 0; round < 4; round++) {
@@ -29339,8 +29401,9 @@ At most 10 findings. summary = two or three plain sentences on what you found an
                         method: 'POST',
                         headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
                         body: JSON.stringify({
-                            model, max_tokens: 3000, system: RESEARCH_SYSTEM,
-                            tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 6 }],
+                            model, max_tokens: thinks ? 12000 : 3000, system: RESEARCH_SYSTEM,
+                            ...(thinks ? { thinking: { type: 'adaptive' } } : {}),
+                            tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 6 }, RESEARCH_REPORT_TOOL],
                             messages
                         }),
                         signal: ctl.signal
@@ -29352,10 +29415,18 @@ At most 10 findings. summary = two or three plain sentences on what you found an
                     return { ok: false, error: `The AI service returned an error (${resp.status}). Please try again in a moment.` };
                 }
                 const data = await resp.json();
+                const u = data.usage || {};
+                usage.input_tokens += u.input_tokens || 0;
+                usage.output_tokens += u.output_tokens || 0;
+                usage.web_search_requests += (u.server_tool_use && u.server_tool_use.web_search_requests) || 0;
                 if (data.stop_reason === 'pause_turn') { messages.push({ role: 'assistant', content: data.content }); continue; }
-                const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
-                return advResearchParse(queryText, text, model);
+                logUsage();
+                if (data.stop_reason === 'max_tokens') return { ok: false, error: 'The research ran out of room before it finished. Try a narrower query.' };
+                const call = (data.content || []).find((b) => b.type === 'tool_use' && b.name === 'report_findings');
+                if (!call) return { ok: false, error: 'The research finished without a result. Please try again.' };
+                return advResearchParse(queryText, call.input, model);
             }
+            logUsage();
             return { ok: false, error: 'The research ran too long without finishing. Try a narrower query.' };
         } catch (e) {
             console.error('[research] failed', e.message);
@@ -30703,7 +30774,7 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             let brief = composeFallback(), mock = true;
             try {
                 const r = await aiDraft({
-                    purpose: 'Write a short who-is-coming intelligence brief for the Med&X Gala host team. 3 to 5 sentences. Highlight notable senior guests, the institutions best represented, and one concrete suggestion for the host. Warm, specific, American English. No semicolons.',
+                    purpose: 'Write a short who-is-coming intelligence brief that the Med&X Gala host team can take in at a glance. Highlight notable senior guests, the institutions best represented, and one concrete suggestion for the host. Warm, specific, American English. No semicolons.',
                     context: { total_guests: attending.length, institutions_represented: institutions.length, best_represented: topInst || '(none yet)', notable_guests: notableList.join('; ') || '(none flagged yet)' },
                     maxTokens: 320
                 });
@@ -37186,20 +37257,20 @@ At most 10 findings. summary = two or three plain sentences on what you found an
 
     const ASSIST_TOOLS = [
         { name:'get_overview', description:'Current registration statistics for every event (registered / paid / checked-in counts, revenue in EUR, coupons). Use for any "how many" or "how much" question.', input_schema:{ type:'object', properties:{} } },
-        { name:'list_events', description:'List all editable events with their current values and identifiers (gala, conferences, tickets, components, forum events, bridges events). ALWAYS call this before proposing an edit so you use the correct identifier and see current values.', input_schema:{ type:'object', properties:{} } },
-        { name:'update_event', description:'Propose changing fields on an existing event. Does NOT apply — the human confirms. kind ∈ gala|conference|ticket|component|forum_event|bridges_event. key identifies the row (from list_events; omit for gala). changes maps field→new value. Use YYYY-MM-DD for dates and 24-hour HH:MM for times.', input_schema:{ type:'object', properties:{ kind:{type:'string'}, key:{type:'object'}, changes:{type:'object'} }, required:['kind','changes'] } },
-        { name:'create_event', description:'Propose creating a new event. kind ∈ bridges_event|forum_event. fields per kind (a name/title and a date are required). Does NOT apply — the human confirms.', input_schema:{ type:'object', properties:{ kind:{type:'string'}, fields:{type:'object'} }, required:['kind','fields'] } },
-        { name:'create_coupon', description:'Propose a discount coupon for an event. Does NOT apply — the human confirms.', input_schema:{ type:'object', properties:{ event_type:{type:'string'}, code:{type:'string'}, discount_type:{type:'string', enum:['fixed','percentage'] }, discount_value:{type:'number'}, max_uses:{type:'number'}, valid_until:{type:'string'} }, required:['event_type','code','discount_type','discount_value'] } },
+        { name:'list_events', description:'List every editable event with its identifier (key) and the current value of each editable field: the gala, conferences, conference tickets, priced components, forum events, and Building Bridges events. Call it before proposing an edit, because update_event needs the exact key and the field names shown here.', input_schema:{ type:'object', properties:{} } },
+        { name:'update_event', description:'Propose changing fields on an existing event. Nothing is saved until the admin clicks Confirm. kind is gala, conference, ticket, component, forum_event, or bridges_event. key identifies the row exactly as list_events shows it (omit it for gala). changes maps each field name to its new value, using only the fields list_events shows under current for that row. Dates are YYYY-MM-DD, times are 24-hour HH:MM, and prices are in EUR.', input_schema:{ type:'object', properties:{ kind:{type:'string', enum:['gala','conference','ticket','component','forum_event','bridges_event']}, key:{type:'object', description:'The key object exactly as list_events shows it for that row. Omit it for gala.'}, changes:{type:'object', description:'Field name to new value, using only the fields list_events shows under current for that row.'} }, required:['kind','changes'] } },
+        { name:'create_event', description:'Propose creating a new event. Nothing is saved until the admin clicks Confirm. kind is bridges_event (a Building Bridges city event) or forum_event. A bridges_event needs name, city, and event_date, and may also set venue_name, venue_address, event_time, end_time, description, and capacity. A forum_event needs title and start_date, and may also set description, end_date, location_name, location_address, capacity, and price (EUR). Dates are YYYY-MM-DD, times are 24-hour HH:MM, capacity is a whole number, and any other field is ignored. A new Bridges event starts unpublished and a new forum event starts as a draft.', input_schema:{ type:'object', properties:{ kind:{type:'string', enum:['bridges_event','forum_event']}, fields:{type:'object', description:'Field name to value, using the fields listed for the chosen kind.'} }, required:['kind','fields'] } },
+        { name:'create_coupon', description:'Propose a discount coupon for one event. Nothing is saved until the admin clicks Confirm. event_type is gala, plexus (the Plexus conference), forum, bridges, or croatians-abroad. The code is stored in upper case and cannot repeat an active code for the same event. With discount_type fixed, discount_value is euros off. With percentage, discount_value is a percent above 0 and at most 100. valid_until is the last valid day as YYYY-MM-DD. max_uses is the number of redemptions allowed.', input_schema:{ type:'object', properties:{ event_type:{type:'string', enum:['gala','plexus','forum','bridges','croatians-abroad']}, code:{type:'string'}, discount_type:{type:'string', enum:['fixed','percentage'] }, discount_value:{type:'number'}, max_uses:{type:'number', description:'Number of redemptions allowed.'}, valid_until:{type:'string', description:'Last valid day, YYYY-MM-DD.'} }, required:['event_type','code','discount_type','discount_value'] } },
         { name:'research_web', description:'Search the LIVE WEB for people, organizations, hospitals or institutions and their publicly listed contact emails — e.g. "find the emails of these five people", "find the best five hospitals in the world and their contact emails", "who is the chair of neurology at X". Use whenever the admin asks to find or look up people, emails, or organizations that are NOT already portal contacts. Runs immediately (read-only, nothing is emailed) and the results are saved to Research history in My Network. Emails come back with an honest confidence — listed (seen on a cited page), inferred (guessed from a published pattern), or not_found — report it as-is and never upgrade it.', input_schema:{ type:'object', properties:{ query:{ type:'string', description:'What to find, in one clear sentence.' } }, required:['query'] } },
-        { name:'draft_social_post', description:'Draft a social-media post (branded graphic + caption) in Content Studio. Use for ANY ask like "social post", "objava", "Instagram post", "LinkedIn post", "announcement post", "post announcing the gala/conference". Prefills the design brief from live event facts (real date, venue, prices). Creates a DRAFT only — nothing is published or scheduled; the admin reviews it in Content Studio.', input_schema:{ type:'object', properties:{ topic:{ type:'string', description:'What the post is about, e.g. "announcing the gala".' }, event_key:{ type:'string', description:'Optional: gala | plexus | bridges | forum | accelerator | medx.' } }, required:['topic'] } }
+        { name:'draft_social_post', description:'Draft a social-media post (branded graphic plus caption) in Content Studio. Use it when the admin asks you to make or draft a post, for example "social post", "objava", an Instagram or LinkedIn post, or a post announcing the gala or conference. Prefills the design brief from live event facts (real date, venue, prices). Creates a draft only, and it replaces any brief already waiting in Content Studio. Nothing is published or scheduled, and the admin reviews it in Content Studio.', input_schema:{ type:'object', properties:{ topic:{ type:'string', description:'What the post is about, e.g. "announcing the gala".' }, event_key:{ type:'string', description:'Optional: gala | plexus | bridges | forum | accelerator | medx.' } }, required:['topic'] } }
     ];
     const ASSIST_WRITE_TOOLS = ['update_event','create_event','create_coupon'];
     const ASSIST_SYSTEM = `You are the Med&X admin assistant for the Plexus 2026 conference portal. Your users are often NON-TECHNICAL staff — be warm, brief, and plain-spoken.
 - For any question about numbers (how many registered/paid/checked-in, revenue, coupon usage), call get_overview and answer with the figure directly.
-- To change anything (an event's date/time/venue/price; create an event or coupon), FIRST call list_events to get the exact identifier and current value, THEN call update_event / create_event / create_coupon. These tools DO NOT apply changes — they propose them and the human sees a Confirm button. Never say a change is "done"; say you've prepared it for them to confirm.
+- To change anything (an event's date, time, venue, or price, or a new event or coupon), call list_events first to get the exact identifier and current value, then call update_event, create_event, or create_coupon. These tools only propose the change. The admin sees it with a Confirm button and nothing is saved until they click it, so tell them you have prepared it for them to confirm.
 - Convert dates to YYYY-MM-DD and times to 24-hour HH:MM before calling tools (e.g. "7pm" → "19:00").
 - If a request is ambiguous (which event? which price?), ask one short clarifying question instead of guessing.
-- To find people, organizations, or contact emails on the LIVE WEB (not in My Network), call research_web. Present the findings honestly — each email is marked listed / inferred / not_found; never present an inferred or missing email as confirmed. Mention that the full results were saved to Research history (My Network → Research), where they can add selected people to Contacts. NEVER offer to email anyone from research results.
+- To find people, organizations, or contact emails on the live web (anyone not already in My Network), call research_web. Each email comes back marked listed, inferred, or not_found. Pass that label on as given, because staff write to these addresses and an inferred or missing email shown as confirmed sends mail to the wrong person. Mention that the full results were saved to Research history (My Network → Research), where they can add selected people to Contacts. Do not offer to email anyone from the results. Research findings reach Contacts only after an admin reviews and adds them, and you have no way to send email from here.
 - For a social-media post ("social post", "objava", an Instagram/LinkedIn announcement), call draft_social_post. It only prepares a DRAFT brief in Content Studio — tell the admin to open Content Studio (the button under your reply) to review and export it; nothing is published or scheduled.
 - Keep replies short and friendly. Money is in euros (€).`;
 
@@ -37219,6 +37290,9 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         const apiKey = process.env.ANTHROPIC_API_KEY;
         if (!apiKey) return { answer:"I'm not switched on yet — an admin needs to add an ANTHROPIC_API_KEY in the server settings (Render → medx-admin-portal → Environment). Once that's set, you can ask me anything.", pending: [] };
         const model = assistPickModel(messages);
+        // Opus 4.8 runs without thinking when `thinking` is omitted. Turn adaptive thinking on for the complex
+        // route only, and size max_tokens for thinking plus the reply. The Haiku route keeps its request shape.
+        const thinks = /^claude-opus-4-8/.test(model);
         const pending = [];
         let deepLink = null; // set by tools whose result lives in another surface (Research history, Content Studio)
         const convo = messages.slice();
@@ -37228,12 +37302,18 @@ At most 10 findings. summary = two or three plain sentences on what you found an
                 const resp = await fetch('https://api.anthropic.com/v1/messages', {
                     method:'POST',
                     headers:{ 'x-api-key': apiKey, 'anthropic-version':'2023-06-01', 'content-type':'application/json' },
-                    body: JSON.stringify({ model, max_tokens: 1024, system: ASSIST_SYSTEM, tools: ASSIST_TOOLS, messages: convo })
+                    body: JSON.stringify({ model, max_tokens: thinks ? 8192 : 1024, ...(thinks ? { thinking: { type: 'adaptive' } } : {}), system: ASSIST_SYSTEM, tools: ASSIST_TOOLS, messages: convo })
                 });
                 if (!resp.ok) { console.error('[assistant] anthropic', resp.status, (await resp.text()).slice(0,300)); return { answer:'Sorry — I had trouble reaching the AI service. Please try again in a moment.', pending }; }
                 data = await resp.json();
+                const u = data.usage || {};
+                console.log('[assistant] usage', JSON.stringify({ model, iter, stop: data.stop_reason, input: u.input_tokens || 0, output: u.output_tokens || 0, cache_read: u.cache_read_input_tokens || 0, cache_write: u.cache_creation_input_tokens || 0 }));
             } catch(e) { console.error('[assistant] fetch failed', e.message); return { answer:'Sorry — I could not reach the AI service.', pending }; }
             const content = data.content || [];
+            // Read stop_reason before content: a refusal can come back with empty content, and a max_tokens
+            // stop cuts a reply or a tool call short. Neither should reach staff as a finished answer.
+            if (data.stop_reason === 'refusal') return { answer: 'Sorry, I can\'t help with that request. Try rephrasing it.', pending, deepLink };
+            if (data.stop_reason === 'max_tokens') { console.error('[assistant] reply hit max_tokens', model); return { answer: 'Sorry, my reply was cut off. Please try again.', pending, deepLink }; }
             const toolUses = content.filter(b => b.type === 'tool_use');
             const text = content.filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
             if (!toolUses.length) return { answer: text || 'Done.', pending, deepLink };
@@ -37647,7 +37727,7 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             let caption = '';
             try {
                 const r = await aiDraft({
-                    purpose: `Write a short, warm Instagram caption for a ${brief.kind === 'slideshow' ? 'photo slideshow video' : 'graphic'} about ${brief.projectName}. One or two sentences, then 3 to 5 relevant hashtags on a new line. American English, no emojis.`,
+                    purpose: `Write a short, warm Instagram caption for a ${brief.kind === 'slideshow' ? 'photo slideshow video' : 'graphic'} about ${brief.projectName}. A short caption that reads at a glance, then a few relevant hashtags on a new line. American English, no emojis.`,
                     context: { headline: brief.headline, detail: brief.subline, project: brief.projectName, ask: brief.source },
                     maxTokens: 220
                 });
@@ -37925,10 +38005,10 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             const event = parsed.event || String(req.body?.event || 'plexus').slice(0, 24);
             const bundle = videoStudioBundle(req, event);
             let ai = null, mock = true, reason = 'no_key';
-            if (desc) {
+            if (desc && !parsed.headline) {   // a quoted headline wins (hl = parsed.headline || ai), so skip the model call then
                 try {
                     const r = await aiDraft({
-                        purpose: `From this request, write ONE short punchy headline line, at most eight words, for a ${parsed.template} motion-graphics video about ${bundle.eventName}. American English, no emojis, no quotes, no trailing period.`,
+                        purpose: `From this request, write one short punchy headline line that fits on screen in a ${parsed.template} motion-graphics video about ${bundle.eventName}. American English, no emojis, no quotes, no trailing period.`,
                         context: { request: desc, event: bundle.eventName, date: bundle.facts.dateLine, venue: bundle.facts.venue },
                         maxTokens: 60
                     });
@@ -38531,6 +38611,23 @@ ${extraCss || ''}
     // Curated accent palette (matches the client picker) — the accent is constrained to this set
     // plus the preset defaults, never a free color wheel.
     const DS_ACCENTS = ['#C9A227', '#E6C878', '#9B1B22', '#12305A', '#9C7C1A', '#1F5C3D', '#5C2A47', '#211A07'];
+    // Structured-output schema for the design assistant (aiDraft schema option). Enums mirror the
+    // factory presets and the curated accent palette above.
+    const DS_ASSIST_SCHEMA = {
+        type: 'object', additionalProperties: false,
+        required: ['preset', 'accent', 'font_scale', 'logo_scale', 'frame_style', 'show', 'headline', 'sub'],
+        properties: {
+            preset: { type: 'string', enum: Object.keys(DS_PRESETS) },
+            accent: { type: 'string', enum: DS_ACCENTS },
+            font_scale: { type: 'number', enum: [0.9, 1, 1.12] },
+            logo_scale: { type: 'number', enum: [0.8, 1, 1.25] },
+            frame_style: { type: 'string', enum: ['classic', 'hairline', 'band'] },
+            show: { type: 'object', additionalProperties: false, required: ['badge', 'date', 'venue'],
+                    properties: { badge: { type: 'boolean' }, date: { type: 'boolean' }, venue: { type: 'boolean' } } },
+            headline: { type: 'string' },
+            sub: { type: 'string' }
+        }
+    };
     function dsHexToRgb(h) { const m = /^#([0-9a-f]{6})$/i.exec(String(h || '').trim()); if (!m) return null; const n = parseInt(m[1], 16); return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 }; }
     function dsMix(a, b, k) {
         const A = dsHexToRgb(a), B = dsHexToRgb(b); if (!A || !B) return a;
@@ -38678,7 +38775,7 @@ ${extraCss || ''}
         return { tokens: dsNormalizeTokens(t), matched };
     }
     // POST /api/admin/design-assist — "describe the look you want" -> tokens (+ suggested copy).
-    // Uses aiDraft (strict-JSON purpose) when ANTHROPIC_API_KEY is set; the deterministic keyword
+    // Uses aiDraft (structured output) when ANTHROPIC_API_KEY is set; the deterministic keyword
     // fallback otherwise. NEVER throws; the panel can always apply the result and keep tweaking.
     app.post('/api/admin/design-assist', auth, adminOnly, asyncHandler(async (req, res) => {
         const b = req.body || {};
@@ -38689,21 +38786,19 @@ ${extraCss || ''}
         let tokens = null, copy = { headline: '', sub: '' }, source = 'keywords', matched = [];
         try {
             const r = await aiDraft({
-                purpose: 'Choose design tokens for a premium Med&X ' + (artifact === 'card' ? 'attendance card' : 'roll-up banner') + '. Return ONLY strict JSON, no prose, with keys: preset (one of heritage, cream_crimson, ink_minimal, gala_gold), accent (one hex of ' + DS_ACCENTS.join(', ') + '), font_scale (0.9, 1 or 1.12), logo_scale (0.8, 1 or 1.25), frame_style (classic, hairline or band), show (object with boolean badge, date, venue), headline (a short suggested headline in the brief\'s language, or empty string), sub (a short suggested sub-line, or empty string). Presets: heritage = navy ground with gold, cream_crimson = light cream ground with crimson, ink_minimal = near-black ground with gold hairlines, gala_gold = deep gold ground with ink type.',
+                purpose: `Choose design tokens for a premium Med&X ${artifact === 'card' ? 'attendance card' : 'roll-up banner'} that match the brief. headline is a short suggested headline in the brief's language, or an empty string. sub is a short suggested sub-line, or an empty string. Presets: heritage = navy ground with gold, cream_crimson = light cream ground with crimson, ink_minimal = near-black ground with gold hairlines, gala_gold = deep gold ground with ink type.`,
                 context: { artifact, brief, current_tokens: JSON.stringify(current) },
-                maxTokens: 400
+                maxTokens: 400,
+                schema: DS_ASSIST_SCHEMA
             });
-            if (r && r.text && !r.mock) {
-                const m = /\{[\s\S]*\}/.exec(String(r.text));
-                if (m) {
-                    const parsed = JSON.parse(m[0]);
-                    tokens = dsNormalizeTokens(Object.assign({}, current, DS_PRESETS[String(parsed.preset)] || {}, {
-                        accent: parsed.accent, font_scale: parsed.font_scale, logo_scale: parsed.logo_scale,
-                        frame_style: parsed.frame_style, show: parsed.show
-                    }));
-                    copy = { headline: String(parsed.headline || '').slice(0, 120), sub: String(parsed.sub || '').slice(0, 160) };
-                    source = 'ai';
-                }
+            if (r && !r.mock && r.json) {
+                const parsed = r.json;
+                tokens = dsNormalizeTokens(Object.assign({}, current, DS_PRESETS[String(parsed.preset)] || {}, {
+                    accent: parsed.accent, font_scale: parsed.font_scale, logo_scale: parsed.logo_scale,
+                    frame_style: parsed.frame_style, show: parsed.show
+                }));
+                copy = { headline: String(parsed.headline || '').slice(0, 120), sub: String(parsed.sub || '').slice(0, 160) };
+                source = 'ai';
             }
         } catch (e) { tokens = null; }
         if (!tokens) { const fb = dsAssistFallback(brief, current); tokens = fb.tokens; matched = fb.matched; source = 'keywords'; }
@@ -40111,15 +40206,20 @@ ${extraCss || ''}
         const base = candDeterministicDossier(cand);
         try {
             const r = await aiDraft({
-                purpose: 'Assess whether this person is a Croatian (by origin or working in Croatia) who is active in biomedicine — medicine, biomedical science, pharma, or public health — anywhere in the world. Reply in 2 to 4 sentences: state your confidence (high, medium, or low), the reasoning, and what a human should double-check. No preamble.',
+                purpose: 'Assess whether this person is a Croatian (by origin or working in Croatia) who is active in biomedicine — medicine, biomedical science, pharma, or public health — anywhere in the world. Give your confidence (high, medium, or low) and a short rationale covering the reasoning and what a human should double-check.',
                 context: { name: cand.name || '', email: cand.email || '', institution: cand.institution || '', country: cand.country || '', field: cand.field || '' },
-                maxTokens: 320
+                maxTokens: 320,
+                schema: {
+                    type: 'object',
+                    properties: { confidence: { type: 'string', enum: ['high', 'medium', 'low'] }, rationale: { type: 'string' } },
+                    required: ['confidence', 'rationale'],
+                    additionalProperties: false
+                }
             });
-            if (r && r.text && !r.mock && !/^\[Draft\]/.test(r.text)) {
+            if (r && !r.mock && r.json && String(r.json.rationale || '').trim()) {
                 base.source = 'ai';
-                base.rationale = r.text.trim();
-                const m = /\b(high|medium|low)\b/i.exec(r.text);
-                if (m) base.confidence = m[1].toLowerCase();
+                base.rationale = String(r.json.rationale).trim();
+                base.confidence = r.json.confidence;
             }
         } catch (e) { /* keep the deterministic dossier */ }
         return base;
@@ -40399,11 +40499,15 @@ ${extraCss || ''}
     }
     async function forumBelongingSentence(cand, campaign) {
         const fallback = forumBelongingFallback(cand) || (campaign && campaign.belonging_default) || 'Your standing in biomedicine is precisely what this circle is convened to bring together.';
+        // The sentence is inserted into the Croatian or the English invitation body (forumBuildInviteEmail).
+        const lang = forumIsCroatian(cand)
+            ? ' The invitation is written in Croatian, so write the sentence in Croatian, formal register.'
+            : ' The invitation is written in English.';
         try {
             const r = await aiDraft({
-                purpose: 'Write ONE warm, specific sentence (maximum 30 words) for a formal invitation to a senior biomedical professional, naming why they belong in a circle of Croatian biomedical leaders. Refer to their field and institution where given. Dignified, no flattery, no emojis, no semicolons. Return only the sentence.',
+                purpose: 'Write one warm, specific sentence for a formal invitation to a senior biomedical professional, naming why they belong in a circle of Croatian biomedical leaders. It is its own short paragraph right after the opening paragraph of the invitation, so keep it brief. Refer to their field and institution where given. Dignified, no flattery, no emojis, no semicolons. Return only the sentence.' + lang,
                 context: { name: (cand && cand.name) || '', field: (cand && cand.field) || '', institution: (cand && cand.institution) || '', country: (cand && cand.country) || '' },
-                maxTokens: 90
+                maxTokens: 160
             });
             if (r && r.text && !r.mock && !/^\[Draft\]/.test(r.text)) return r.text.trim().replace(/\s+/g, ' ');
         } catch (e) { /* keep the deterministic fallback */ }
@@ -40494,14 +40598,12 @@ ${extraCss || ''}
         const fb = forumReplyClassifyFallback(body);
         try {
             const r = await aiDraft({
-                purpose: 'Classify a reply to a Forum invitation as exactly one word: "simple" or "complex". simple = the reply only asks about dates, location, cost, or what the Forum is. complex = anything else (conditions, negotiation, personal circumstances, a decline with questions, sensitive or delicate matters). Answer with only the single word simple or complex.',
+                purpose: 'Classify a reply to a Forum invitation. simple = the reply only asks about dates, location, cost, or what the Forum is. complex = anything else (conditions, negotiation, personal circumstances, a decline with questions, sensitive or delicate matters).',
                 context: { reply: String(body || '').slice(0, 1200) },
-                maxTokens: 8
+                maxTokens: 64,
+                schema: { type: 'object', properties: { kind: { type: 'string', enum: ['simple', 'complex'] } }, required: ['kind'], additionalProperties: false }
             });
-            if (r && r.text && !r.mock && !/^\[Draft\]/.test(r.text)) {
-                const m = /\b(simple|complex)\b/i.exec(r.text);
-                if (m) return m[1].toLowerCase();
-            }
+            if (r && !r.mock && r.json && (r.json.kind === 'simple' || r.json.kind === 'complex')) return r.json.kind;
         } catch (e) { /* keep heuristic */ }
         return fb;
     }
@@ -40518,7 +40620,7 @@ ${extraCss || ''}
         const fallback = forumSimpleReplyFallback(cand);
         try {
             const r = await aiDraft({
-                purpose: 'Write a warm, concise reply in the voice of prof. dr. sc. Alen Juginović, President of Med&X, to a senior colleague who replied to a Biomedical Forum invitation with a logistics question (dates, location, cost, or what the Forum is). Answer plainly and warmly and invite them to consider joining. Use Croatian formal register if their reply is in Croatian, otherwise English. Facts you may rely on: the Forum is a standing invitation-only circle of senior Croatian and international biomedical leaders convened by Med&X, membership carries no fee, and the convenings are held in Zagreb. Do NOT invent specific dates. Start with a salutation. Do NOT add a closing signature — it will be appended. No emojis. No semicolons.',
+                purpose: 'Write a warm, concise reply in the voice of prof. dr. sc. Alen Juginović, President of Med&X, to a senior colleague who replied to a Biomedical Forum invitation with a logistics question (dates, location, cost, or what the Forum is). Answer plainly and warmly and invite them to consider joining. Use Croatian formal register if their reply is in Croatian, otherwise English. Facts you may rely on: the Forum is a standing invitation-only circle of senior Croatian and international biomedical leaders convened by Med&X, membership carries no fee, and the convenings are held in Zagreb. No convening dates are in these facts, so do not give dates, and point them to the Forum pages for details. Start with a salutation. End without a sign-off or signature, because the closing and signature are appended automatically. No emojis. No semicolons.',
                 context: { candidate_name: (cand && cand.name) || '', candidate_field: (cand && cand.field) || '', their_reply: String(replyBody || '').slice(0, 1500) },
                 maxTokens: 420
             });
@@ -40977,14 +41079,12 @@ ${extraCss || ''}
         const fb = eiReplyClassifyFallback(body);
         try {
             const r = await aiDraft({
-                purpose: 'Classify a reply to an event invitation as exactly one word: "simple" or "complex". simple = the reply only asks about dates, location, venue, cost, dress code, programme, or what the event is. complex = anything else (conditions, negotiation, personal circumstances, a decline with questions, sensitive or delicate matters). Answer with only the single word simple or complex.',
+                purpose: 'Classify a reply to an event invitation. simple = the reply only asks about dates, location, venue, cost, dress code, programme, or what the event is. complex = anything else (conditions, negotiation, personal circumstances, a decline with questions, sensitive or delicate matters).',
                 context: { reply: String(body || '').slice(0, 1200) },
-                maxTokens: 8
+                maxTokens: 64,
+                schema: { type: 'object', properties: { kind: { type: 'string', enum: ['simple', 'complex'] } }, required: ['kind'], additionalProperties: false }
             });
-            if (r && r.text && !r.mock && !/^\[Draft\]/.test(r.text)) {
-                const m = /\b(simple|complex)\b/i.exec(r.text);
-                if (m) return m[1].toLowerCase();
-            }
+            if (r && !r.mock && r.json && (r.json.kind === 'simple' || r.json.kind === 'complex')) return r.json.kind;
         } catch (e) {}
         return fb;
     }
@@ -41001,7 +41101,7 @@ ${extraCss || ''}
         const fallback = eiSimpleReplyFallback(inv, facts);
         try {
             const r = await aiDraft({
-                purpose: 'Write a warm, concise reply in the voice of prof. dr. sc. Alen Juginović, President of Med&X, to a colleague who replied to an event invitation with a logistics question (dates, location, venue, cost, dress code, or what the event is). Answer plainly and warmly using the facts provided and invite them to register. Use Croatian formal register if their reply is in Croatian, otherwise English. Do NOT invent facts beyond those given. Start with a salutation. Do NOT add a closing signature — it will be appended. No emojis. No semicolons.',
+                purpose: 'Write a warm, concise reply in the voice of prof. dr. sc. Alen Juginović, President of Med&X, to a colleague who replied to an event invitation with a logistics question (dates, location, venue, cost, dress code, or what the event is). Answer plainly and warmly using the facts provided and invite them to register. Use Croatian formal register if their reply is in Croatian, otherwise English. Use only the event facts given, because the reply is sent in the name of the President of Med&X. Start with a salutation. End without a sign-off or signature, because the closing and signature are appended automatically. No emojis. No semicolons.',
                 context: { event_name: facts.name || '', event_date: facts.date || '', event_venue: facts.venue || '', event_attendance: facts.price || '', invitee_name: (inv && inv.name) || '', their_reply: String(replyBody || '').slice(0, 1500) },
                 maxTokens: 420
             });
@@ -41740,18 +41840,30 @@ ${extraCss || ''}
                 });
             }
             const r = await aiDraft({
-                purpose: 'You are helping build an invitation list for a Croatian biomedical event. From the description, propose up to 8 real, plausible people who fit (senior figures in Croatian or international biomedicine — medicine, biomedical science, pharma, public health). Return ONLY a JSON array. Each element: {"name","institution","country","field","evidence"} where evidence is one short sentence on why they fit and where to verify them. No commentary before or after the JSON.',
+                purpose: 'You are helping build an invitation list for a Croatian biomedical event. From the description, propose up to 8 real, plausible people who fit (senior figures in Croatian or international biomedicine — medicine, biomedical science, pharma, public health). evidence is one short sentence on why they fit and where to verify them.',
                 context: { description: brief },
-                maxTokens: 1500
+                maxTokens: 1500,
+                schema: {
+                    type: 'object',
+                    properties: {
+                        candidates: {
+                            type: 'array',
+                            items: {
+                                type: 'object',
+                                properties: { name: { type: 'string' }, institution: { type: 'string' }, country: { type: 'string' }, field: { type: 'string' }, evidence: { type: 'string' } },
+                                required: ['name', 'institution', 'country', 'field', 'evidence'],
+                                additionalProperties: false
+                            }
+                        }
+                    },
+                    required: ['candidates'],
+                    additionalProperties: false
+                }
             });
-            if (!r || r.mock || !r.text) {
+            if (!r || r.mock || !r.json) {
                 return res.json({ gated: true, key: 'ANTHROPIC_API_KEY', title: 'Discover people with AI', message: 'The AI service did not return any suggestions this time. No names are shown rather than inventing them. Please try again in a moment.', owner_action: 'If this keeps happening, confirm ANTHROPIC_API_KEY is valid in the admin environment.' });
             }
-            let candidates = [];
-            try {
-                const m = r.text.match(/\[[\s\S]*\]/);
-                if (m) candidates = JSON.parse(m[0]);
-            } catch (e) { candidates = []; }
+            let candidates = Array.isArray(r.json.candidates) ? r.json.candidates : [];
             candidates = (Array.isArray(candidates) ? candidates : []).filter(c => c && (c.name || c.institution)).slice(0, 8).map(c => ({
                 name: String(c.name || '').slice(0, 200),
                 institution: String(c.institution || '').slice(0, 200),
@@ -42796,46 +42908,70 @@ ${extraCss || ''}
         CLO: 'You are a veteran legal counsel (Chief Legal Officer) advising Med&X, a Croatian biomedical nonprofit association (udruga) that runs the Plexus conference, a Gala evening and international programs. Your domains: brand, trademark and logo use and the permissions they require, image and personality rights and photo consent, GDPR in its EU and Croatian flavor, event liability and venue, caterer and sponsor contracts, volunteer and donation rules, and HLK/CME compliance touchpoints. You are precise, calm and direct but courteous, and you always say when something needs a qualified lawyer.'
     };
 
-    // Persona system prompts (direct-but-courteous veteran register, 3-5 observations, EN output).
+    // Persona system prompts (direct-but-courteous veteran register, up to 5 observations, EN output).
     function advSystemPrompt(seat) {
         return (ADVISOR_PERSONA[seat] || '') + '\n\n' +
-            'You will be given this week\'s DATA PACK: an array of {key, label, value, unit}. These numbers are the ONLY facts you may use. Never invent a number, name, date or amount that is not in the pack.\n\n' +
-            'Return ONLY a JSON array of 3 to 5 observations. Each observation is an object:\n' +
-            '{ "headline": short (max 8 words), "detail": 1-3 plain sentences of advice a veteran would give, "evidence": [ { "label": short, "value": a number copied EXACTLY from a pack value } ], "link_section": one of the allowed link_section values, "link_label": short (max 4 words) }\n\n' +
-            'Rules: Every observation MUST cite at least one real pack number inside its evidence, and every number in evidence MUST be copied exactly from a pack value. Put narrative only in detail, numbers only in evidence. Money is euros. No emojis. No semicolons. No markdown. If nothing needs attention, say so plainly and cite the healthy numbers. Output the JSON array and nothing else.';
+            'You will be given this week\'s DATA PACK: an array of {key, label, value, unit}. Use only these numbers as facts, and do not state a number, name, date or amount that is not in the pack, because an admin acts on these notes.\n\n' +
+            'Write up to 5 observations, as many as the data supports (the board shows at most five, and a single observation is right for a quiet week). Each observation has these fields:\n' +
+            '{ "headline": a short card title, "detail": plain sentences of advice a veteran would give, only as long as the point needs, "evidence": [ { "label": short, "value": a number copied exactly from a pack value } ], "link_section": one of the allowed link_section values, "link_label": a button label of a few words, such as Open Finances }\n\n' +
+            'Every observation cites at least one pack number in its evidence, copied exactly from a pack value, because the portal drops any observation whose evidence numbers do not match the pack. Put narrative only in detail, numbers only in evidence. Money is euros. No emojis. No semicolons. No markdown. If nothing needs attention, say so plainly and cite the healthy numbers.';
     }
 
     // One 12s, never-throwing Anthropic call (own helper — the assistant loop is tool-shaped and not
-    // cleanly reusable for a JSON-array persona review). Returns the text, or '' on any failure.
-    async function advCallAnthropic(system, userText, maxTokens) {
+    // cleanly reusable for a persona review). With `schema` the reply is constrained by structured
+    // outputs (output_config.format) and returned parsed, or null on any failure. Without it: the text, or ''.
+    async function advCallAnthropic(system, userText, maxTokens, schema) {
+        const fail = schema ? null : '';
         const apiKey = process.env.ANTHROPIC_API_KEY;
-        if (!apiKey) return '';
+        if (!apiKey) return fail;
         const model = process.env.ASSISTANT_MODEL || 'claude-haiku-4-5';
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 12000);
         try {
+            const body = { model, max_tokens: Math.max(256, Math.min(Number(maxTokens) || 1400, 4096)), system, messages: [{ role: 'user', content: userText }] };
+            if (schema) body.output_config = { format: { type: 'json_schema', schema } };
             const resp = await fetch('https://api.anthropic.com/v1/messages', {
                 method: 'POST',
                 headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-                body: JSON.stringify({ model, max_tokens: Math.max(256, Math.min(Number(maxTokens) || 1400, 4096)), system, messages: [{ role: 'user', content: userText }] }),
+                body: JSON.stringify(body),
                 signal: controller.signal
             });
-            if (!resp.ok) { console.error('[Advisors] anthropic', resp.status); return ''; }
+            if (!resp.ok) { console.error('[Advisors] anthropic', resp.status); return fail; }
             const data = await resp.json();
-            return (Array.isArray(data.content) ? data.content : []).filter(b => b && b.type === 'text').map(b => b.text).join('\n').trim();
-        } catch (e) { console.error('[Advisors] anthropic fetch failed:', e.message); return ''; }
+            if (data && data.usage) console.log('[Advisors] usage ' + JSON.stringify({ model, stop_reason: data.stop_reason, input_tokens: data.usage.input_tokens, output_tokens: data.usage.output_tokens }));
+            const text = (Array.isArray(data.content) ? data.content : []).filter(b => b && b.type === 'text').map(b => b.text).join('\n').trim();
+            if (!schema) return text;
+            // A refusal or a max_tokens cut can end the reply before the JSON is complete.
+            if (data.stop_reason !== 'end_turn') { console.error('[Advisors] stop_reason', data.stop_reason); return null; }
+            try { return JSON.parse(text); } catch (e) { return null; }
+        } catch (e) { console.error('[Advisors] anthropic fetch failed:', e.message); return fail; }
         finally { clearTimeout(timer); }
     }
 
-    // Parse a model response into an observation array (tolerant of code fences / stray prose).
-    function advParseObservations(text) {
-        if (!text) return [];
-        let s = String(text).trim().replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
-        const a = s.indexOf('['), b = s.lastIndexOf(']');
-        if (a >= 0 && b > a) s = s.slice(a, b + 1);
-        let arr; try { arr = JSON.parse(s); } catch (e) { return []; }
-        return Array.isArray(arr) ? arr.filter(o => o && typeof o === 'object') : [];
-    }
+    // One observation schema shared by all four seats (link_section stays a plain string because
+    // advSanitizeObs forces each seat's allow-list), so it compiles once per weekly run.
+    const ADV_OBS_SCHEMA = {
+        type: 'object',
+        properties: {
+            observations: {
+                type: 'array',
+                items: {
+                    type: 'object',
+                    properties: {
+                        headline: { type: 'string' },
+                        detail: { type: 'string' },
+                        evidence: { type: 'array', items: { type: 'object', properties: { label: { type: 'string' }, value: { type: 'number' } }, required: ['label', 'value'], additionalProperties: false } },
+                        link_section: { type: 'string' },
+                        link_label: { type: 'string' }
+                    },
+                    required: ['headline', 'detail', 'evidence', 'link_section', 'link_label'],
+                    additionalProperties: false
+                }
+            }
+        },
+        required: ['observations'],
+        additionalProperties: false
+    };
 
     // CITE-OR-DROP grounding. Every number appearing in an observation's evidence values must match a
     // number in the pack (integer-equal or within 0.5); an observation with no evidence number drops.
@@ -42939,13 +43075,13 @@ ${extraCss || ''}
         if (!process.env.ANTHROPIC_API_KEY) return { observations: fallback, model: null, is_mock: 1 };
         const model = process.env.ASSISTANT_MODEL || 'claude-haiku-4-5';
         const packForModel = (pack || []).map(v => ({ key: v.key, label: v.label_en, value: v.value, unit: v.unit }));
-        const userText = 'This week\'s DATA PACK (the ONLY facts you may cite):\n\n' + JSON.stringify(packForModel, null, 2) +
-            '\n\nAllowed link_section values: ' + meta.sections.join(', ') + '\n\nReturn ONLY the JSON array of observations.';
-        let text = '';
-        try { text = await advCallAnthropic(advSystemPrompt(seat), userText, 1400); } catch (e) { text = ''; }
-        if (!text) return { observations: fallback, model: null, is_mock: 1 };
+        const userText = 'This week\'s DATA PACK (the only facts you may cite):\n\n' + JSON.stringify(packForModel, null, 2) +
+            '\n\nAllowed link_section values: ' + meta.sections.join(', ');
+        let out = null;
+        try { out = await advCallAnthropic(advSystemPrompt(seat), userText, 1400, ADV_OBS_SCHEMA); } catch (e) { out = null; }
+        if (!out || !Array.isArray(out.observations)) return { observations: fallback, model: null, is_mock: 1 };
         const packNums = advPackNumbers(pack);
-        const grounded = advParseObservations(text).map(o => advSanitizeObs(o, meta)).filter(Boolean).filter(o => advEvidenceGrounded(o, packNums)).slice(0, 5);
+        const grounded = out.observations.map(o => advSanitizeObs(o, meta)).filter(Boolean).filter(o => advEvidenceGrounded(o, packNums)).slice(0, 5);
         if (!grounded.length) return { observations: fallback, model, is_mock: 1 };
         return { observations: grounded, model, is_mock: 0 };
     }
@@ -43073,11 +43209,11 @@ ${extraCss || ''}
     async function advRouteQuestion(q) {
         const fallback = advRouteFallback(q);
         if (!process.env.ANTHROPIC_API_KEY) return { seat: fallback, routed_by: 'keywords' };
-        const system = 'You route an internal question from a Croatian biomedical NGO to ONE of four advisors. CMO: marketing, campaigns, press, social media, newsletter. CFO: money, budgets, invoices, payments, revenue. COO: operations, event readiness, logistics, tasks, systems. CLO: anything legal — brand and logo use, permissions, contracts, GDPR and privacy, consent, liability, compliance. Reply with exactly one word: CMO, CFO, COO or CLO.';
-        let text = '';
-        try { text = await advCallAnthropic(system, String(q).slice(0, 600), 16); } catch (e) { text = ''; }
-        const m = String(text || '').toUpperCase().match(/\b(CMO|CFO|COO|CLO)\b/);
-        return m ? { seat: m[1], routed_by: 'ai' } : { seat: fallback, routed_by: 'keywords' };
+        const system = 'You route an internal question from a Croatian biomedical NGO to one of four advisors. CMO: marketing, campaigns, press, social media, newsletter. CFO: money, budgets, invoices, payments, revenue. COO: operations, event readiness, logistics, tasks, systems. CLO: anything legal — brand and logo use, permissions, contracts, GDPR and privacy, consent, liability, compliance.';
+        const schema = { type: 'object', properties: { seat: { type: 'string', enum: ADVISOR_SEATS.slice() } }, required: ['seat'], additionalProperties: false };
+        let out = null;
+        try { out = await advCallAnthropic(system, String(q).slice(0, 600), 256, schema); } catch (e) { out = null; }
+        return (out && ADVISOR_SEATS.includes(out.seat)) ? { seat: out.seat, routed_by: 'ai' } : { seat: fallback, routed_by: 'keywords' };
     }
 
     // A CLO question about using someone's brand/logo/imagery gets the research + email-draft path.
@@ -43085,10 +43221,8 @@ ${extraCss || ''}
         return /logo|brand|trademark|wordmark|emblem|likeness|(publish|use|using|put|display|show).{0,40}(photo|image|picture|name)/i.test(String(q || ''));
     }
 
-    // Parse the model's ask-answer JSON object into the stored shape, or null when unusable.
-    function advParseAskAnswer(text) {
-        let obj = null;
-        try { const m = String(text || '').match(/\{[\s\S]*\}/); if (m) obj = JSON.parse(m[0]); } catch (e) { obj = null; }
+    // Coerce the model's structured ask answer into the stored shape, or null when unusable.
+    function advParseAskAnswer(obj) {
         if (!obj || typeof obj !== 'object') return null;
         const verdict = String(obj.verdict || '').trim().slice(0, 400);
         const reasoning = String(obj.reasoning || '').trim().slice(0, 2400);
@@ -43108,11 +43242,23 @@ ${extraCss || ''}
     // ready-to-send email draft grounded in the researched guidelines.
     function advAskSystemPrompt(seat, brandUse) {
         return (ADVISOR_PERSONA[seat] || '') + '\n\n'
-            + 'A Med&X admin asks you ONE question. Answer it in persona, grounded ONLY in the question, the DATA PACK numbers you are given' + (brandUse ? ' and the LIVE WEB RESEARCH findings' : '') + '. Never invent a number, name, URL or policy.\n\n'
-            + 'Return ONLY one JSON object — no markdown fences, no commentary before or after:\n'
-            + '{ "verdict": one or two short sentences answering the question head-on, "reasoning": 2 to 6 plain sentences explaining why, "next_steps": [2 to 5 short concrete actions]' + (brandUse ? ', "email_draft": { "subject": string, "body": a complete ready-to-send permission-request email from Alen Juginovic, President of Med&X, with [square-bracket placeholders] for anything unknown }' : '') + ' }\n\n'
-            + (brandUse ? 'This is a brand or logo use question: state plainly in the verdict or reasoning WHAT permission is needed and FROM WHOM (name the owner and the team to contact if the research found it), ground the reasoning in the researched guidelines, and make the email draft specific to this request. ' : '')
-            + 'No emojis. No semicolons. Money is euros. Output the JSON object and nothing else.';
+            + 'A Med&X admin asks you a question. Answer it in persona, using only the question, the DATA PACK numbers you are given' + (brandUse ? ' and the LIVE WEB RESEARCH findings' : '') + ', and do not invent a number, name, URL or policy, because the admin acts on this answer.\n\n'
+            + 'Answer with these fields:\n'
+            + '{ "verdict": a short answer to the question, head-on, "reasoning": plain sentences explaining why, as long as the question needs, "next_steps": [short concrete actions, most important first, the panel shows up to six]' + (brandUse ? ', "email_draft": { "subject": string, "body": a complete ready-to-send permission-request email from Alen Juginovic, President of Med&X, with [square-bracket placeholders] for anything unknown }' : '') + ' }\n\n'
+            + (brandUse ? 'This is a brand or logo use question: state in the verdict or reasoning what permission is needed and from whom (name the owner and the team to contact if the research found it), ground the reasoning in the researched guidelines, and make the email draft specific to this request. ' : '')
+            + 'No emojis. No semicolons. Money is euros.';
+    }
+
+    // Structured-output schema for an Ask answer. email_draft is required only on the brand-use path,
+    // so the two variants each compile once.
+    function advAskSchema(brandUse) {
+        const properties = { verdict: { type: 'string' }, reasoning: { type: 'string' }, next_steps: { type: 'array', items: { type: 'string' } } };
+        const required = ['verdict', 'reasoning', 'next_steps'];
+        if (brandUse) {
+            properties.email_draft = { type: 'object', properties: { subject: { type: 'string' }, body: { type: 'string' } }, required: ['subject', 'body'], additionalProperties: false };
+            required.push('email_draft');
+        }
+        return { type: 'object', properties, required, additionalProperties: false };
     }
 
     // Deterministic structured answers — the no-key (or failed-AI) path. Every seat still returns
@@ -43184,11 +43330,10 @@ ${extraCss || ''}
         const packForModel = (pack || []).map(v => ({ key: v.key, label: v.label_en, value: v.value, unit: v.unit }));
         const userText = 'QUESTION from a Med&X admin:\n' + String(question).slice(0, 600)
             + '\n\nThis week\'s DATA PACK for your seat (live portal numbers you may cite):\n' + JSON.stringify(packForModel)
-            + (research ? '\n\nLIVE WEB RESEARCH on the third party\'s brand and logo rules (cite these URLs, never invent others):\n' + JSON.stringify(research) : '')
-            + '\n\nReturn ONLY the JSON object.';
-        let text = '';
-        try { text = await advCallAnthropic(advAskSystemPrompt(seat, brandUse), userText, 1600); } catch (e) { text = ''; }
-        const parsed = advParseAskAnswer(text);
+            + (research ? '\n\nLIVE WEB RESEARCH on the third party\'s brand and logo rules (cite these URLs, never invent others):\n' + JSON.stringify(research) : '');
+        let out = null;
+        try { out = await advCallAnthropic(advAskSystemPrompt(seat, brandUse), userText, 1600, advAskSchema(brandUse)); } catch (e) { out = null; }
+        const parsed = advParseAskAnswer(out);
         if (!parsed) { if (research) fallback.research = research; return fallback; }
         return { ...parsed, research, disclaimer: seat === 'CLO' ? ADVISOR_LEGAL_DISCLAIMER : null, is_mock: 0, model };
     }

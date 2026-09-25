@@ -14798,7 +14798,7 @@ async function submitReset(e){
             } else if (top.length) {
                 try {
                     const draft = await aiDraft({
-                        purpose: 'Write a warm, specific two-sentence summary of what is happening at Med&X right now for a logged-in member. Name the most important items. Do not use a greeting or a sign-off.',
+                        purpose: 'Write a warm, specific summary of what is happening at Med&X right now for a logged-in member. It appears as the short "What is happening at Med&X" card at the top of their home page, so keep it to a brief paragraph that names only the most important items and opens directly with the news, with no greeting or sign-off.',
                         context: { updates: top.map(t => t.title + (t.body ? ' - ' + String(t.body).slice(0, 90) : '')) },
                         maxTokens: 220
                     });
