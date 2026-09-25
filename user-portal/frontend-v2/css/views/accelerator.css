@@ -4,8 +4,11 @@
 .mx-ax { background: #f7f1e6; color: #191512; }
 @media (min-width: 701px) { .mx-ax-tabs { max-width: 420px; } }
 
-/* ---- the countdown: one number ---- */
-.mx-ax-cd { grid-template-columns: max-content; }
+/* ---- the countdown: one number. On a phone it is the kit's glass chip on the photo (GLASS-RULES §1.9.3), shown
+   only while applications are open; before opening and once closed the hero line says it (.mx-ax-cd--quiet).
+   From 501px it keeps the band look. ---- */
+@media (max-width: 500px) { .mx-ax-cd--quiet { display: none !important; } }
+@media (min-width: 501px) { .mx-ax-cd { grid-template-columns: max-content; } }
 
 /* ---- tiles: the stipend numeral is the longest; it shrinks with the screen instead of running out of its tile ---- */
 .mx-ax-tile-money .mx-tile-n { font-size: min(28px, 5.6vw); }
@@ -21,7 +24,10 @@
 
 /* ---- hosts: institutions are squares (never circles), one hairline row each; the detail opens under its row ---- */
 .mx-ax-hostmark { flex: none; width: 44px; height: 44px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; overflow: hidden;
-  background: #191512; color: #c9a962; font: 400 13px/1 Fraunces, serif; letter-spacing: .02em; text-align: center; object-fit: contain; }
+  background: #191512; color: #c9a962; object-fit: contain; }
+/* six rows, then "All 8 hosts" opens the rest in place */
+.mx-ax-allhosts { cursor: pointer; color: #9b1b22; }
+.mx-ax-allhosts .mx-row-l { font-weight: 500; }
 .mx-ax-host { cursor: pointer; }
 .mx-ax-host.is-open { background: var(--row-hover); }
 .mx-ax-hosts { max-width: 720px; }
@@ -32,8 +38,9 @@
 @media (max-width: 500px) { .mx-ax-hostdetail { padding-left: 0; } .mx-ax-dl { grid-template-columns: 1fr; gap: 2px; } }
 .mx-ax-textbtn { display: inline-flex; align-items: center; min-height: 44px; margin-top: 4px; font: 500 14px/20px Inter, sans-serif; color: #9b1b22; cursor: pointer; }
 
-/* ---- selection: numbered steps on the timeline ---- */
+/* ---- selection: numbered steps on the timeline; a phone shows the step titles only (GLASS-RULES Q10) ---- */
 .mx-ax-stepn { font: 400 15px/24px Fraunces, serif; color: #9b1b22; }
+@media (max-width: 500px) { .mx-ax-steps .mx-tl-sub { display: none; } }
 .mx-ax-note { display: block; margin: 12px 0 0; font: 400 14px/20px Inter, sans-serif; color: #4a4239; }
 
 /* ---- your application: one card, its states and actions ---- */
@@ -63,7 +70,7 @@
 .mx-ax-yours { font: 600 12px Inter, sans-serif; letter-spacing: .08em; color: #9b1b22; }
 .mx-ax-followrow { margin-top: 16px; }
 
-/* ---- previous cohorts: one accordion per class ---- */
+/* ---- the team and past fellows: two closed rows; inside "Past fellows" one row per class, then the photos ---- */
 .mx-ax-count { margin-left: auto; font: 400 14px/20px Inter, sans-serif; color: #4a4239; }
 .mx-ax-fellows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .mx-ax-fellows > li { display: flex; flex-direction: column; gap: 1px; padding: 8px 0; border-top: 1px solid rgba(25,21,18,.08); }
@@ -72,7 +79,6 @@
 .mx-ax [data-block="cohorts"] .mx-shelf { margin-top: 20px; }
 
 /* ---- the application form ---- */
-.mx-ax-wizhead .mx-lt { margin-top: 12px; }
 .mx-ax-stepper { max-width: 960px; }
 .mx-ax-steplabel { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font: 400 14px/20px Inter, sans-serif; color: #4a4239; }
 .mx-ax-steplabel strong { font: 400 18px/24px Fraunces, serif; color: #191512; }
@@ -116,7 +122,6 @@
 .mx-ax-before > summary { padding-left: 16px; padding-right: 16px; }
 .mx-ax-before .mx-acc-a { padding: 0 16px 16px; }
 .mx-ax-before { border-bottom: 1px solid rgba(25,21,18,.1); }
-.mx-ax-foot { margin-top: 32px; }
 
 /* the form's own focus + control rules (the artboard's helmet rules) */
 [data-screen-label="Accelerator Application"] select:focus,

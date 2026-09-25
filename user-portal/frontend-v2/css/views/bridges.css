@@ -8,26 +8,24 @@
 .mx-bb-statement i { color: #9b1b22; }
 @media (min-width: 901px) { .mx-bb-statement { font-size: 28px; line-height: 36px; } }
 
-/* stats: numerals in gold on the last tile (the evening's size is the promise) */
+/* stats: three tiles; numerals in gold on the last tile (the evening's size is the promise). On a phone a third of the
+   width holds "40–50" only when the numeral shrinks with the screen (34px ran past its tile at 390 and 320) */
 [data-screen-label="Building Bridges"] .mx-tile:last-child .mx-tile-n { color: #6e5626; }
+@media (max-width: 700px) { [data-screen-label="Building Bridges"] .mx-tiles--3 .mx-tile-n { font-size: min(34px, 6.8vw); white-space: nowrap; } }
 
-/* next event: one card; its facts sit tight under the photo, the register button is the card's one action */
+/* next event: one card; the venue (when known) sits tight under the photo, the register button is the card's one
+   action */
 .mx-bb-card { max-width: 720px; }
-.mx-bb-card .mx-pcard-body { gap: 14px; padding: 8px 16px 20px; }
-.mx-bb-cardfacts { max-width: none; }
+.mx-bb-card .mx-pcard-body { gap: 12px; padding: 16px 16px 20px; }
+.mx-bb-cardfacts { max-width: none; margin-top: -8px; }
 .mx-bb-cardfacts .mx-fact { min-height: 48px; padding: 10px 0; }
 .mx-bb-cardfacts .mx-fact:first-child { border-top: 0; }
-.mx-bb-card .mx-pcard-line { font-size: 16px; line-height: 24px; color: #4a4239; }
-.mx-bb-cd .mx-cd-label { color: #6e5626; }
-.mx-bb-how { font: 400 14px/20px Inter, sans-serif; color: #4a4239; text-align: center; }
 .mx-bb-card .btn-block { width: 100%; min-height: 48px; display: inline-flex; align-items: center; justify-content: center; }
 .mx-bb-rows { margin-top: 16px; }
 
-/* where we've been: photo cards in a shelf; every card opens its gallery */
+/* past editions: photo cards in a shelf (city, venue); every card opens its gallery */
 .mx-bb-edition { cursor: pointer; }
-.mx-bb-ed-label { font: 500 14px/20px Inter, sans-serif; color: #6e5626; }
 .mx-bb-edition .mx-shelf-sub { margin-top: -8px; }
-.mx-bb-edition .mx-shelf-title { margin-top: -4px; }
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
   .mx-bb-edition .mx-media > img:not(.mx-media-mark) { transition: transform var(--t-drift) var(--ease); }
   .mx-bb-edition:hover .mx-media > img:not(.mx-media-mark) { transform: scale(1.04); }

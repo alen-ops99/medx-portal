@@ -1,9 +1,9 @@
-// Source: Gala Evening.dc.html, redrawn to the phone calm rules (DESIGN-RULES.md 2026-09-25).
-// Blocks, top to bottom: "Breadcrumb" (desktop) › "Hero" (eyebrow · title · date · ONE action) ›
-// "Begins in" (the countdown alone) › "Facts" (date · venue · dress · seat · your seat · calendar · updates,
-// each said once) › "01 · On stage that night" (one card, one circle) › "02 · The evening" (a statement,
-// two facts, the long copy folded away) › "Moments" (a shelf) › "03 · The evening at a glance" (timeline) ›
-// "Good to know" (accordions + one message row).
+// Source: Gala Evening.dc.html, redrawn to the phone calm rules (DESIGN-RULES.md) and the Glass Quiet pass
+// (GLASS-RULES.md 2026-09-25: say less, let the photo speak).
+// Blocks, top to bottom: "Breadcrumb" (desktop) › "Hero" (title · one line · ONE action, the countdown as a glass
+// chip on the photo) › "Facts" (time + Add · venue · dress · price · your seat · updates, each said once) ›
+// "On stage" (one card, one circle, one line) › the statement + "About the evening" › "Moments" (a shelf) ›
+// "Program" (time + title) › "Good to know" (accordion + one message row).
 // Data: gala_settings via GET /api/gala/settings (admin-edited in the admin portal),
 // performers flag + effective price via GET /api/v2/gala/meta (backend/v2/gala.js),
 // my seat state via GET /api/gala/my-status + /api/gala/my-seat, follow via /api/notify-topics.
@@ -25,15 +25,14 @@ const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct
 export const COPY = {
   crumb: { left: 'PROJECTS', right: 'MED&amp;X GALA EVENING' },
   hero: {
-    eyebrow: 'Med&amp;X Annual Awards',
     title: 'Gala <i>Evening</i>',
     // one verb for this action, priced (UX audit 2026-09-02 › item 6)
     reserve: price => `${CTA.reserve(price)} →`,
     closedNote: 'Seat reservations are paused right now — message us and we will help.'
   },
   status: {
-    pending: 'Seat requested', pendingSub: 'Our team reviews it and replies by email.',
-    pay: 'Seat approved', paySub: 'Complete the payment to confirm it.',
+    pending: 'Seat requested', pendingSub: 'We reply by email.',
+    pay: 'Seat approved',
     paid: 'Seat confirmed', paidSub: 'Your ticket is in My Med&amp;X.',
     table: label => ` · ${label}`,
     ctaPending: 'MY PLEXUS →', ctaPay: 'PAY FOR YOUR SEAT →', ctaPaid: 'MY TICKET →',
@@ -43,20 +42,18 @@ export const COPY = {
   },
   countdown: { label: 'Begins in', units: ['days', 'hours', 'min'] },
   facts: {
-    when: t => `${t} to midnight`,
+    // the time row carries the calendar action ("Add"); the hero line holds the date
+    when: t => `${t} to midnight`, add: 'Add', addLabel: 'Add the Gala to your calendar',
     venueSub: 'Emerald Ballroom, Zagreb', map: 'Map',
-    dress: 'Black tie', dressSub: 'Formal evening attire',
+    dress: 'Black tie',
     priceEarly: (cur, flip, next) => `${cur} until ${flip}, ${next} after`,
     priceRegular: cur => `${cur} per seat`,
-    priceSub: 'One form covers the conference and the Gala',
-    calendar: 'Add to calendar', calendarSub: 'Timed for the evening, with the venue',
-    follow: 'Gala updates', followSub: on => on ? 'On · email and portal alerts' : 'Off · email and portal alerts'
+    follow: 'Updates'
   },
   stage: {
-    n: '01', title: 'On stage that night', all: 'All →',
-    bioEyebrow: 'ON STAGE THAT NIGHT', bioPending: 'Bio to follow.',
-    emptyLine: 'Speakers are being confirmed.',
-    emptyWhy: 'Names appear here the moment they are confirmed.'
+    title: 'On stage', all: 'All →',
+    bioPending: 'Bio to follow.',
+    emptyLine: 'Speakers are being confirmed.'
   },
   performers: {
     title: 'Live music',
@@ -64,24 +61,19 @@ export const COPY = {
     tbaLine: 'Two performers confirmed · names announced this autumn'
   },
   why: {
-    n: '02', title: 'The evening',
     line: 'Accelerating Croatian medicine and science through <i>international collaboration</i>.',
-    facts: [
-      { icon: 'users', v: 'Seating limited by design', s: 'Every seat is placed to build a bridge' },
-      { icon: 'mic', v: 'Leadership panels', s: 'On high-performance leadership' }
-    ],
     more: 'About the evening',
     body: 'This is the night Croatian medicine and science meet the world. Over dinner and a shared table, the evening turns to the challenges and opportunities of international biomedical collaboration, with panels on high-performance leadership. The Awards honour those who did the most to internationalise Croatian medicine and science this year. The detailed program follows soon.'
   },
   moments: {
-    title: 'Moments', all: 'All photos →',
+    title: 'Moments', all: 'All →',
     modalEyebrow: 'GALA · MOMENTS', modalTitle: 'Moments from previous Galas',
     modalNote: 'Galleries from each Gala land here as our team publishes them.',
     photos: ['photo-candlelit.jpg', 'photo-ballroom.jpg', 'photo-stage.jpg', 'photo-forum.jpg'],
     alts: ['Guests in conversation at a previous Gala', 'The Emerald Ballroom set for dinner', 'A panel on the Gala stage', 'The ballroom during the evening']
   },
   glance: {
-    n: '03', title: 'The evening at a glance',
+    title: 'Program',
     // fallback only — shown when gala_settings carries no schedule rows
     fallback: [
       { time: '19:00', title: 'Doors open', description: 'Welcome reception and networking' },
@@ -93,7 +85,7 @@ export const COPY = {
     policy: 'Seat policy',
     policyLine: 'Seats are non-refundable. You can transfer your seat to a colleague up to the day of the event.',
     transfer: 'Transfer your seat →',
-    ask: 'Message us', askSub: 'Seats, tables, dietary needs'
+    ask: 'Message us'
   },
   ics: { file: `medx-gala-${FACTS.year}.ics`, added: 'Calendar file downloaded — open it to add the Gala.' },
   followed: 'You follow the Gala — updates reach your inbox and alerts.',
@@ -154,9 +146,8 @@ async function load() {
   return {
     s, date, time, d,
     startAt: `${date}T${time}:00+01:00`,                       // Zagreb is CET (+01:00) in December
-    // hero: "Sat 5 Dec 2026 · 19:00"; facts: "Saturday, 5 December 2026"
-    heroDate: d ? `${d.toLocaleDateString('en-GB', { weekday: 'short' })} ${d.getDate()} ${MON[d.getMonth()]} ${d.getFullYear()} · ${time}` : '',
-    longDate: d ? `${d.toLocaleDateString('en-GB', { weekday: 'long' })}, ${d.getDate()} ${d.toLocaleDateString('en-GB', { month: 'long' })} ${d.getFullYear()}` : '',
+    // the hero's one line, and the only place the date is printed: "Sat 5 Dec · 19:00"
+    heroDate: d ? `${d.toLocaleDateString('en-GB', { weekday: 'short' })} ${d.getDate()} ${MON[d.getMonth()]} · ${time}` : '',
     venueLong,
     venueName: venueLong.split(',')[0].replace(/\s*emerald ballroom\s*/i, '').trim() || FACTS.gala.venue,
     dress: dress ? dress.charAt(0).toUpperCase() + dress.slice(1).toLowerCase() : COPY.facts.dress,
@@ -200,8 +191,14 @@ function goldCta(label) {
 
 // ---------------------------------------------------------------- small parts
 const icon = (n, s) => ui.icon(n, s || 20);
-function sectionHead(n, title, link) {
-  return `<div class="mx-sh">${n ? `<span class="mx-sh-n">${n}</span>` : ''}<h2 class="mx-sh-t">${title}</h2>${link || ''}</div>`;
+function sectionHead(title, link) {
+  return `<div class="mx-sh"><h2 class="mx-sh-t">${title}</h2>${link || ''}</div>`;
+}
+// GLASS-RULES Q9: a person shows ONE short line, the institution when the role holds one, else the role.
+// The full title stays in the bio sheet.
+function shortRole(sp) {
+  const role = String(sp.title || sp.role || '');
+  return sp.institution || (role.includes(',') ? role.slice(role.lastIndexOf(',') + 1).trim() : role);
 }
 function fact({ ic, v, s, go, act, attrs }) {
   const tag = act ? `li class="mx-fact" data-act="${act}"${attrs || ''}` : 'li class="mx-fact"';
@@ -225,7 +222,8 @@ function blockCrumb() {
   <!-- /dc -->`;
 }
 
-// §6: eyebrow · title · one date line · ONE action, over the photo's bottom scrim. Nothing else.
+// GLASS-RULES §1.9.3 / Q1: on the photo only the title, ONE line of facts and the one action. The countdown
+// rides on the photo as a glass chip (the last child of the hero, §1.9.3); from 501px the kit draws it as the band.
 function blockHero() {
   return `
   <!-- dc: Gala Evening.dc.html › "Hero" -->
@@ -233,86 +231,83 @@ function blockHero() {
     <img class="mx-hero-photo" src="/assets/photo-gala.jpg" alt="" style="object-position:50% 30%">
     <div class="mx-scrim"></div>
     <div class="mx-hero-body">
-      <span class="mx-hero-eyebrow">${COPY.hero.eyebrow}</span>
       <h1 class="mx-hero-title">${COPY.hero.title}</h1>
       <p class="mx-hero-date">${esc(D.heroDate)}</p>
       <div class="mx-hero-cta">${goldCta(COPY.hero.reserve(fmt.eur(D.price.current)))}</div>
     </div>
+    ${blockCountdown()}
   </section>
   <!-- /dc -->`;
 }
 
-// the countdown and nothing else — the facts it used to carry live once, in the facts block
+// the countdown chip (the kit draws its clock): the days and "days". The label and the hours and minutes cells stay
+// in the DOM (the kit hides them on phones) so the timer keeps writing to the same data-cd cells; the last day shows hours.
 function blockCountdown() {
   const cell = (id, unit) => `<span class="mx-cd-cell"><b class="mx-cd-num" data-cd="${id}">—</b><i class="mx-cd-unit">${unit}</i></span>`;
-  return `
-  <div class="mx-countdown" role="timer" aria-label="Time until the Gala">
-    <span class="mx-cd-label">${COPY.countdown.label}</span>
-    ${cell('days', COPY.countdown.units[0])}${cell('hrs', COPY.countdown.units[1])}${cell('min', COPY.countdown.units[2])}
-  </div>`;
+  return `<div class="mx-countdown mx-countdown--chip" role="timer" aria-label="Time until the Gala"><span class="mx-cd-label">${COPY.countdown.label}</span>${cell('days', COPY.countdown.units[0])}${cell('hrs', COPY.countdown.units[1])}${cell('min', COPY.countdown.units[2])}</div>`;
 }
 
+// only while a request exists; the sub-line is kept where it is a state the member acts on
 function seatRow() {
   const k = D.state.key;
   if (k === 'none') return '';
   const v = { pending: COPY.status.pending, pay: COPY.status.pay, paid: COPY.status.paid }[k]
     + (k === 'paid' && D.seat && D.seat.table_label ? esc(COPY.status.table(D.seat.table_label)) : '');
-  const s = { pending: COPY.status.pendingSub, pay: COPY.status.paySub, paid: COPY.status.paidSub }[k];
+  const s = { pending: COPY.status.pendingSub, paid: COPY.status.paidSub }[k] || '';
   return fact({ ic: 'check', v, s });
 }
 
+// facts show the value (Q4): time with its calendar action, venue with its room, dress, price, seat, updates
 function blockFacts() {
   const p = D.price;
   const priceV = p.phase === 'early_bird' && p.next
     ? COPY.facts.priceEarly(fmt.eur(p.current), esc(flipLabel(p.flip_date)), fmt.eur(p.next))
     : COPY.facts.priceRegular(fmt.eur(p.current));
-  const priceS = D.state.key === 'none' && !D.open ? COPY.hero.closedNote : COPY.facts.priceSub;
+  const priceS = D.state.key === 'none' && !D.open ? COPY.hero.closedNote : '';
+  const add = `<span class="mx-fact-go" data-act="dlIcs" role="button" aria-label="${COPY.facts.addLabel}">${COPY.facts.add}</span>`;
   return `
   <section class="mx-sec mx-sec--tight" data-block="facts">
     <ul class="mx-facts">
-      ${fact({ ic: 'calendar', v: esc(D.longDate), s: esc(COPY.facts.when(D.time)) })}
+      ${fact({ ic: 'clock', v: esc(COPY.facts.when(D.time)), go: add })}
       ${fact({ ic: 'pin', v: esc(D.venueName), s: COPY.facts.venueSub, go: `<a class="mx-fact-go" href="${esc(mapUrl(D.venueLong))}" target="_blank" rel="noopener">${COPY.facts.map}</a>` })}
-      ${fact({ ic: 'tie', v: esc(D.dress), s: COPY.facts.dressSub })}
+      ${fact({ ic: 'tie', v: esc(D.dress) })}
       ${fact({ ic: 'ticket', v: priceV, s: priceS })}
       ${seatRow()}
-      ${fact({ ic: 'plus', v: COPY.facts.calendar, s: COPY.facts.calendarSub, act: 'dlIcs', go: icon('chevron-right', 18) })}
-      <li class="mx-fact" data-block="follow">${icon('bell')}<div class="mx-fact-body"><span class="mx-fact-v">${COPY.facts.follow}</span><span class="mx-fact-s" data-role="follow-label">${COPY.facts.followSub(st.follow)}</span></div><span data-act="tgFollow" role="switch" aria-checked="${st.follow}" aria-label="Get updates from the Gala" class="mx-switch"><span></span></span></li>
+      <li class="mx-fact" data-block="follow">${icon('bell')}<div class="mx-fact-body"><span class="mx-fact-v">${COPY.facts.follow}</span></div><span data-act="tgFollow" role="switch" aria-checked="${st.follow}" aria-label="Get updates from the Gala" class="mx-switch"><span></span></span></li>
     </ul>
   </section>`;
 }
 
-// ONE card for every speaker: a 96 circle from the bundled crop (_portraits.js), name, role on two lines at most.
-// The card opens the bio sheet.
+// ONE card for every speaker: a 96 circle from the bundled crop (_portraits.js), the name and one short line (Q9).
+// The card opens the bio sheet, which holds the full title.
 function speakerCard(sp, i) {
   const name = fmt.person(sp.name);
   return `
       <div class="mx-person" data-act="bio" data-i="${i}" aria-label="${esc(name)}, biography">
         ${ui.portrait({ name, src: portraitSrc(sp, api.url), size: 96, alt: '' })}
         <span class="mx-person-name">${esc(name)}</span>
-        <span class="mx-person-role">${esc(sp.title || sp.role || '')}</span>
+        <span class="mx-person-role">${esc(shortRole(sp))}</span>
       </div>`;
 }
 function blockStage() {
   const body = D.speakers.length
     ? `<div class="mx-grid2 mx-gala-stage">${D.speakers.map(speakerCard).join('')}</div>`
-    : `<div class="empty"><span class="empty-line">${COPY.stage.emptyLine}</span><span class="empty-why">${COPY.stage.emptyWhy}</span></div>`;
+    : `<div class="empty"><span class="empty-line">${COPY.stage.emptyLine}</span></div>`;
   return `
-  <!-- dc: Gala Evening.dc.html › "01 · ON STAGE THAT NIGHT" -->
+  <!-- dc: Gala Evening.dc.html › "ON STAGE THAT NIGHT" -->
   <section class="mx-sec" data-block="stage">
-    ${sectionHead(COPY.stage.n, COPY.stage.title, `<a class="mx-sh-a" href="/app/plexus/program">${COPY.stage.all}</a>`)}
+    ${sectionHead(COPY.stage.title, `<a class="mx-sh-a" href="/app/plexus/program">${COPY.stage.all}</a>`)}
     ${body}
   </section>
   <!-- /dc -->`;
 }
 
-// the statement once, two facts, and the long copy folded away
+// the statement once, the long copy folded away
 function blockWhy() {
   return `
-  <!-- dc: Gala Evening.dc.html › "02 · WHY WE GATHER" -->
+  <!-- dc: Gala Evening.dc.html › "WHY WE GATHER" -->
   <section class="mx-sec" data-block="why">
-    ${sectionHead(COPY.why.n, COPY.why.title)}
     <p class="mx-gala-statement">${COPY.why.line}</p>
-    <ul class="mx-facts">${COPY.why.facts.map(f => fact({ ic: f.icon, v: f.v, s: f.s })).join('')}</ul>
     <div class="mx-accs"><details class="mx-acc"><summary>${COPY.why.more}</summary><div class="mx-acc-a">${COPY.why.body}</div></details></div>
   </section>
   <!-- /dc -->`;
@@ -322,7 +317,7 @@ function blockMoments() {
   return `
   <!-- dc: Gala Evening.dc.html › "MOMENTS FROM PREVIOUS GALAS" -->
   <section class="mx-sec" data-block="moments">
-    ${sectionHead('', COPY.moments.title, `<span class="mx-sh-a" data-act="allPhotos" data-i="0">${COPY.moments.all}</span>`)}
+    ${sectionHead(COPY.moments.title, `<span class="mx-sh-a" data-act="allPhotos" data-i="0">${COPY.moments.all}</span>`)}
     <div class="mx-shelf mx-gala-shelf" style="--w:240px">
       ${COPY.moments.photos.map((p, i) => `<div class="mx-shelf-item"><div class="mx-media r-4x3 mx-ph" data-act="allPhotos" data-i="${i}" role="button" aria-label="Open photo ${i + 1} of ${COPY.moments.photos.length}"><img src="/assets/${p}" alt="${esc(COPY.moments.alts[i] || '')}" loading="lazy"></div></div>`).join('')}
     </div>
@@ -330,8 +325,8 @@ function blockMoments() {
   <!-- /dc -->`;
 }
 
-// the schedule as a timeline: time, title, the admin's description as one line under it (it used to hide in a
-// tooltip). The Awards row is gold; the music row carries the performers line when the names are not in yet.
+// the schedule as a timeline: time and title (Q10). The admin's description and the performers line sit under
+// the title from 501px only (gala.css hides .mx-tl-sub on phones). The Awards row is gold.
 function blockGlance() {
   const rows = D.schedule.length
     ? D.schedule.map(r => ({ time: r.time, title: fmt.euro(r.title || ''), sub: r.description || '' }))
@@ -347,9 +342,9 @@ function blockGlance() {
       ${D.performers.list.map(p => `<div class="mx-person-row is-static">${ui.portrait({ name: String(p.name || '').replace(/[“”"']/g, ''), src: p.image ? api.url(p.image) : '', size: 64, alt: '' })}<span class="mx-person-text"><span class="mx-person-name">${esc(p.name)}</span><span class="mx-person-role">${esc(p.role || '')}</span></span></div>`).join('')}
     </div>` : '';
   return `
-  <!-- dc: Gala Evening.dc.html › "03 · THE EVENING AT A GLANCE" -->
+  <!-- dc: Gala Evening.dc.html › "THE EVENING AT A GLANCE" -->
   <section class="mx-sec" data-block="glance">
-    ${sectionHead(COPY.glance.n, COPY.glance.title)}
+    ${sectionHead(COPY.glance.title)}
     <ol class="mx-timeline">${rows.map(row).join('')}</ol>
     ${named}
   </section>
@@ -363,12 +358,12 @@ function blockKnow() {
   return `
   <!-- dc: Gala Evening.dc.html › "Seat policy" + "Questions" -->
   <section class="mx-sec" data-block="know">
-    ${sectionHead('', COPY.know.title)}
+    ${sectionHead(COPY.know.title)}
     <div class="mx-accs">
       <details class="mx-acc"><summary>${COPY.know.policy}</summary><div class="mx-acc-a">${COPY.know.policyLine}${holdsSeat ? `<br><a href="/app/plexus/mine" data-v2="opens My Plexus › Transfer to a colleague">${COPY.know.transfer}</a>` : ''}</div></details>
     </div>
     <div class="mx-list">
-      <a class="mx-row" href="/app/messages?about=gala">${icon('mail')}<span class="mx-row-l">${COPY.know.ask}<span class="mx-row-s">${COPY.know.askSub}</span></span>${icon('chevron-right', 18)}</a>
+      <a class="mx-row" href="/app/messages?about=gala">${icon('mail')}<span class="mx-row-l">${COPY.know.ask}</span>${icon('chevron-right', 18)}</a>
     </div>
   </section>
   <!-- /dc -->`;
@@ -379,8 +374,7 @@ function template() {
 <div data-screen-label="Gala Evening" class="mx-pg mx-gala">
   ${blockCrumb()}
   ${blockHero()}
-  ${blockCountdown()}
-  <div class="mx-p mx-p--num">
+  <div class="mx-p">
     ${blockFacts()}
     ${blockStage()}
     ${blockWhy()}
@@ -403,8 +397,9 @@ function openBio(i) {
   const sp = D.speakers[Number(i)];
   if (!sp) return;
   const name = fmt.person(sp.name);
+  // no caps eyebrow (the name heads the sheet); the dialog is labelled by the name
   openModal = ui.modal({
-    eyebrow: COPY.stage.bioEyebrow,
+    eyebrow: '',
     body: `<div class="mx-gala-bio">
       ${ui.portrait({ name, src: portraitSrc(sp, api.url), size: 96, alt: '' })}
       <div class="mx-modal-title">${esc(name)}</div>
@@ -412,6 +407,7 @@ function openBio(i) {
       <p>${sp.bio ? esc(sp.bio) : `<i>${COPY.stage.bioPending}</i>`}</p>
     </div>`
   });
+  if (openModal.el) { openModal.el.removeAttribute('aria-labelledby'); openModal.el.setAttribute('aria-label', name); }
   openModal.onClose(() => { openModal = null; });
 }
 
@@ -430,12 +426,13 @@ const handlers = {
     ui.toast(COPY.ics.added);
   },
   // flips in place at once (ui.toggleSwitch) — the POST runs behind it and a failure flips it back
+  // (the switch itself shows the state, so nothing else is painted)
   tgFollow: (el) => ui.toggleSwitch(el, async on => {
     await api.post('/api/notify-topics', { project: 'gala', on });
     if (st) st.follow = on;
     ui.toast(on ? COPY.followed : COPY.unfollowed);
     chrome.refresh();
-  }, on => { const l = el.parentElement && el.parentElement.querySelector('[data-role="follow-label"]'); if (l) l.innerHTML = COPY.facts.followSub(on); }),
+  }),
   pay: async (el) => {
     const reg = D.state.reg;
     if (!reg) return ui.toast(COPY.status.none, { kind: 'error' });
@@ -462,6 +459,9 @@ function startTimers() {
   timers.push(ui.countdown(D.startAt, ({ days, hrs, min }) => {
     const set = (k, v) => ui.tick(rootEl && rootEl.querySelector(`[data-cd="${k}"]`), v);
     set('days', days); set('hrs', hrs); set('min', min);
+    // the last day: the chip shows hours and minutes instead of days (GLASS-RULES §1.9.3)
+    const cd = rootEl && rootEl.querySelector('.mx-countdown--chip');
+    if (cd) cd.classList.toggle('is-final', days === '0');
   }, 30000));
 }
 

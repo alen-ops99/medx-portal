@@ -1,9 +1,9 @@
-// Source: Biomedical Forum.dc.html, redrawn to the phone calm rules (DESIGN-RULES.md 2026-09-25).
-// Blocks, top to bottom: "Breadcrumb" (desktop) › "Hero" (eyebrow · title · date · ONE action) › "Facts" (the
-// circle, the gathering, the venue vote, the membership — each said once) › "01 · The network" (three rows +
-// what membership includes) › "From the Forum" (posts as accordions) › "02 · The annual gathering" ›
-// "03 · Gathering speakers" › "04 · Your membership" (stages · code entry / member / confirmed · venue vote) ›
-// "Put a colleague forward" (the form folded into one row) › "Message us".
+// Source: Biomedical Forum.dc.html, redrawn to the phone calm rules (DESIGN-RULES.md) and the Glass Quiet pass
+// (GLASS-RULES.md 2026-09-25: say less, let the photo speak).
+// Blocks, top to bottom: "Breadcrumb" (desktop) › "Hero" (title · one line · ONE action) › "Facts" (the cap, the
+// venue vote, the membership — each said once) › "Membership includes" (one checklist) › "From the Forum" and
+// "Gathering speakers" (only when they hold something) › "The gathering" › "Your membership" (stages · code entry /
+// member / confirmed · venue vote) › "Put a colleague forward" (the form folded into one row) › "Message us".
 // Data: GET /api/v2/forum/state (membership · gathering · registration · vote · schedule · speakers)
 // + GET /api/v2/forum/feed (the "From the Forum" store: v2 composer table ∪ legacy forum_news).
 // Actions: POST /api/v2/forum/redeem-code (UNLOCK REGISTRATION — distinct empty/unknown/expired/used/
@@ -29,57 +29,43 @@ const NOMINATION_MIN = 120;                   // statement floor — mirrors the
 export const COPY = {
   crumb: { projects: 'PROJECTS', here: 'BIOMEDICAL FORUM' },
   hero: {
-    eyebrow: 'By invitation',
     headline: 'The Biomedical <i>Forum</i>',
     date: (label, where) => `${label} · ${where}`,
     join: 'JOIN WITH YOUR CODE →', member: 'YOUR MEMBERSHIP →'
   },
+  // the facts show the value (GLASS-RULES Q4): the hero line holds the dates and the two cities
   facts: {
-    cap: n => `Capped at ${n} members`, capSub: 'Leaders of Croatian and international biomedicine',
-    gather: 'Two days each May', gatherSub: 'Closing dinner and the annual awards',
-    vote: 'Members vote on the venue', annual: 'Annual membership', annualSub: 'Renewed each year with your invitation'
+    cap: n => `Capped at ${n} members`,
+    vote: 'Members vote on the venue', annual: 'Annual membership'
   },
-  network: {
-    n: '01', title: 'The network',
-    rows: [
-      { icon: 'users', v: 'Members, by invitation', s: 'Heads of clinics, labs and companies' },
-      { icon: 'mail', v: 'Reachable year-round', s: 'Message members in the network', href: '/app/network' },
-      { icon: 'calendar', v: 'First call on the gathering', s: 'Members register first' }
+  // What a member actually gets — stated once, so nobody reads the Forum's dinner as a Plexus Gala ticket
+  // or expects a Gala seat with their membership (2026-09-17). The network and what it includes are one list.
+  includes: {
+    title: 'Membership includes',
+    points: [
+      'The members’ network and directory, year-round',
+      'First call on seats at the May gathering',
+      'The Plexus Gala at the early-bird price (€150)'
     ],
-    // What a member actually gets — stated once, so nobody reads the Forum's dinner as a Plexus Gala ticket
-    // or expects a Gala seat with their membership (2026-09-17).
-    includes: {
-      title: 'What membership includes',
-      points: [
-        'The members’ network and directory, year-round',
-        'First call on seats at the annual May gathering',
-        'The Plexus Gala at the early-bird price (€150), whatever the date'
-      ],
-      note: 'The Gala itself is a separate ticket.'
-    }
+    note: 'Gala ticket sold separately.'
   },
   feed: {
-    title: 'From the Forum', by: 'from the Med&amp;X team',
-    empty: 'Highlights from the network appear here as the Med&amp;X team posts them.'
+    title: 'From the Forum', by: 'from the Med&amp;X team'
   },
   gathering: {
-    n: '02', title: 'The annual gathering',
-    sub: 'The full program follows with your invitation.',
+    title: 'The gathering',
     more: 'About the gathering',
     // gathering.description from GET /api/v2/forum/state when the admin has written one, else this text (2026-09-17)
-    fallback: 'Once a year the Forum leaves the portal and meets in person — two days each May, for the members and guests who lead Croatian and international biomedicine. The days are built for conversation rather than lectures: closed sessions on where medicine and science are heading, time with colleagues you would otherwise only read about, and a closing evening of dinner and the Forum\'s annual awards. Members register first. The venue and the full program follow with your invitation.'
+    fallback: 'Once a year the Forum leaves the portal and meets in person — two days each May, for the members and guests who lead Croatian and international biomedicine. The days are built for conversation: closed sessions on where medicine and science are heading, time with colleagues you would otherwise only read about, and a closing evening of dinner and the Forum\'s annual awards. Members register first. The venue and the full program follow with your invitation.'
   },
   speakers: {
-    n: '03', title: 'Gathering speakers',
-    emptyLine: y => `Speakers for ${y} are announced with the program.`
+    title: 'Gathering speakers'
   },
   membership: {
-    n: '04', title: 'Your membership',
+    title: 'Your membership',
     stages: ['Join', 'Register', 'Confirmed'],
-    inviteLine: 'Received an invitation? Enter your code to join.',
+    // the stepper, the field and the button say how to join; the cap and "Annual membership" are facts above
     codePlaceholder: 'FORUM CODE', unlock: 'UNLOCK REGISTRATION →', checking: 'CHECKING…',
-    // the cap and "Annual membership" are facts above (say it once); the card keeps only the way in
-    note: () => 'No code yet? Message us below.',
     emptyCode: 'Enter the code from your invitation email.',
     memberTag: 'FORUM MEMBER',
     welcome: first => `Welcome to the Forum${first ? ', ' + first : ''}.`,
@@ -100,7 +86,7 @@ export const COPY = {
     name: 'NAME', institution: 'INSTITUTION', dietary: 'DIETARY NOTES · OPTIONAL',
     dietaryPh: 'Vegetarian, allergies…',
     termsTitle: 'ANNUAL MEMBERSHIP · THE TERMS',
-    termsBody: cap => `Forum membership is annual and renewable — it runs for one year from the day you join and renews each year with your invitation. Registering confirms your seat at the gathering; the circle stays capped at ${cap} members so every relationship stays personal.`,
+    termsBody: cap => `Forum membership is annual and renewable — it runs for one year from the day you join and renews each year with your invitation. Registering confirms your seat at the gathering. The circle stays capped at ${cap} members so every relationship stays personal.`,
     termsAccept: 'I accept the annual, renewable membership terms.',
     termsNeeded: 'Please accept the annual membership terms to register.',
     cancel: 'NOT NOW', submit: 'REGISTER FOR THE MAY GATHERING →', busy: 'REGISTERING…',
@@ -109,12 +95,12 @@ export const COPY = {
   vote: {
     eyebrow: 'Members vote on the venue',
     line: 'Where shall the Forum meet in 2027?',
-    note: 'One vote per member; change it any time before the venue is announced.',
+    note: 'One vote per member. Change it any time before the venue is announced.',
     labels: { split: 'SPLIT', zagreb: 'ZAGREB' },
     counted: 'Vote counted.', updated: 'Vote updated.'
   },
   nominate: {
-    row: 'Put a colleague forward', rowSub: 'Members put members forward',
+    row: 'Put a colleague forward',
     intro: 'If someone belongs in this room, tell us who they are and speak for their standing and character.',
     name: 'COLLEAGUE\'S NAME', email: 'COLLEAGUE\'S EMAIL', institution: 'INSTITUTION',
     statement: 'THEIR STANDING AND CHARACTER',
@@ -132,9 +118,10 @@ export const COPY = {
     another: 'PUT ANOTHER COLLEAGUE FORWARD →'
   },
   contact: {
-    ask: 'Message us', sub: 'Invitation, program, sponsorship',
-    // medx.hr has no #sponsorship anchor (checked 2026-08-30), so this links the homepage rather than a dead fragment
-    sponsor: 'Sponsorship', sponsorSub: 'Starts on medx.hr',
+    // the external-link icon says the sponsorship row leaves the portal
+    ask: 'Message us',
+    // medx.hr has no #sponsorship anchor (checked 2026-08-30), so this links the homepage (never a dead fragment)
+    sponsor: 'Sponsorship',
     sponsorUrl: 'https://medx.hr'
   }
 };
@@ -187,8 +174,8 @@ const mkFeed = p => ({ tag: p.tag || '', when: ago(p.published_at), body: p.body
 // ---------------------------------------------------------------- kit helpers
 const icon = (n, s) => ui.icon(n, s || 20);
 const chev = () => ui.icon('chevron-right', 18);
-function sectionHead(n, title, right) {
-  return `<div class="mx-sh">${n ? `<span class="mx-sh-n">${n}</span>` : ''}<h2 class="mx-sh-t">${title}</h2>${right || ''}</div>`;
+function sectionHead(title, right) {
+  return `<div class="mx-sh"><h2 class="mx-sh-t">${title}</h2>${right || ''}</div>`;
 }
 function fact({ ic, v, s, href }) {
   const inner = `${icon(ic)}<div class="mx-fact-body"><span class="mx-fact-v">${v}</span>${s ? `<span class="mx-fact-s">${s}</span>` : ''}</div>`;
@@ -205,7 +192,8 @@ function blockCrumb() { return `
   </div>
   <!-- /dc -->`; }
 
-// §6: eyebrow · title · one date line · ONE action (the same #forum-invitation link and join act as before)
+// GLASS-RULES Q1: title · one line · ONE action (the same #forum-invitation link and join act as before). No eyebrow:
+// "JOIN WITH YOUR CODE" says it is by invitation.
 function blockHero() {
   const isMember = D.stage >= 2;
   return `
@@ -214,7 +202,6 @@ function blockHero() {
     <img class="mx-hero-photo" src="/assets/photo-forum.jpg" alt="" style="object-position:55% 40%">
     <div class="mx-scrim"></div>
     <div class="mx-hero-body">
-      <span class="mx-hero-eyebrow">${COPY.hero.eyebrow}</span>
       <h1 class="mx-hero-title">${COPY.hero.headline}</h1>
       <p class="mx-hero-date">${esc(COPY.hero.date(D.gatherShort, D.gatherWhere))}</p>
       <div class="mx-hero-cta"><a href="#forum-invitation" data-act="join" class="btn-gold btn-block">${isMember ? COPY.hero.member : COPY.hero.join}</a></div>
@@ -223,74 +210,70 @@ function blockHero() {
   <!-- /dc -->`;
 }
 
-// the facts the hero, the band and three paragraphs used to repeat — once each
+// the facts the hero, the band and three paragraphs used to repeat — once each, values only
 function blockFacts() {
   return `
   <!-- dc: Biomedical Forum.dc.html › "Facts band" -->
   <section class="mx-sec mx-sec--tight" data-block="facts">
     <ul class="mx-facts">
-      ${fact({ ic: 'users', v: esc(COPY.facts.cap(D.cap)), s: COPY.facts.capSub })}
-      ${fact({ ic: 'calendar', v: COPY.facts.gather, s: COPY.facts.gatherSub })}
-      ${fact({ ic: 'pin', v: esc(D.gatherWhere), s: COPY.facts.vote })}
-      ${fact({ ic: 'card', v: COPY.facts.annual, s: COPY.facts.annualSub })}
+      ${fact({ ic: 'users', v: esc(COPY.facts.cap(D.cap)) })}
+      ${fact({ ic: 'pin', v: COPY.facts.vote })}
+      ${fact({ ic: 'card', v: COPY.facts.annual })}
     </ul>
   </section>
   <!-- /dc -->`;
 }
 
-function blockNetwork() {
+// the network and what membership includes, as one checklist: the three benefits and the one thing it is not
+function blockIncludes() {
   return `
-  <!-- dc: Biomedical Forum.dc.html › "01 · THE NETWORK" -->
-  <section class="mx-sec" data-block="network">
-    ${sectionHead(COPY.network.n, COPY.network.title)}
-    <ul class="mx-facts">${COPY.network.rows.map(r => fact({ ic: r.icon, v: r.v, s: r.s, href: r.href })).join('')}</ul>
-    <!-- v2: what membership includes — the three benefits and the one thing it is not (2026-09-17) -->
-    <div data-block="includes" class="mx-fo-includes">
-      <h3 class="mx-fo-h3">${COPY.network.includes.title}</h3>
-      <ul class="mx-checks">${COPY.network.includes.points.map(t => `<li>${icon('check')}<span>${t}</span></li>`).join('')}</ul>
-      <p class="mx-fo-note">${COPY.network.includes.note}</p>
-    </div>
+  <!-- dc: Biomedical Forum.dc.html › "THE NETWORK" + "WHAT MEMBERSHIP INCLUDES" -->
+  <section class="mx-sec" data-block="includes">
+    ${sectionHead(COPY.includes.title)}
+    <ul class="mx-checks">${COPY.includes.points.map(t => `<li>${icon('check')}<span>${t}</span></li>`).join('')}</ul>
+    <p class="mx-fo-note">${COPY.includes.note}</p>
   </section>
   <!-- /dc -->`;
 }
 
-// posts as accordions: the headline and when; the body opens under it (the newest one open)
+// posts as accordions: the headline and when; the body opens under it (the newest one open). Not drawn while empty.
 function blockFeed() {
   const feed = D.feed.map(mkFeed);
+  if (!feed.length) return '';
   return `
   <!-- dc: Biomedical Forum.dc.html › "FROM THE FORUM" -->
   <section class="mx-sec" data-block="feed">
-    ${sectionHead('', COPY.feed.title)}
-    ${feed.length ? `<div class="mx-accs">${feed.map((f, i) => `
+    ${sectionHead(COPY.feed.title)}
+    <div class="mx-accs">${feed.map((f, i) => `
       <details class="mx-acc mx-fo-post"${i === 0 ? ' open' : ''}>
         <summary>${f.isSpot && f.init ? ui.portrait({ name: f.headline, size: 44, alt: '' }) : ''}<span class="mx-fo-post-h"><span class="mx-fo-post-t">${esc(f.headline)}</span><span class="mx-fo-post-s">${esc([f.tag, f.when].filter(Boolean).join(' · '))}</span></span></summary>
         <div class="mx-acc-a">${f.sub ? `<p class="mx-fo-post-role">${esc(f.sub)}</p>` : ''}<p>${esc(f.body)}</p><p class="mx-fo-note">${COPY.feed.by}</p></div>
-      </details>`).join('')}</div>`
-      : `<p class="mx-sh-sub">${COPY.feed.empty}</p>`}
+      </details>`).join('')}</div>
   </section>
   <!-- /dc -->`;
 }
 
 function blockSchedule() {
   return `
-  <!-- dc: Biomedical Forum.dc.html › "02 · THE ANNUAL GATHERING" -->
+  <!-- dc: Biomedical Forum.dc.html › "THE ANNUAL GATHERING" -->
   <section class="mx-sec" id="forum-schedule" data-block="gathering">
-    ${sectionHead(COPY.gathering.n, COPY.gathering.title)}
-    <p class="mx-sh-sub">${COPY.gathering.sub}</p>
+    ${sectionHead(COPY.gathering.title)}
     <div class="mx-accs"><details class="mx-acc"><summary>${COPY.gathering.more}</summary><div class="mx-acc-a">${esc(D.gatherAbout)}</div></details></div>
   </section>
   <!-- /dc -->`;
 }
 
+// Not drawn while empty (GLASS-RULES Q11). A speaker shows the name and ONE line (Q9): the institution, else the role.
 function blockSpeakers() {
   const sp = (D.state.speakers || []);
+  if (!sp.length) return '';
+  const line = s => s.institution || (String(s.title || '').includes(',') ? String(s.title).slice(String(s.title).lastIndexOf(',') + 1).trim() : (s.title || ''));
   return `
-  <!-- dc: Biomedical Forum.dc.html › "03 · GATHERING SPEAKERS" -->
+  <!-- dc: Biomedical Forum.dc.html › "GATHERING SPEAKERS" -->
   <section class="mx-sec" data-block="speakers">
-    ${sectionHead(COPY.speakers.n, COPY.speakers.title)}
-    ${sp.length ? `<div class="mx-person-rows">${sp.map(s => `
-      <div class="mx-person-row">${ui.portrait({ name: s.name, src: s.photo_url ? api.url(s.photo_url) : '', size: 64, alt: '' })}<span class="mx-person-text"><span class="mx-person-name">${esc(s.name)}</span><span class="mx-person-role">${esc([s.title, s.institution].filter(Boolean).join(' · '))}</span>${s.talk_title ? `<span class="mx-person-tag">${esc(s.talk_title)}</span>` : ''}</span></div>`).join('')}</div>`
-      : `<p class="mx-sh-sub">${esc(COPY.speakers.emptyLine(D.gatherYear))}</p>`}
+    ${sectionHead(COPY.speakers.title)}
+    <div class="mx-person-rows">${sp.map(s => `
+      <div class="mx-person-row">${ui.portrait({ name: s.name, src: s.photo_url ? api.url(s.photo_url) : '', size: 64, alt: '' })}<span class="mx-person-text"><span class="mx-person-name">${esc(s.name)}</span><span class="mx-person-role">${esc(line(s))}</span>${s.talk_title ? `<span class="mx-person-tag">${esc(s.talk_title)}</span>` : ''}</span></div>`).join('')}</div>
   </section>
   <!-- /dc -->`;
 }
@@ -308,7 +291,6 @@ function stageBody() {
   if (D.stage === 1) {
     return `
       <div class="mx-fo-body">
-        <span class="mx-fo-line">${COPY.membership.inviteLine}</span>
         ${m.expired ? `<span class="mx-fo-gold">${COPY.membership.lapsed}</span>` : ''}
         <form data-form="code" style="display:contents">
           <div class="mx-forum-coderow">
@@ -317,7 +299,6 @@ function stageBody() {
           </div>
         </form>
         <div data-role="codeError" role="alert" class="mx-fo-err" style="display:none"></div>
-        <span class="mx-fo-small">${COPY.membership.note(D.cap)}</span>
       </div>`;
   }
   const renewLine = m.valid_until ? COPY.membership.renews(fmt.longRange(m.valid_until, m.valid_until)) : COPY.membership.renewsOpen;
@@ -367,10 +348,10 @@ function blockVote() {
 
 function blockMembership() {
   return `
-  <!-- dc: Biomedical Forum.dc.html › "04 · YOUR MEMBERSHIP" -->
+  <!-- dc: Biomedical Forum.dc.html › "YOUR MEMBERSHIP" (an ink card: the glass bars read it as dark) -->
   <section class="mx-sec" id="forum-invitation" data-block="membership-sec">
-    ${sectionHead(COPY.membership.n, COPY.membership.title)}
-    <div data-block="membership" class="mx-ink mx-fo-card">
+    ${sectionHead(COPY.membership.title)}
+    <div data-block="membership" class="mx-ink mx-fo-card" data-glass-dark>
       <div class="mx-forum-stages">${stageIndicator()}</div>
       ${stageBody()}
       ${blockVote()}
@@ -405,7 +386,7 @@ function blockNominate() {
   return `
   <!-- dc: Biomedical Forum.dc.html › "PUT A COLLEAGUE FORWARD" -->
   <section class="mx-sec mx-sec--tight" data-block="nominate">
-    <div class="mx-list"><details class="mx-acc mx-fo-nom"${st.nomSent || st.nomOpen ? ' open' : ''}><summary>${icon('user')}<span class="mx-row-l">${c.row}<span class="mx-row-s">${c.rowSub}</span></span></summary>
+    <div class="mx-list"><details class="mx-acc mx-fo-nom"${st.nomSent || st.nomOpen ? ' open' : ''}><summary>${icon('user')}<span class="mx-row-l">${c.row}</span></summary>
       <div class="mx-acc-a">${inner}</div>
     </details></div>
   </section>
@@ -417,8 +398,8 @@ function blockContact() {
   <!-- dc: Biomedical Forum.dc.html › "Message us" + sponsorship -->
   <section class="mx-sec">
     <div class="mx-list">
-      <a class="mx-row" href="/app/messages?about=forum">${icon('mail')}<span class="mx-row-l">${COPY.contact.ask}<span class="mx-row-s">${COPY.contact.sub}</span></span>${chev()}</a>
-      <a class="mx-row" href="${COPY.contact.sponsorUrl}" target="_blank" rel="noopener">${icon('heart')}<span class="mx-row-l">${COPY.contact.sponsor}<span class="mx-row-s">${COPY.contact.sponsorSub}</span></span>${icon('external', 18)}</a>
+      <a class="mx-row" href="/app/messages?about=forum">${icon('mail')}<span class="mx-row-l">${COPY.contact.ask}</span>${chev()}</a>
+      <a class="mx-row" href="${COPY.contact.sponsorUrl}" target="_blank" rel="noopener">${icon('heart')}<span class="mx-row-l">${COPY.contact.sponsor}</span>${icon('external', 18)}</a>
     </div>
   </section>
   <!-- /dc -->`;
@@ -429,9 +410,9 @@ function template() {
 <div data-screen-label="Biomedical Forum" class="mx-fo">
   ${blockCrumb()}
   ${blockHero()}
-  <div class="mx-p mx-p--num">
+  <div class="mx-p">
     ${blockFacts()}
-    ${blockNetwork()}
+    ${blockIncludes()}
     ${blockFeed()}
     ${blockSchedule()}
     ${blockSpeakers()}

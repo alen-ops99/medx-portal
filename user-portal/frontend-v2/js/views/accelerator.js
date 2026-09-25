@@ -27,13 +27,15 @@ export const COPY = {
   crumbs: { projects: 'PROJECTS', name: 'THE ACCELERATOR', mine: 'MY APPLICATION' },
   tabs: { overview: 'Overview', apply: 'My application' },
   hero: {
-    title: 'The Med&amp;X <i>Accelerator</i>',
-    date: d => `Applications open ${d}`, dateOpen: 'Applications open now', dateClosed: 'Applications closed for this cycle',
-    followTitle: 'Accelerator updates', followSub: on => on ? 'On · email and portal alerts' : 'Off · email and portal alerts',
+    title: 'The <i>Accelerator</i>',
+    // the one line on the photo: "Summer 2027 · opens 15 Nov" (the placement and where the intake stands)
+    line: (placement, state) => `${placement} · ${state}`,
+    opens: d => `opens ${d}`, openNow: 'open now', closes: d => `closes ${d}`, closed: 'closed',
+    followTitle: 'Updates',
     // 2026-09-17: the 2026 cohort on the Gordon Hall steps replaces the stock hall photo.
     photo: { src: '/assets/ax-hero-boston-2026.jpg', alt: 'The 2026 Accelerator fellows at Harvard Medical School, Boston' },
-    notify: 'GET NOTIFIED WHEN APPLICATIONS OPEN',
-    notified: '✓ ON THE LIST — WE’LL EMAIL YOU AT OPENING',
+    notify: 'GET NOTIFIED →',
+    notified: '✓ ON THE LIST',
     start: 'START YOUR APPLICATION →',
     resume: 'CONTINUE YOUR APPLICATION →',
     view: 'VIEW YOUR APPLICATION →',
@@ -48,13 +50,12 @@ export const COPY = {
     weeks: 'Weeks', hosts: 'Host institutions', hostsIn: region => `Hosts · ${region}`, places: 'Places', stipend: '€800–1,000', stipendL: 'Stipend'
   },
   program: {
-    n: '01', title: 'The program',
     line: 'Summer research at <i>world-renowned</i> labs and clinics, for Croatia’s next generation.',
     more: 'About the program',
     eligible: ['Croatian citizenship', 'Senior medical students', 'Biochemistry and biomedical engineering students', 'Early-career researchers, 0–3 years after graduation'],
     body: 'A prestigious summer research program placing exceptional Croatian students and early-career researchers at world-renowned labs and clinics. The mission goes beyond the internship: experience an amazing institution, grow professionally and personally, and bring that knowledge home · building lasting bridges in biomedicine between Croatia and the world.',
-    whoTitle: 'Who it’s for', whoSub: 'Croatian citizens at the start of their careers, wherever you study or work.',
-    hostsTitle: 'Host labs &amp; clinics', hostsSub: 'Placements depend on mentor availability.',
+    whoTitle: 'Who it’s for',
+    hostsTitle: 'Hosts', allHosts: n => `All ${n} hosts`, shown: 6,
     positions: n => `${n} ${Number(n) === 1 ? 'position' : 'positions'}`, positionsTbc: 'Positions TBC', site: 'Website →',
     // The host drawer (2026-09-17): every field the public endpoints carry that holds something, one row
     // each — a panel of six "Details coming" rows read as unfinished. What is not filled in yet is said once.
@@ -65,28 +66,27 @@ export const COPY = {
     }
   },
   included: {
-    n: '02', title: 'What’s included', stipend: '€800–1,000',
-    items: ['Stipend for travel, living and health insurance', 'Visa documentation', 'Housing assistance', 'Travel arrangements', 'Onboarding and a mentorship program', 'Certificate of completion'],
+    title: 'What’s included', stipend: '€800–1,000',
+    items: ['Stipend for travel, living and health insurance', 'Visa documentation', 'Housing assistance', 'Travel arrangements', 'Onboarding and mentorship', 'Certificate of completion'],
   },
   selection: {
-    n: '03', title: 'How selection works',
+    // step titles only on a phone (accelerator.css); the one-line descriptions return from 501px
+    title: 'Selection',
     steps: opens => [
       { n: '01', t: 'Apply', d: 'CV, mentor letter and documents' },
-      { n: '02', t: 'Document review', d: 'Two phases; shortlisted candidates advance' },
+      { n: '02', t: 'Document review', d: 'Two phases, then a shortlist' },
       { n: '03', t: 'Interview', d: 'With two Croatian biomedical professionals' },
       { n: '04', t: 'Selection & onboarding', d: 'Results by email with your access code' }
     ],
-    note: 'Final acceptance is subject to the host institution’s approval.'
+    note: 'Hosts give final approval.'
   },
   application: {
     title: 'Your application', resultAvail: 'RESULT AVAILABLE',   // no n: the page counter (.mx-p--num) numbers this head in order
     noneLine: () => 'No application yet.',
     noneOpenLine: 'No application yet · applications are open.',
     closedLine: 'Applications for this cycle have closed.',
-    noneWhy: 'Ready your CV, a mentor letter and a one-line project summary.',
-    openWhy: 'Your progress saves automatically as you go.',
     draftLine: pct => `Your draft is saved · ${pct}% complete.`,
-    draftWhy: 'Pick up where you left off; it saves as you type.',
+    draftWhy: 'It saves as you type.',
     subLine: (num, when) => `Application ${num} submitted${when ? ' ' + when : ''}.`,
     subWhy: 'We emailed a confirmation. The committee reaches you here and by email.',
     reviewWhy: 'The committee is reviewing your documents. You hear from us by email.',
@@ -111,7 +111,7 @@ export const COPY = {
     note: 'Results are anonymised — find your row by the application number from your confirmation email.'
   },
   team: {
-    n: '05', title: 'The team',
+    title: 'The team',
     people: [
       { name: 'Marija Pranjić', role: 'Program Director' },
       { name: 'Miro Vuković, MD', role: 'Vice President · partnerships' },
@@ -121,7 +121,8 @@ export const COPY = {
     ]
   },
   cohorts: {
-    title: 'Previous cohorts', sub: 'The people who went, and where.',
+    // one closed accordion, "Past fellows · 20": a row per class inside, then the photos
+    title: 'Past fellows',
     count: n => `${n} ${n === 1 ? 'fellow' : 'fellows'}`,
     // 2026-09-17: the list of fellows (from v2_accelerator_alumni, grouped by year) is the block;
     // the photos sit in a small gallery row beneath it. Sources: medx.hr live-site mirror
@@ -131,41 +132,32 @@ export const COPY = {
       { src: '/assets/ax-cohort-arrival.jpg', alt: 'A fellow arriving at Massachusetts General Hospital, Boston', pos: 'center 30%' },
       { src: '/assets/ax-lab-day.jpg', alt: 'Two fellows in the lab at their host institution', pos: 'center 30%' }
     ],
-    // Shown only when v2_accelerator_alumni has rows — no names and no cohort size are ever
-    // invented here (audit W6). The years and the count come from the table itself.
-    subNoNames: 'Where our fellows have worked.',
-    fellowsLabel: range => `FELLOWS${range ? ' ' + range : ''}`,
-    foot: (n, years) => {
-      const span = years ? (years.from === years.to ? `the ${years.from} cohort` : `the ${years.from}–${years.to} cohorts`) : 'our cohorts';
-      return `${n} ${n === 1 ? 'fellow' : 'fellows'} across ${span} · placed at our host institutions.`;
-    },
+    // The names, the classes and the count come from v2_accelerator_alumni and nowhere else: no names and no
+    // cohort size are ever invented here (audit W6).
     classOf: y => `Class of ${y}`, unknownYear: 'Earlier cohorts',
     where: a => [a.placement_institution, a.city].filter(Boolean).join(', ')
   },
   faq: {
-    n: '06', title: 'Frequently asked',
+    title: 'Frequently asked',
     // COPY fallback — admin-editable rows come from GET /api/portal-content/published/accelerator-faq
     list: opens => [
-      { q: 'What are the eligibility requirements?', a: 'Croatian citizenship is required. The program is aimed at senior medical, biochemistry-related, and biomedical engineering students, and early-career researchers up to three years post-graduation — wherever in the world you currently study or work.' },
-      { q: 'Is the program paid? What funding is available?', a: 'Yes — fellows receive a €800–1,000 stipend toward travel, living costs, and health insurance, plus visa documentation, housing assistance, travel arrangements, and onboarding support.' },
-      { q: 'How competitive is the selection process?', a: 'Highly — 5–10 positions are awarded per cycle across all host institutions. A strong mentor letter and a clear one-line summary of your project matter most.' },
-      { q: 'What is the application timeline?', a: `Applications open ${opens} and stay open for a limited window. Document review then runs in two phases, shortlisted candidates are interviewed, and results arrive by email with your access code.` },
-      { q: 'Can I apply to multiple institutions?', a: 'You submit one application and state your preferences — the selection committee matches selected fellows with host institutions, subject to mentor availability and final host approval.' }
+      { q: 'Who can apply?', a: 'Croatian citizenship is required. The program is aimed at senior medical, biochemistry-related, and biomedical engineering students, and early-career researchers up to three years post-graduation — wherever in the world you currently study or work.' },
+      { q: 'Is it funded?', a: 'Yes — fellows receive a €800–1,000 stipend toward travel, living costs, and health insurance, plus visa documentation, housing assistance, travel arrangements, and onboarding support.' },
+      { q: 'How competitive is it?', a: 'Highly — 5–10 positions are awarded per cycle across all host institutions. A strong mentor letter and a clear one-line summary of your project matter most.' },
+      { q: 'When does it open?', a: `Applications open ${opens} and stay open for a limited window. Document review then runs in two phases, shortlisted candidates are interviewed, and results arrive by email with your access code.` },
+      { q: 'Can I apply to several hosts?', a: 'You submit one application and state your preferences — the selection committee matches selected fellows with host institutions, subject to mentor availability and final host approval.' }
     ]
   },
   footer: {
-    ask: 'Message us', sub: 'Applying, placements, eligibility'
+    ask: 'Message us'
   },
   wiz: {
     eyebrow: placement => `MED&amp;X ACCELERATOR · ${placement}`,
     pillDraft: 'DRAFT · NOT YET SUBMITTED', pillSubmitted: when => `SUBMITTED${when ? ' · ' + when.toUpperCase() : ''}`,
     pillPreview: opens => `PREVIEW · OPENS ${opens}`,
     closes: d => `CLOSES ${d}`, opens: d => `OPENS ${d}`, open: 'APPLICATIONS OPEN', closed: 'APPLICATIONS CLOSED',
-    title: 'My <i>application</i>',
     stepOf: n => `Step ${n} of 7`, gdprTitle: 'How your data is used',
     sub: 'Your progress saves automatically · leave and come back any time.',
-    // before opening the pill and the gate card below already carry the date, so this line does not repeat it
-    subSoon: 'Once applications open, your progress saves as you go · leave and come back any time.',
     subDone: 'Submitted — the committee takes it from here. We’ll reach you by email at every stage.',
     steps: ['PERSONAL', 'EDUCATION', 'PROGRAM', 'SUPPLEMENTARY', 'DOCUMENTS', 'CONSENT', 'REVIEW'],
     stepTitles: ['Personal Information', 'Education', 'Program Preferences', 'Supplementary', 'Documents', 'Consent', 'Review & Submit'],
@@ -179,18 +171,16 @@ export const COPY = {
     summaryNote: 'Once submitted, you receive a confirmation email and can track the status here.',
     checklist: { title: 'Your checklist', complete: 'complete' },
     items: ['Personal info completed', 'Education details added', 'Institution preferences selected', 'Motivation statement written', 'Documents uploaded', 'Application reviewed'],
-    before: { title: 'BEFORE YOU START', titleShort: 'Before you start', body: 'Have your CV, a mentor letter, and a one-line project summary ready; you upload them in Documents.' },
+    before: { title: 'BEFORE YOU START', titleShort: 'Before you start', body: 'Have your CV, a mentor letter and a one-line project summary ready. You upload them in Documents.' },
     stuck: { line: 'Stuck on a question?', sub: 'Message the coordinators', body: 'Message us · the coordinators reply right here in your portal inbox.', cta: 'MESSAGE US →' },
-    footnote: 'Results arrive by emailed access code (AX26–XXXX) · look them up any time on ',
-    footnoteLink: 'the Accelerator page',
     submittedLine: num => `Application ${num} is in.`,
     submittedWhy: email => `We emailed a confirmation${email ? ' to ' + email : ''}. Track the status here and in Your application on the overview.`,
     docsFailed: types => `Heads up — ${types} did not upload. Retry from the overview or message us.`,
     gate: {
       line: opens => `Applications open ${opens}.`,
       closedLine: 'Applications for this cycle have closed.',
-      why: 'Ready your CV, a mentor letter, and a one-line project summary — the seven-step form will live right here.',
-      preview: 'PREVIEW THE APPLICATION →'
+      why: 'Have ready: CV, mentor letter, one-line summary.',
+      preview: 'PREVIEW →'
     },
     fee: {
       eyebrow: 'ACCELERATOR · APPLICATION RECEIVED',
@@ -365,11 +355,9 @@ function details(inst) {
     }
   };
 }
-// the square mark holds at most four letters: a longer short name ("Stanford" clipped to "tanfor") becomes initials
-function markText(h) {
-  const a = String(h.abbr || '').trim();
-  return a && a.length <= 4 ? a : abbrOf(h.name || a);
-}
+// institutions are not people: a neutral building glyph on the square ink mark (the letters HMS, Yale, MIT … went,
+// GLASS-RULES §3.6), or the host's own logo when the admin has one on file
+const HOST_GLYPH = '<svg class="mx-ic" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 9 12 4.5 20.5 9"/><path d="M4.5 9.5h15"/><path d="M6.5 12v5.5M10 12v5.5M14 12v5.5M17.5 12v5.5"/><path d="M4 20h16"/></svg>';
 function abbrOf(name) {
   const words = String(name || '').replace(/[^A-Za-z ]/g, '').split(/\s+/).filter(w => w && !/^(of|the|and)$/i.test(w));
   return (words.length >= 2 ? words.map(w => w[0]).join('').slice(0, 4) : String(name || '').slice(0, 4)).toUpperCase();
@@ -393,7 +381,14 @@ function opensInfo() {
 }
 function placementLabel() {
   const y = new Date(opensInfo().at).getFullYear() || FACTS.year;
-  return 'SUMMER ' + (y + 1);
+  return 'Summer ' + (y + 1);
+}
+// '15 Nov' in Zagreb time ('' when the date cannot be read): the hero line drops the year
+function dayMonth(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  try { return d.toLocaleDateString('en-GB', { timeZone: 'Europe/Zagreb', day: 'numeric', month: 'short' }); }
+  catch (e) { return ''; }
 }
 // '15 Nov 2026' in Zagreb time ('' when the date cannot be read)
 function shortDate(iso) {
@@ -453,8 +448,8 @@ const completion = () => completionFor(W.values, W.files, W.submitted, W.consent
 // ---------------------------------------------------------------- kit helpers (DESIGN-RULES §10)
 const icon = (n, s) => ui.icon(n, s || 20);
 const chev = () => ui.icon('chevron-right', 18);
-function sectionHead(n, title, right) {
-  return `<div class="mx-sh">${n ? `<span class="mx-sh-n">${n}</span>` : ''}<h2 class="mx-sh-t">${title}</h2>${right || ''}</div>`;
+function sectionHead(title, right) {
+  return `<div class="mx-sh"><h2 class="mx-sh-t">${title}</h2>${right || ''}</div>`;
 }
 const checks = items => `<ul class="mx-checks">${items.map(t => `<li>${icon('check')}<span>${t}</span></li>`).join('')}</ul>`;
 
@@ -499,34 +494,38 @@ function heroCta() {
   }
   return `<span data-act="notify" ${cls}>${st.notified ? COPY.hero.notified : COPY.hero.notify}</span>`;
 }
-// §6: eyebrow · title · one date line · ONE action
-function blockHero() {
+// GLASS-RULES Q1: title · ONE line ("Summer 2027 · opens 15 Nov") · ONE action. The countdown is the hero's last
+// child (the kit's glass chip on a phone, the band from 501px).
+function heroLine() {
   const state = openState();
-  const date = state === 'open' ? COPY.hero.dateOpen : state === 'closed' ? COPY.hero.dateClosed : COPY.hero.date(esc(shortDate(opensInfo().at) || opensInfo().label));
+  const closes = state === 'open' && D.intake && D.intake.closes_at ? dayMonth(D.intake.closes_at) : '';
+  const when = state === 'open' ? (closes ? COPY.hero.closes(closes) : COPY.hero.openNow)
+    : state === 'closed' ? COPY.hero.closed
+    : COPY.hero.opens(dayMonth(opensInfo().at) || opensInfo().label);
+  return COPY.hero.line(placementLabel(), when);
+}
+function blockHero() {
   return `
   <!-- dc: Accelerator.dc.html › "Hero" -->
   <section data-block="hero" class="mx-hero mx-ink mx-ax-hero">
     <img class="mx-hero-photo" src="${COPY.hero.photo.src}" alt="${COPY.hero.photo.alt}" style="object-position:50% 85%">
     <div class="mx-scrim"></div>
     <div class="mx-hero-body">
-      <span class="mx-hero-eyebrow">${esc(placementLabel())}</span>
       <h1 class="mx-hero-title">${COPY.hero.title}</h1>
-      <p class="mx-hero-date">${date}</p>
+      <p class="mx-hero-date">${esc(heroLine())}</p>
       <div data-role="hero-cta" class="mx-hero-cta">${heroCta()}</div>
     </div>
+    ${blockCountdown()}
   </section>
   <!-- /dc -->`;
 }
-// the countdown alone: "Applications open in · 51 days" (or NOW / CLOSED)
+// the countdown: "12 days" to the close while applications are open (label "Applications close in", hidden on the
+// chip). Before opening and once closed the hero line already says it, so on a phone the chip stays in the DOM but
+// out of sight (.mx-ax-cd--quiet, accelerator.css); from 501px it is the band as before.
 function blockCountdown() {
   const cd = countdownInfo();
-  return `
-  <!-- dc: Accelerator.dc.html › "Stats band" (countdown only; the facts live in the tiles) -->
-  <div class="mx-countdown mx-ax-cd" role="timer">
-    <span class="mx-cd-label">${cd.label}</span>
-    <span class="mx-cd-cell"><b class="mx-cd-num" data-cd="opendays">${cd.target ? daysTo(cd.target) : cd.big}</b>${cd.target ? `<i class="mx-cd-unit">${COPY.band.days}</i>` : ''}</span>
-  </div>
-  <!-- /dc -->`;
+  const quiet = !(cd.target && openState() === 'open');
+  return `<div class="mx-countdown mx-countdown--chip mx-ax-cd${quiet ? ' mx-ax-cd--quiet' : ''}" role="timer"><span class="mx-cd-label">${cd.label}</span><span class="mx-cd-cell"><b class="mx-cd-num" data-cd="opendays">${cd.target ? daysTo(cd.target) : cd.big}</b>${cd.target ? `<i class="mx-cd-unit">${COPY.band.days}</i>` : ''}</span></div>`;
 }
 function blockTiles() {
   const ov = D.overview || {};
@@ -558,15 +557,19 @@ function hostRegion() {
   const us = cs.filter(c => /^(usa|us|u\.s\.a?\.?|united states( of america)?|america)$/i.test(c)).length;
   return us === cs.length ? 'USA' : us ? 'USA &amp; Europe' : 'Europe';
 }
-// institutions are not people: a 44 SQUARE ink tile with the initials (or the logo), never a circle
+// institutions are not people: a 44 SQUARE ink tile with the glyph (or the logo), never a circle. Six rows, then
+// "All 8 hosts" opens the rest in place (GLASS-RULES Q8); data-i stays the index into D.hosts.
 function hostCards() {
-  const rows = D.hosts.map((h, i) => `
+  const shown = st.allHosts || D.hosts.length <= COPY.program.shown ? D.hosts.length : COPY.program.shown;
+  const rows = D.hosts.slice(0, shown).map((h, i) => `
       <div data-act="pickHost" data-i="${i}" aria-expanded="${st.host === i}" class="mx-row mx-ax-host${st.host === i ? ' is-open' : ''}">
-        ${h.logo ? `<img class="mx-ax-hostmark" src="${esc(h.logo)}" alt="">` : `<span class="mx-ax-hostmark" aria-hidden="true">${esc(markText(h))}</span>`}
+        ${h.logo ? `<img class="mx-ax-hostmark" src="${esc(h.logo)}" alt="">` : `<span class="mx-ax-hostmark" aria-hidden="true">${HOST_GLYPH}</span>`}
         <span class="mx-row-l">${esc(h.name)}${h.city ? `<span class="mx-row-s">${esc(h.city)}</span>` : ''}</span>
         ${icon(st.host === i ? 'chevron-down' : 'chevron-right', 18)}
       </div>${st.host === i ? hostDetail(h) : ''}`).join('');
-  return `<div class="mx-list mx-list--plain mx-ax-hosts">${rows}</div>`;
+  const more = shown < D.hosts.length
+    ? `<div data-act="allHosts" role="button" aria-expanded="false" class="mx-row mx-ax-allhosts"><span class="mx-row-l">${esc(COPY.program.allHosts(D.hosts.length))}</span>${icon('chevron-down', 18)}</div>` : '';
+  return `<div class="mx-list mx-list--plain mx-ax-hosts">${rows}${more}</div>`;
 }
 // One drawer per host: every field the public endpoints carry that holds something, one row each; what is not
 // filled in yet is said once.
@@ -592,9 +595,8 @@ function hostDetail(h) {
 function blockProgram() {
   const about = (D.overview && D.overview.aboutProgram) ? esc(D.overview.aboutProgram) : COPY.program.body;
   return `
-  <!-- dc: Accelerator.dc.html › "01 · THE PROGRAM" -->
+  <!-- dc: Accelerator.dc.html › "THE PROGRAM" (the statement needs no head) -->
   <section class="mx-sec" data-block="program">
-    ${sectionHead(COPY.program.n, COPY.program.title)}
     <p class="mx-ax-statement">${COPY.program.line}</p>
     <div class="mx-accs"><details class="mx-acc"><summary>${COPY.program.more}</summary><div class="mx-acc-a">${about}</div></details></div>
     <h3 class="mx-ax-h3">${COPY.program.whoTitle}</h3>
@@ -603,26 +605,25 @@ function blockProgram() {
   <!-- /dc -->
   <!-- dc: Accelerator.dc.html › "HOST LABS & CLINICS" -->
   <section class="mx-sec" id="acc-hosts" data-block="hosts-sec">
-    ${sectionHead('', COPY.program.hostsTitle, `<span class="mx-tag mx-tag--soft">${esc(String(D.hosts.length))}</span>`)}
-    <p class="mx-sh-sub">${COPY.program.hostsSub}</p>
+    ${sectionHead(COPY.program.hostsTitle, `<span class="mx-tag mx-tag--soft">${esc(String(D.hosts.length))}</span>`)}
     <div data-block="hosts">${hostCards()}</div>
   </section>
   <!-- /dc -->`;
 }
 function blockIncluded() {
   return `
-  <!-- dc: Accelerator.dc.html › "02 · WHAT'S INCLUDED" -->
+  <!-- dc: Accelerator.dc.html › "WHAT'S INCLUDED" -->
   <section class="mx-sec" data-block="included">
-    ${sectionHead(COPY.included.n, COPY.included.title)}
+    ${sectionHead(COPY.included.title)}
     ${checks(COPY.included.items)}
   </section>
   <!-- /dc -->`;
 }
 function blockSelection() {
   return `
-  <!-- dc: Accelerator.dc.html › "03 · HOW SELECTION WORKS" -->
+  <!-- dc: Accelerator.dc.html › "HOW SELECTION WORKS" -->
   <section class="mx-sec" id="acc-selection" data-block="selection">
-    ${sectionHead(COPY.selection.n, COPY.selection.title)}
+    ${sectionHead(COPY.selection.title)}
     <ol class="mx-timeline mx-ax-steps">${COPY.selection.steps(esc(shortDate(opensInfo().at) || opensInfo().label)).map(s => `
       <li class="mx-tl-row"><span class="mx-tl-time mx-ax-stepn">${s.n}</span><div class="mx-tl-body"><span class="mx-tl-title">${esc(s.t)}</span><span class="mx-tl-sub">${s.d}</span></div></li>`).join('')}
     </ol>
@@ -638,7 +639,7 @@ function applicationCard() {
         <div class="mx-ax-app">
           ${tags ? `<div class="mx-ax-apptags">${tags}</div>` : ''}
           <span class="mx-ax-appline">${line}</span>
-          <span class="mx-ax-appwhy">${why}</span>
+          ${why ? `<span class="mx-ax-appwhy">${why}</span>` : ''}
           <div class="mx-ax-appact">${actions}</div>
           ${foot ? `<span class="mx-ax-note">${foot}</span>` : ''}
         </div>`;
@@ -647,7 +648,7 @@ function applicationCard() {
     const actions = state === 'open'
       ? `<span data-act="goApply" role="button" class="btn-primary btn-sm">${COPY.application.start}</span>`
       : `<span data-act="notify" role="button" class="btn-ghost btn-sm">${st.notified ? COPY.application.notified : COPY.application.notify}</span>${previewBtn}`;
-    return card('', line, state === 'open' ? COPY.application.openWhy : COPY.application.noneWhy, actions);
+    return card('', line, '', actions);
   }
   if (a.kind === 'draft') {
     const pct = a.pct !== undefined ? a.pct : 0;
@@ -695,17 +696,18 @@ function resultsBlock() {
 }
 function blockApplication() {
   return `
-  <!-- dc: Accelerator.dc.html › "YOUR APPLICATION" (the head sits directly in the section so the page counter numbers it) -->
+  <!-- dc: Accelerator.dc.html › "YOUR APPLICATION" -->
   <section class="mx-sec" id="acc-application" data-block="application-sec">
-    ${sectionHead('', COPY.application.title)}
+    ${sectionHead(COPY.application.title)}
     <div data-block="application">${appSectionInner()}</div>
     <div class="mx-list mx-ax-followrow">
-      <div class="mx-row" data-block="follow">${icon('bell')}<span class="mx-row-l">${COPY.hero.followTitle}<span class="mx-row-s" data-role="follow-label">${COPY.hero.followSub(st.follow)}</span></span><span data-act="tgFollow" role="switch" aria-checked="${st.follow}" aria-label="Get updates from the Accelerator" class="mx-switch"><span></span></span></div>
+      <div class="mx-row" data-block="follow">${icon('bell')}<span class="mx-row-l">${COPY.hero.followTitle}</span><span data-act="tgFollow" role="switch" aria-checked="${st.follow}" aria-label="Get updates from the Accelerator" class="mx-switch"><span></span></span></div>
     </div>
   </section>
   <!-- /dc -->`;
 }
-// Fellows come from v2_accelerator_alumni and NOWHERE else (audit W6): one accordion per class, newest first.
+// Fellows come from v2_accelerator_alumni and NOWHERE else (audit W6): one row per class (it opens on the names),
+// newest first.
 function cohortAccordions() {
   const list = D.alumni || [];
   const groups = [];
@@ -720,22 +722,24 @@ function cohortAccordions() {
         <div class="mx-acc-a"><ul class="mx-ax-fellows">${g.rows.map(f => `<li><span class="mx-ax-fname">${esc(f.name)}</span>${f.where ? `<span class="mx-ax-fwhere">${esc(f.where)}</span>` : ''}</li>`).join('')}</ul></div>
       </details>`).join('')}</div>`;
 }
+// the team and the past fellows fold into two closed rows (GLASS-RULES §3.6): "The team" holds the five people,
+// "Past fellows · 20" a row per class and the cohort photos. The count comes from the table.
 function blockTeam() {
   return `
-  <!-- dc: Accelerator.dc.html › "05 · THE TEAM" -->
+  <!-- dc: Accelerator.dc.html › "THE TEAM" + "PREVIOUS COHORTS" -->
   <section class="mx-sec" data-block="team">
-    ${sectionHead(COPY.team.n, COPY.team.title)}
-    <div class="mx-person-rows">
-      ${COPY.team.people.map(p => `<div class="mx-person-row">${ui.portrait({ name: p.name.replace(/,\s*MD$/, ''), size: 44, alt: '' })}<span class="mx-person-text"><span class="mx-person-name">${esc(p.name)}</span><span class="mx-person-role">${p.role}</span></span></div>`).join('')}
-    </div>
-  </section>
-  <!-- /dc -->
-  <!-- dc: Accelerator.dc.html › "PREVIOUS COHORTS" -->
-  <section class="mx-sec" data-block="cohorts">
-    ${sectionHead('', COPY.cohorts.title, hasAlumni() ? `<span class="mx-tag mx-tag--soft">${esc(COPY.cohorts.count(D.alumni.length))}</span>` : '')}
-    ${hasAlumni() ? cohortAccordions() : `<p class="mx-sh-sub">${COPY.cohorts.subNoNames}</p>`}
-    <div class="mx-shelf mx-ax-shelf" style="--w:260px">
-      ${COPY.cohorts.photos.map(p => `<div class="mx-shelf-item"><div class="mx-media r-4x3"><img data-role="cohort-photo" src="${p.src}" alt="${p.alt}" loading="lazy" style="object-position:${p.pos}"></div></div>`).join('')}
+    <div class="mx-accs">
+      <details class="mx-acc"><summary>${COPY.team.title}</summary><div class="mx-acc-a">
+        <div class="mx-person-rows">
+          ${COPY.team.people.map(p => `<div class="mx-person-row">${ui.portrait({ name: p.name.replace(/,\s*MD$/, ''), size: 44, alt: '' })}<span class="mx-person-text"><span class="mx-person-name">${esc(p.name)}</span><span class="mx-person-role">${p.role}</span></span></div>`).join('')}
+        </div>
+      </div></details>
+      <details class="mx-acc" data-block="cohorts"><summary>${COPY.cohorts.title}${hasAlumni() ? ` · ${esc(String(D.alumni.length))}` : ''}</summary><div class="mx-acc-a">
+        ${hasAlumni() ? cohortAccordions() : ''}
+        <div class="mx-shelf mx-ax-shelf" style="--w:260px">
+          ${COPY.cohorts.photos.map(p => `<div class="mx-shelf-item"><div class="mx-media r-4x3"><img data-role="cohort-photo" src="${p.src}" alt="${p.alt}" loading="lazy" style="object-position:${p.pos}"></div></div>`).join('')}
+        </div>
+      </div></details>
     </div>
   </section>
   <!-- /dc -->`;
@@ -743,9 +747,9 @@ function blockTeam() {
 function blockFaq() {
   const list = D.faq || COPY.faq.list(esc(opensInfo().label));
   return `
-  <!-- dc: Accelerator.dc.html › "06 · FREQUENTLY ASKED" -->
+  <!-- dc: Accelerator.dc.html › "FREQUENTLY ASKED" -->
   <section class="mx-sec" data-block="faq-sec">
-    ${sectionHead(COPY.faq.n, COPY.faq.title)}
+    ${sectionHead(COPY.faq.title)}
     <div data-block="faq" class="mx-accs">${list.map(f => `
       <details class="mx-acc"><summary>${D.faq ? esc(f.q) : f.q}</summary><div class="mx-acc-a">${D.faq ? esc(f.a) : f.a}</div></details>`).join('')}
     </div>
@@ -756,7 +760,7 @@ function blockFooter() {
   return `
   <!-- dc: Accelerator.dc.html › "Footer · MESSAGE US" -->
   <section class="mx-sec">
-    <div class="mx-list"><a class="mx-row" href="/app/messages?about=accelerator">${icon('mail')}<span class="mx-row-l">${COPY.footer.ask}<span class="mx-row-s">${COPY.footer.sub}</span></span>${chev()}</a></div>
+    <div class="mx-list"><a class="mx-row" href="/app/messages?about=accelerator">${icon('mail')}<span class="mx-row-l">${COPY.footer.ask}</span>${chev()}</a></div>
   </section>
   <!-- /dc -->`;
 }
@@ -765,8 +769,7 @@ function overviewTemplate() {
 <div data-screen-label="Accelerator" class="mx-ax">
   ${blockCrumbs(false)}
   ${blockHero()}
-  ${blockCountdown()}
-  <div class="mx-p mx-p--num">
+  <div class="mx-p">
     <section class="mx-sec mx-sec--tight">${blockTabs(false)}</section>
     ${blockTiles()}
     ${blockProgram()}
@@ -851,12 +854,13 @@ function savedLabel() {
   return ago < 60000 ? COPY.wiz.saved.just : COPY.wiz.saved.at(new Date(W.savedAt).toTimeString().slice(0, 5));
 }
 
+// no large title (the seg says "My application"): the state tag and one line, and nothing at all before opening,
+// where the gate card below says when applications open
 function blockWizHeader(preview) {
   const state = openState();
-  const sub = W.submitted ? COPY.wiz.subDone : (!preview && openState() !== 'open' && appState().kind !== 'draft') ? COPY.wiz.subSoon : COPY.wiz.sub;
-  // DRAFT · NOT YET SUBMITTED only where a draft can exist (applications open, or one already saved); before
-  // opening the tag says when they open, and the line under it does not repeat it
+  // DRAFT · NOT YET SUBMITTED only where a draft can exist (applications open, or one already saved)
   const gate = !W.submitted && !preview && state !== 'open' && appState().kind !== 'draft';
+  const sub = W.submitted ? COPY.wiz.subDone : gate ? '' : COPY.wiz.sub;
   const pill = W.submitted
     ? COPY.wiz.pillSubmitted(W.submitted.submitted_at || W.submitted.created_at ? fmt.longRange(String(W.submitted.submitted_at || W.submitted.created_at).slice(0, 10)) : '')
     : (preview && state !== 'open') ? COPY.wiz.pillPreview(fmt.upper(esc(opensInfo().label)))
@@ -866,12 +870,12 @@ function blockWizHeader(preview) {
     : state === 'open'
     ? (D.intake && D.intake.closes_at ? COPY.wiz.closes(fmt.upper(esc(zagrebDate(D.intake.closes_at)))) : '')
     : '';
+  if (!pill && !right && !sub) return '';
   return `
   <!-- dc: Accelerator Application.dc.html › "Header band" -->
   <section class="mx-sec mx-sec--tight mx-ax-wizhead">
     ${pill || right ? `<div class="mx-ax-apptags">${pill ? `<span class="mx-tag mx-tag--gold">${pill}</span>` : ''}${right ? `<span class="mx-ax-appinst">${right}</span>` : ''}</div>` : ''}
-    <h1 class="mx-lt">${COPY.wiz.title}</h1>
-    <p class="mx-lede">${sub}</p>
+    ${sub ? `<p class="mx-lede">${sub}</p>` : ''}
   </section>
   <!-- /dc -->`;
 }
@@ -1119,9 +1123,6 @@ function applyTemplate(preview) {
     <section class="mx-sec mx-sec--tight">${blockTabs(true)}</section>
     ${blockWizHeader(preview)}
     ${showWizard ? `<section class="mx-sec mx-sec--tight">${blockStepper()}${wizardMain()}</section>` : gateCard(preview)}
-    <!-- dc: Accelerator Application.dc.html › "Results footnote" -->
-    <p class="mx-ax-note mx-ax-foot">${COPY.wiz.footnote}<a href="/app/accelerator">${COPY.wiz.footnoteLink}</a>.</p>
-    <!-- /dc -->
   </div>
 </div>`;
 }
@@ -1267,13 +1268,12 @@ function previewPdf() {
 }
 
 // ---------------------------------------------------------------- handlers
-// The follow switch (the "Accelerator updates" row) and its On / Off line, painted in place; the hero's action
-// follows once the save has landed.
+// The follow switch (the "Updates" row) painted in place (the switch shows the state); the hero's action follows
+// once the save has landed.
 function paintFollow(on) {
   const row = rootEl && rootEl.querySelector('[data-block="follow"]');
   if (!row) return;
   const sw = row.querySelector('[role="switch"]'); if (sw) sw.setAttribute('aria-checked', String(!!on));
-  const l = row.querySelector('[data-role="follow-label"]'); if (l) l.innerHTML = COPY.hero.followSub(!!on);
 }
 function repaintAfterFollow() {
   const cta = rootEl && rootEl.querySelector('[data-block="hero"] [data-role="hero-cta"]');
@@ -1316,6 +1316,12 @@ const handlers = {
     const panel = st.host !== null && rootEl.querySelector('[data-block="host-detail"]');
     if (panel) { panel.scrollIntoView({ block: 'nearest', behavior: ui.reducedMotion() ? 'auto' : 'smooth' }); try { panel.focus({ preventScroll: true }); } catch (e) {} }
     else focusCard(i);
+  },
+  // "All 8 hosts": the rest of the list opens in place, focus on the first row that was hidden
+  allHosts: () => {
+    st.allHosts = true;
+    rerender('[data-block="hosts"]', `<div data-block="hosts">${hostCards()}</div>`);
+    focusCard(COPY.program.shown);
   },
   closeHost: (el, ev) => {
     ev.stopPropagation(); const i = st.host; st.host = null;
@@ -1420,7 +1426,7 @@ function startTimers(applyTab) {
 export default {
   // sections below the fold rise in on scroll (router › ui.revealOnScroll) — not on the application form
   reveal: (ctx) => !(ctx && ctx.params && ctx.params.tab === 'apply'),
-  title(ctx) { return ctx && ctx.params && ctx.params.tab === 'apply' ? 'My Application' : 'The Accelerator'; },
+  title(ctx) { return ctx && ctx.params && ctx.params.tab === 'apply' ? 'My application' : 'The Accelerator'; },
   async render(root, ctx) {
     injectCss();
     rootEl = root;

@@ -8,13 +8,13 @@
 [data-screen-label="Gala Evening"] .mx-gala-cta { min-height: 48px; display: inline-flex; align-items: center; justify-content: center; padding: 0 28px; font-size: 13px; letter-spacing: .12em; }
 [data-screen-label="Gala Evening"] .mx-gala-cta[aria-disabled="true"] { opacity: .6; }
 
-/* 02 · the statement: one Fraunces sentence, the crimson italic its only accent */
-.mx-gala-statement { margin: 0 0 8px; max-width: 640px; font: 400 22px/28px Fraunces, serif; color: #191512; text-wrap: balance; }
+/* the statement: one Fraunces sentence, the crimson italic its only accent, the long copy folded under it */
+.mx-gala-statement { margin: 0; max-width: 640px; font: 400 22px/28px Fraunces, serif; color: #191512; text-wrap: balance; }
 .mx-gala-statement i { color: #9b1b22; }
 @media (min-width: 901px) { .mx-gala-statement { font-size: 28px; line-height: 36px; } }
-[data-screen-label="Gala Evening"] [data-block="why"] .mx-accs { margin-top: 0; border-top: 0; }
+[data-screen-label="Gala Evening"] [data-block="why"] .mx-accs { margin-top: 16px; }
 
-/* 01 · on stage: five cards are 2 + 2 + 1 on a phone — the fifth sits centred on its own row, the same card */
+/* on stage: five cards are 2 + 2 + 1 on a phone — the fifth sits centred on its own row, the same card */
 @media (max-width: 700px) {
   .mx-gala-stage > :last-child:nth-child(odd) { grid-column: 1 / -1; justify-self: center; width: calc(50% - 6px); }
 }
@@ -22,8 +22,7 @@
   .mx-gala-stage:has(> :nth-child(5):last-child) { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
 .mx-gala-stage .mx-person { padding: 4px 0; }
-/* a role such as "President & CEO, University Health Network" reads whole: three lines at most, never an ellipsis mid-name
-   (close round 2026-09-25: the kit's two-line clamp cut "Massachusetts Gener…" and "University Health…" at 390) */
+/* the one line under a name (the institution, GLASS-RULES Q9) reads whole: never an ellipsis mid-name */
 .mx-gala-stage .mx-person-role { -webkit-line-clamp: 3; }
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
   .mx-gala-stage .mx-person .mx-pic { transition: transform var(--t-quick) var(--ease), box-shadow var(--t-quick) var(--ease); }
@@ -45,6 +44,9 @@
 .mx-gala-shelf .mx-ph img { transition: transform var(--t-drift) var(--ease); }
 @media (hover: hover) and (prefers-reduced-motion: no-preference) { .mx-gala-shelf .mx-ph:hover img { transform: scale(1.04); } }
 .mx-gala-shelf .mx-ph:active { opacity: .86; }
+
+/* the program on a phone: time and title only (GLASS-RULES Q10); the description and the performers line return from 501px */
+@media (max-width: 500px) { [data-screen-label="Gala Evening"] [data-block="glance"] .mx-tl-sub { display: none; } }
 
 /* named performers, once announced: 64 rows under the schedule */
 .mx-gala-perf { margin-top: 24px; max-width: 720px; }
