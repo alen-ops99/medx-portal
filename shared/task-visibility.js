@@ -30,8 +30,10 @@
  * of the task is deleted at once and the new person's row is written. Nobody is left dormant, so a
  * later move back never hands the task to people who were taken off it.
  * Second line of defence (a database without the trigger, a hand edit): a tag row counts only while
- * the task's assigned_to is among its tag rows; otherwise the task is its one assignee's. No boot
- * backfill, for the same reason.
+ * the task's assigned_to is among its tag rows; otherwise the task is its one assignee's. And every
+ * boot deletes such stale rows (and the rows of tasks that are gone), so a set that went stale before
+ * the trigger existed can never be revived by a later move back either. It only deletes rows the rule
+ * already ignores (nothing anyone sees changes); there is never a boot backfill that adds rows.
  *
  * Callers answer a non-participant exactly as they answer a missing task (same status, same body),
  * so a task's existence never leaks.
@@ -137,6 +139,13 @@ function ensureTaskPeopleTable(run) {
                 SELECT NEW.id, NEW.assigned_to, NULL, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
                 WHERE NEW.assigned_to IS NOT NULL AND NEW.assigned_to <> '';
         END`);
+    // stale rows (a set whose assigned_to is not among them, or a task with no one) and the rows of tasks
+    // that are gone: the rule above already ignores them; deleted so no later move can revive them
+    run(`DELETE FROM v2_task_people
+         WHERE task_id NOT IN (SELECT id FROM project_tasks)
+            OR task_id IN (SELECT pt.id FROM project_tasks pt
+                           WHERE pt.assigned_to IS NULL OR pt.assigned_to = ''
+                              OR NOT EXISTS (SELECT 1 FROM v2_task_people tp WHERE tp.task_id = pt.id AND tp.member_id = pt.assigned_to))`);
 }
 
 /**

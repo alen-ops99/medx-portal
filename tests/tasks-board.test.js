@@ -789,6 +789,19 @@ const sys = id => q.all(`SELECT body, kind, author_name FROM v2_task_comments WH
         assert.deepStrictEqual(vis.orderTaskPeople(first2('m1'), tagsOf2('m1')).slice().sort(), ['tmD', 'tmE', 'tmF'], 'the previous first person stays on (the trigger did not collapse the set)');
         assert.ok(sees('uD').includes('m1') && sees('uE').includes('m1') && sees('uF').includes('m1'));
         vis.deleteTaskPeople(run2, 'm1');
+        // A SET THAT WENT STALE BEFORE THE TRIGGER EXISTED: {B1, E, F} on a task moved to D. A move back to B1
+        // would not fire the trigger (B1 is tagged, D is not), so the boot sweep deletes such rows first
+        d2.run(`INSERT INTO project_tasks VALUES ('m4','stale before the trigger','uA','tmD',NULL)`);
+        d2.run(`INSERT INTO v2_task_people VALUES ('m4','tmB1','uA','x'),('m4','tmE','uA','x'),('m4','tmF','uA','x'),('gone-task','tmE','uA','x')`);
+        assert.ok(!sees('uE').includes('m4'), 'the live-tag check hides the stale set');
+        assert.deepStrictEqual(tagsOf2('m2'), ['tmE', 'tmF']); assert.deepStrictEqual(tagsOf2('m3'), ['tmE']);
+        const keep = tagsOf2('m1s');
+        vis.ensureTaskPeopleTable(sql => d2.run(sql));                                // the next boot
+        assert.deepStrictEqual([tagsOf2('m4'), tagsOf2('m2'), tagsOf2('m3'), tagsOf2('gone-task')], [[], [], [], []], 'stale sets, a task with no one, a task that is gone: swept');
+        assert.deepStrictEqual(tagsOf2('m1s'), keep, 'a live set is untouched');
+        d2.run(`UPDATE project_tasks SET assigned_to = 'tmB1' WHERE id = 'm4'`);          // the old portal moves it back
+        assert.deepStrictEqual(tagsOf2('m4'), ['tmB1']);
+        assert.ok(!sees('uE').includes('m4') && !sees('uF').includes('m4') && sees('uB').includes('m4'), 'E and F are not revived');
     });
 
     await t('PRIVACY: the board never promises "everyone" and says who can see a card (add bar + drawer)', () => {
