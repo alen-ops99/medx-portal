@@ -39,7 +39,9 @@
  *   PUT    /api/v2/tasks/:id                   { title?, description?, assignees? | tag?/untag? | assigned_to?, due_date?, priority?, status? }
  *                                              (assignees = the whole set, for create and compat · tag/untag = deltas the
  *                                              drawer sends, applied to the set in the database now · assigned_to alone =
- *                                              one person: a different one makes the task theirs alone)
+ *                                              one person: a different one makes the task theirs alone). A change of people
+ *                                              is worked out on the people as the primary has them (sync, then read, then
+ *                                              read again right before the write, up to 3 tries) → 409 if they keep moving
  *   PUT    /api/v2/tasks/:id/result            { result_text?, result_links? }
  *   POST   /api/v2/tasks/:id/seen              → status seen, seen_at/by
  *   POST   /api/v2/tasks/:id/archive · /unarchive
@@ -70,6 +72,7 @@ const PRIORITIES = ['low', 'medium', 'high'];
 const MAX_TITLE = 200, MAX_TEXT = 8000, MAX_COMMENT = 4000, MAX_LINKS = 20, MAX_LINK = 1000, MAX_LABEL = 160;
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
 const FILE_LINK_TTL_S = 60 * 60;   // signed download links handed out with a list live one hour
+const PEOPLE_TRIES = 3;            // a change of people is worked out again at most this often when they move under it, then 409
 
 const normStatus = s => LEGACY_STATUS[String(s == null ? '' : s).trim().toLowerCase()] || 'todo';
 const firstOf = n => String(n || '').trim().split(/\s+/)[0] || '';
@@ -107,6 +110,9 @@ module.exports = function mountTasks(app, ctx) {
         run(sql, params) { return ctx.db().run(sql, params || []); }
     };
     const persist = () => { try { saveDb && saveDb(); } catch (e) { /* periodic save still runs */ } };
+    // pull the primary now: in production this backend reads an embedded replica (shared/db.js) that can be about
+    // a minute behind the other portal's writes. A no-op without Turso.
+    const syncDb = () => { try { const d = ctx.db(); if (d && typeof d.sync === 'function') d.sync(); } catch (e) { /* the read still runs */ } };
     const fail = (res, e, what) => { console.error('[v2/tasks] ' + what + ':', e && e.message); return res.status(500).json({ error: 'That could not be completed just now.' }); };
     const count = (sql, params) => { try { return Number((q.get(sql, params) || {}).c || 0); } catch (e) { return 0; } };
     function audit(req, action, detail) {
@@ -281,7 +287,12 @@ module.exports = function mountTasks(app, ctx) {
         }
         const isOff = m => offRows.has(m) || offAccts.has(acctOf(m));
         const next = curPeople.filter(m => !isOff(m));
-        const toTag = tagList.filter(x => { const s = String(x == null ? '' : x).trim(); return s && !offRows.has(s) && !(s.startsWith('user:') && offAccts.has(s.slice(5))); });
+        // a person also being taken off is never counted or tagged (by row, or by any row of the account)
+        const toTag = tagList.filter(x => {
+            const s = String(x == null ? '' : x).trim(); if (!s || offRows.has(s)) return false;
+            const a = s.startsWith('user:') ? s.slice(5) : acctOf(s);
+            return !(a && offAccts.has(a));
+        });
         const accts = new Set(next.map(acctOf).filter(Boolean));
         // the cap is checked before any team row is made for a 'user:<id>' (as a list of assignees is)
         const adding = new Set();
@@ -313,6 +324,12 @@ module.exports = function mountTasks(app, ctx) {
     }
     // the people on one task (member ids, first person first) — the rule is shared/task-visibility.js's
     const peopleIdsOf = row => taskVis.orderTaskPeople(row.assigned_to, tagRowsOf([row.id]).get(row.id));
+    // the people on task `row` as read now: { key, people }. key is the raw assigned_to and tag rows, so any
+    // change to either shows when two reads are compared
+    function peopleState(row) {
+        const tags = tagRowsOf([row.id]).get(row.id) || [];
+        return { key: String(row.assigned_to || '') + '#' + tags.join(','), people: taskVis.orderTaskPeople(row.assigned_to, tags) };
+    }
     // the people on each row for the card: Map task id → [{ id, user_id, name, first }], first person first
     function peopleOf(rows) {
         const tags = tagRowsOf(rows.map(r => r.id));
@@ -413,14 +430,19 @@ module.exports = function mountTasks(app, ctx) {
     }
     const filesOf = (id, uid) => q.all('SELECT * FROM task_files WHERE task_id = ? ORDER BY uploaded_at, rowid', [id]).map(f => shapeFile(f, uid));
     // a signed link stands in for the Bearer of the viewer it names (only a participant's detail/list hands
-    // one out, and it lives an hour); either way the handler checks the task rule for that viewer, now
+    // one out, and it lives an hour), and only while that account is still an admin (what adminOnly asks of a
+    // Bearer); either way the handler checks the task rule for that viewer, now. Anything else (a bad or
+    // malformed signature, a viewer no longer an admin) falls through to the session gate.
     function fileGate(req, res, next) {
         const fid = String(req.params.fid || ''); const exp = Number(req.query && req.query.exp); const sig = String((req.query && req.query.sig) || '');
         const uid = String((req.query && req.query.uid) || '');
         req.taskFileSigned = false; req.taskFileUid = null;
         if (fid && exp && uid && sig && exp > Math.floor(Date.now() / 1000) && sig.length === 32) {
-            const want = signFile(fid, exp, uid);
-            if (crypto.timingSafeEqual(Buffer.from(want), Buffer.from(sig))) { req.taskFileSigned = true; req.taskFileUid = uid; return next(); }
+            const want = Buffer.from(signFile(fid, exp, uid)); const got = Buffer.from(sig);
+            if (got.length === want.length && crypto.timingSafeEqual(want, got)) {
+                const viewer = q.get('SELECT is_admin FROM users WHERE id = ?', [uid]);
+                if (viewer && Number(viewer.is_admin) === 1) { req.taskFileSigned = true; req.taskFileUid = uid; return next(); }
+            }
         }
         return auth(req, res, () => adminOnly(req, res, next));
     }
@@ -519,13 +541,18 @@ module.exports = function mountTasks(app, ctx) {
         members.forEach(m => notifyAssigned(task, actor, m));   // each person tagged (never the actor, team admins only)
         return { status: 200, body: { success: true, id, task } };
     }
-    // patch = { title?, description?, assignees?, assigned_to?, due_date?, priority?, status? } — each key optional
+    // patch = { title?, description?, assignees? | tag?/untag? | assigned_to?, due_date?, priority?, status? } — each key optional
     function updateTask(req, id, patch) {
+        const has = k => patch[k] !== undefined && patch[k] !== null;
+        const wantsPeople = has('assignees') || has('tag') || has('untag') || patch.assigned_to !== undefined;
+        // a change of people is worked out from the people on the task, so read them as the primary has them:
+        // the replica may not carry the other portal's hand-off or unassign yet
+        if (wantsPeople) syncDb();
         const actor = actorOf(req);
         const cur = taskRow(id, actor.id);
         if (!cur) return { status: 404, body: { error: 'That task is not here.' } };
         const sets = []; const vals = []; const notes = []; const fields = []; let becameDone = false;
-        let nextPeople = null; let addedPeople = []; let removedPeople = [];
+        let nextPeople = null; let peopleAt = -1, peopleFieldAt = -1;
         if (patch.title !== undefined) {
             const t = cleanStr(patch.title, MAX_TITLE); if (!t) return { status: 400, body: { error: 'Give the task a title.' } };
             if (t !== cur.title) { sets.push('title = ?'); vals.push(t); notes.push(`${actor.first} renamed it to “${t}”`); fields.push('title'); }
@@ -545,28 +572,31 @@ module.exports = function mountTasks(app, ctx) {
         }
         // the people. assignees = the whole set: whoever stays keeps their place (the first person stays
         // first unless taken off, then the next one tagged is promoted), newcomers join in the order given.
-        // assigned_to alone is the one-person write it always was: a different person → the task is theirs
-        // alone; the same first person → nothing changes (a legacy edit that re-sends it drops no one).
-        const curPeople = peopleIdsOf(cur);
-        if (patch.assignees !== undefined && patch.assignees !== null) {
+        // tag/untag = deltas (the drawer): applied to the people on the task NOW, never to the set a drawer
+        // last loaded, so a stale drawer or two quick taps never re-tag someone just taken off. Taking off wins
+        // when a person is in both lists. assigned_to alone is the one-person write it always was: a different
+        // person → the task is theirs alone; the same first person → nothing changes (a legacy edit that
+        // re-sends it drops no one). planPeople(people now) → { next } (null = no change) or { error }.
+        let planPeople = null;
+        if (has('assignees')) {
             const who = resolveAssignees(patch.assignees); if (who.error) return { status: 400, body: { error: who.error } };
-            const next = curPeople.filter(m => who.ids.includes(m)).concat(who.ids.filter(m => !curPeople.includes(m)));
-            if (next.join('|') !== curPeople.join('|')) nextPeople = next;
-        } else if ((patch.tag !== undefined && patch.tag !== null) || (patch.untag !== undefined && patch.untag !== null)) {
-            // deltas (the drawer): applied to the people on the task NOW, never to the set a drawer last
-            // loaded, so a stale drawer or two quick taps never re-tag someone just taken off. Taking off
-            // wins when a person is in both lists.
-            const d = peopleDelta(curPeople, patch.tag, patch.untag); if (d.error) return { status: 400, body: { error: d.error } };
-            if (d.next.join('|') !== curPeople.join('|')) nextPeople = d.next;
+            planPeople = cp => ({ next: cp.filter(m => who.ids.includes(m)).concat(who.ids.filter(m => !cp.includes(m))) });
+        } else if (has('tag') || has('untag')) {
+            planPeople = cp => peopleDelta(cp, patch.tag, patch.untag);
         } else if (patch.assigned_to !== undefined) {
             const who = resolveAssignee(patch.assigned_to); if (who.error) return { status: 400, body: { error: who.error } };
-            if ((who.id || null) !== (cur.assigned_to || null)) nextPeople = who.id ? [who.id] : [];
+            planPeople = cp => ({ next: (who.id || null) !== (cp[0] || null) ? (who.id ? [who.id] : []) : cp });
         }
-        if (nextPeople) {
-            addedPeople = nextPeople.filter(m => !curPeople.includes(m)).map(memberInfo).filter(Boolean);
-            removedPeople = curPeople.filter(m => !nextPeople.includes(m)).map(memberInfo).filter(Boolean);
-            notes.push(...peopleNotes(actor, addedPeople, removedPeople));
-            fields.push('people');
+        let base = null;
+        const plan = () => {
+            const p = planPeople(base.people); if (p.error) return p;
+            nextPeople = p.next.join('|') !== base.people.join('|') ? p.next : null;
+            return p;
+        };
+        if (planPeople) {
+            base = peopleState(cur);
+            const p = plan(); if (p.error) return { status: 400, body: { error: p.error } };
+            peopleAt = notes.length; peopleFieldAt = fields.length;   // the people lines go here, before a status line
         }
         if (patch.status !== undefined) {
             const s = normStatus(patch.status); if (!STATUSES.includes(s)) return { status: 400, body: { error: 'Status is todo, doing, done or seen.' } };
@@ -584,19 +614,45 @@ module.exports = function mountTasks(app, ctx) {
                 fields.push('status ' + s);
             }
         }
-        if (!sets.length && !nextPeople) return { status: 200, body: { success: true, task: shape(cur), unchanged: true } };
-        sets.push('updated_at = ?'); vals.push(nowIso()); vals.push(id);
-        q.run(`UPDATE project_tasks SET ${sets.join(', ')} WHERE id = ?`, vals);
+        // compare and retry: the people are written as a whole set (setTaskPeople), so right before that write they
+        // are read again, from the primary. When they moved since the read above (the other portal handed the task
+        // on or unassigned it), the change is worked out again on the task as it is now, so nobody it took off comes
+        // back. Three tries, then 409 and the drawer reloads. Nothing on the task is written before this point.
+        let retried = false;
+        for (let tries = 1; nextPeople; tries++) {
+            syncDb();
+            const row = taskRow(id, actor.id);
+            if (!row) return { status: 404, body: { error: 'That task is not here.' } };
+            const now = peopleState(row);
+            if (now.key === base.key) break;
+            if (tries >= PEOPLE_TRIES) return { status: 409, body: { error: 'This task just changed. Reopen it and try again.' } };
+            base = now; retried = true;
+            const p = plan(); if (p.error) return { status: 400, body: { error: p.error } };
+        }
+        if (!sets.length && !nextPeople) return { status: 200, body: { success: true, task: shape(retried ? (taskRow(id, actor.id) || cur) : cur), unchanged: true } };
         if (nextPeople) {
+            const curPeople = base.people;
             // stale tag rows go first, so anyone tagged again now is tagged afresh, in order (the database's
             // one-person trigger leaves none; this covers a database without it — shared/task-visibility.js)
             q.run(`DELETE FROM v2_task_people WHERE task_id = ?` + (curPeople.length ? ` AND member_id NOT IN (${curPeople.map(() => '?').join(',')})` : ''), [id, ...curPeople]);
             taskVis.setTaskPeople((sql, p) => q.run(sql, p), id, nextPeople, actor.id, nowIso());
         }
+        sets.push('updated_at = ?'); vals.push(nowIso()); vals.push(id);
+        q.run(`UPDATE project_tasks SET ${sets.join(', ')} WHERE id = ?`, vals);
+        const row = rawTaskRow(id);
+        // the activity lines and the emails follow the change as applied: against the people it was worked out on
+        // (the last read), and only to someone who is on the task now
+        let addedPeople = [];
+        if (nextPeople) {
+            const onNow = peopleIdsOf(row);
+            addedPeople = nextPeople.filter(m => !base.people.includes(m) && onNow.includes(m)).map(memberInfo).filter(Boolean);
+            const removedPeople = base.people.filter(m => !nextPeople.includes(m) && !onNow.includes(m)).map(memberInfo).filter(Boolean);
+            notes.splice(peopleAt, 0, ...peopleNotes(actor, addedPeople, removedPeople));
+            fields.splice(peopleFieldAt, 0, 'people');
+        }
         notes.forEach(n => activity(id, actor, n));
         audit(req, 'task.update', `task ${id}: ${fields.join(', ')}`);
         persist();
-        const row = rawTaskRow(id);
         if (addedPeople.length) { const task = shape(row); addedPeople.forEach(m => notifyAssigned(task, actor, m)); }   // only the newly tagged
         if (becameDone) notifyDone(row, actor);
         // taking yourself off a task you did not create (or handing it on) takes it off your board: from

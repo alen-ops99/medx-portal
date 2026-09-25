@@ -16,7 +16,10 @@
  * every signed-in admin reaches the routes) · the PRIVACY rule of 25 Sept 2026 (a task is seen only by
  * its creator and its assignee: a non-participant gets the same 404 as a missing task on every route
  * and finds it in no list, search or badge; reassignment moves it; no founder override; the shared
- * helper's SQL; the board copy). The server.js readers are covered by tests/tasks-privacy-routes.test.js.
+ * helper's SQL; the board copy) · STALE READS: each backend reads an embedded replica, so a change of people
+ * syncs before it reads and reads again right before it writes (the old portal's hand-off or unassign is never
+ * undone, 409 after three tries), modelled by a second mount reading a replica copy. The server.js readers are
+ * covered by tests/tasks-privacy-routes.test.js.
  *
  * Run:  node tests/tasks-board.test.js      (exit code = number of FAILs)
  */
@@ -687,6 +690,27 @@ const sys = id => q.all(`SELECT body, kind, author_name FROM v2_task_comments WH
         assert.strictEqual((await call('GET', '/api/v2/tasks/files/:fid', null, { params: { fid: pfid }, query: { exp: lu.searchParams.get('exp'), uid: lu.searchParams.get('uid'), sig: lu.searchParams.get('sig') } })).status, 200);
     });
 
+    await t('PRIVACY: a signed link opens only while the account it names is still an admin, and a malformed signature is a 401, never a 500', async () => {
+        const ld = await call('GET', '/api/v2/tasks/:id', as.laura, { params: { id: pid } });
+        const lu = new URL('https://x' + ld.body.files[0].url);
+        const lq = { exp: lu.searchParams.get('exp'), uid: lu.searchParams.get('uid'), sig: lu.searchParams.get('sig') };
+        const dl = query => call('GET', '/api/v2/tasks/files/:fid', null, { params: { fid: pfid }, query });
+        // 32 characters but not 32 bytes: compared by byte length first, so the session gate answers (it used to throw)
+        for (const sig of ['\u00e9'.repeat(32), '\u6587'.repeat(32), '\ud83d\ude00'.repeat(16)]) {
+            assert.strictEqual(sig.length, 32);
+            const r = await dl(Object.assign({}, lq, { sig }));
+            assert.strictEqual(r.status, 401, 'sig of ' + Buffer.byteLength(sig) + ' bytes');
+        }
+        assert.strictEqual((await dl(lq)).status, 200);
+        q.run('UPDATE users SET is_admin = 0 WHERE id = ?', [U.laura]);
+        try { assert.strictEqual((await dl(lq)).status, 401, 'no longer an admin: the link is no link, the session gate answers'); }
+        finally { q.run('UPDATE users SET is_admin = 1 WHERE id = ?', [U.laura]); }
+        assert.strictEqual((await dl(lq)).status, 200, 'an admin again: it opens');
+        // a correctly signed link naming an account that does not exist is no link either
+        const nobodySig = require('node:crypto').createHmac('sha256', 'tasks-test-secret').update('task-file:' + pfid + ':' + lq.exp + ':u-nobody').digest('hex').slice(0, 32);
+        assert.strictEqual((await dl(Object.assign({}, lq, { uid: 'u-nobody', sig: nobodySig }))).status, 401, 'an account that does not exist');
+    });
+
     await t('PRIVACY: the audit trail carries task ids, never a title (the audit feed is read by every admin)', () => {
         const leaked = q.all(`SELECT action, detail FROM audit_log WHERE action LIKE 'task.%' AND (detail LIKE '%Dentist%' OR detail LIKE '%appointment%' OR detail LIKE '%personal errand%')`);
         assert.deepStrictEqual(leaked, []);
@@ -1232,6 +1256,30 @@ const sys = id => q.all(`SELECT body, kind, author_name FROM v2_task_comments WH
         q.run(`DELETE FROM team_members WHERE id LIKE 'tm-dl-%'`); q.run(`DELETE FROM users WHERE id = 'u-fran'`);
     });
 
+    await t('DELTAS: at the cap, a person both tagged and taken off is not counted (taking off wins), by team row or by account', async () => {
+        q.run(`INSERT INTO users (id, email, first_name, last_name, is_admin) VALUES ('u-gita', 'gita@medx.hr', 'Gita', 'Galic', 1)`);
+        q.run(`INSERT INTO team_members (id, user_id, name, role) VALUES ('tm-gita', 'u-gita', 'Gita Galic', 'Team')`);
+        for (let i = 0; i < 12; i++) q.run(`INSERT INTO team_members (id, user_id, name, role) VALUES (?,?,?,?)`, ['tm-cap-' + i, null, 'Cap Person ' + i, 'Volunteer']);
+        const r = await call('POST', '/api/v2/tasks', as.laura, { body: { title: 'Qdl cap untag wins', assignees: Array.from({ length: 12 }, (_, i) => 'tm-cap-' + i) } });
+        assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+        const id = r.body.id;
+        assert.strictEqual(tags(id).length, 12);
+        emails.length = 0;
+        for (const body of [{ tag: ['tm-gita'], untag: ['user:u-gita'] }, { tag: ['user:u-gita'], untag: ['tm-gita'] }, { tag: ['tm-gita'], untag: ['tm-gita'] }]) {
+            const x = await put(as.laura, id, body);
+            assert.strictEqual(x.status, 200, JSON.stringify(body) + ' -> ' + JSON.stringify(x.body));
+            assert.strictEqual(x.body.unchanged, true, JSON.stringify(body));
+            assert.ok(!tags(id).includes('tm-gita') && tags(id).length === 12);
+        }
+        assert.strictEqual(emails.length, 0);
+        // one taken off makes room for one on
+        const x = await put(as.laura, id, { untag: ['tm-cap-0'], tag: ['tm-gita'] });
+        assert.strictEqual(x.status, 200, JSON.stringify(x.body));
+        assert.ok(tags(id).includes('tm-gita') && !tags(id).includes('tm-cap-0') && tags(id).length === 12);
+        await call('DELETE', '/api/admin/tasks/:id', as.laura, { params: { id } });
+        q.run(`DELETE FROM team_members WHERE id LIKE 'tm-cap-%' OR id = 'tm-gita'`); q.run(`DELETE FROM users WHERE id = 'u-gita'`);
+    });
+
     await t('RACE: an old-portal unassign landing between setTaskPeople\'s UPDATE and its re-insert leaves no dormant rows (a later hand-off revives no one)', () => {
         const vis = require(path.join(ROOT, 'shared/task-visibility.js'));
         for (const unassigned of [null, '']) {
@@ -1260,6 +1308,139 @@ const sys = id => q.all(`SELECT body, kind, author_name FROM v2_task_comments WH
             assert.deepStrictEqual(tags(id), ['tm-cleo', 'tm-bea']); assert.strictEqual(assignedTo(id), 'tm-cleo');
             vis.deleteTaskPeople(q.run, id); q.run('DELETE FROM project_tasks WHERE id = ?', [id]);
         }
+    });
+
+    // ================================================================ STALE READS (the embedded replica)
+    // In production each backend reads a libsql embedded replica that pulls the primary about every 60 s (shared/db.js):
+    // writes go to the primary, and a write brings the replica up to date (read your writes). Modelled here: a second
+    // mount of the module whose reads come from a REPLICA copy of this test database, pulled on db.sync() and after each
+    // of its own writes, never after a write by the old portal (main's PUT /api/tasks/:id: a raw UPDATE of assigned_to on
+    // the primary, which the database's one-person trigger turns into "this one person's alone").
+    const replicaMount = () => {
+        const rep = createDatabase(Database, { localPath: ':memory:' });
+        rep.run('PRAGMA foreign_keys = OFF');
+        const rowsOf = (d, sql) => { const st = d.prepare(sql); st.bind([]); const o = []; while (st.step()) o.push(st.getAsObject()); st.free(); return o; };
+        const pull = () => {
+            for (const tb of rowsOf(db, `SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name <> 'audit_log'`)) {
+                rep.run(`DROP TABLE IF EXISTS "${tb.name}"`); rep.run(tb.sql);
+                for (const r of rowsOf(db, `SELECT rowid AS rid__, * FROM "${tb.name}"`)) {
+                    const cols = Object.keys(r).filter(k => k !== 'rid__');
+                    rep.run(`INSERT INTO "${tb.name}" (rowid, ${cols.map(c => `"${c}"`).join(', ')}) VALUES (${['?'].concat(cols.map(() => '?')).join(', ')})`, [r.rid__, ...cols.map(c => r[c])]);
+                }
+            }
+        };
+        const m = { syncs: 0, reads: 0, events: [], onSync: null, onTagRead: null };
+        const facade = {
+            run(sql, p) { const r = db.run(sql, p); pull(); return r; },   // to the primary, then read your writes
+            getRowsModified: () => db.getRowsModified(),
+            sync() { m.syncs++; m.events.push('sync'); if (m.onSync) m.onSync(m.syncs); pull(); },
+            prepare(sql) {
+                const st = rep.prepare(sql);
+                if (!/^SELECT task_id, member_id FROM v2_task_people WHERE task_id IN/.test(sql)) return st;
+                const step = st.step.bind(st); let first = true;   // the rows are fetched on the first step: the read is done
+                st.step = () => { const more = step(); if (first) { first = false; m.reads++; m.events.push('read'); if (m.onTagRead) m.onTagRead(m.reads); } return more; };
+                return st;
+            }
+        };
+        pull();
+        m.app = stubApp();
+        mountTasks(m.app, {
+            db: () => facade, auth, adminOnly, saveDb: () => {}, JWT_SECRET: 'tasks-test-secret', ROOT: tmpRoot, log: () => {},
+            sendEmail: async (to, subject, html) => { emails.push({ to, subject, html }); return { success: true }; }
+        });
+        m.call = (meth, p, user, opts = {}) => m.app.call(meth, p, Object.assign({ user }, opts));
+        m.put = (user, id, body) => m.call('PUT', '/api/v2/tasks/:id', user, { params: { id }, body });
+        m.reset = () => { m.syncs = 0; m.reads = 0; m.events = []; m.onSync = null; m.onTagRead = null; };
+        return m;
+    };
+    const REP = replicaMount();
+    const oldPortal = (id, to) => q.run('UPDATE project_tasks SET assigned_to = ? WHERE id = ?', [to, id]);   // main's one-person write, on the primary
+    const stOf = id => (assignedTo(id) || '-') + ':[' + tags(id).join(',') + ']';
+    const staleTask = async title => {
+        const r = await REP.call('POST', '/api/v2/tasks', as.laura, { body: { title, assignees: ['tm-bea', 'tm-cleo', 'tm-dino'] } });
+        assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+        assert.strictEqual(stOf(r.body.id), 'tm-bea:[tm-bea,tm-cleo,tm-dino]');
+        return r.body.id;
+    };
+
+    await t('STALE: the replica has not pulled the old portal\'s hand-off or unassign yet — every change of people syncs before it reads, so no one it took off comes back', async () => {
+        for (const [to, want] of [['tm-dino', 'tm-dino:[tm-dino]'], [null, '-:[]']]) {
+            const id = await staleTask('Qst sync ' + (to || 'unassign'));
+            REP.reset(); emails.length = 0; const n0 = sys(id).length;
+            oldPortal(id, to);   // on the primary: the replica still reads Bea, Cleo, Dino
+            const r = await REP.put(as.laura, id, { untag: ['tm-cleo'] });
+            assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+            assert.strictEqual(stOf(id), want, 'the old portal\'s move stands');
+            assert.strictEqual(REP.events[0], 'sync', 'synced before the people were read: ' + REP.events.join(','));
+            assert.strictEqual((await detail(as.bea, id)).status, 404, 'Bea is not re-tagged');
+            if (to === null) assert.strictEqual((await detail(as.dino, id)).status, 404, 'nor Dino');
+            assert.strictEqual(emails.length, 0);
+            assert.deepStrictEqual(sys(id).slice(n0).map(x => x.body), [], 'Cleo was already off: nothing to say');
+            await call('DELETE', '/api/admin/tasks/:id', as.laura, { params: { id } });
+        }
+        // the whole set, a tag and the legacy one-person write sync first too
+        const id = await staleTask('Qst sync forms');
+        for (const [how, go] of [['assignees', () => REP.put(as.laura, id, { assignees: ['tm-bea', 'tm-cleo'] })], ['tag', () => REP.put(as.laura, id, { tag: [emaId()] })],
+                                  ['assigned_to', () => REP.call('PUT', '/api/admin/tasks/:id', as.laura, { params: { id }, body: { assigned_to: 'tm-cleo' } })]]) {
+            REP.reset();
+            const r = await go();
+            assert.strictEqual(r.status, 200, how + ' ' + JSON.stringify(r.body));
+            assert.strictEqual(REP.events[0], 'sync', how + ': ' + REP.events.join(','));
+        }
+        assert.strictEqual(stOf(id), 'tm-cleo:[tm-cleo]');
+        await call('DELETE', '/api/admin/tasks/:id', as.laura, { params: { id } });
+    });
+
+    await t('STALE: the old portal moves the task between the read and the write (hand-off, unassign) — the change is worked out again on the task as it is now, nobody it took off comes back, lines and emails follow what was applied', async () => {
+        const E = emaId();
+        // [what V2 sends, the old portal's move, the end state, the activity lines, who is emailed, who must not see it]
+        const cases = [
+            [{ untag: ['tm-cleo'] }, 'tm-dino', 'tm-dino:[tm-dino]', [], [], ['bea', 'cleo']],
+            [{ untag: ['tm-cleo'] }, null, '-:[]', [], [], ['bea', 'cleo', 'dino']],
+            [{ tag: [E] }, 'tm-dino', `tm-dino:[tm-dino,${E}]`, ['Laura tagged Ema'], ['ema@medx.hr'], ['bea', 'cleo']],
+            [{ tag: [E] }, null, `${E}:[${E}]`, ['Laura tagged Ema'], ['ema@medx.hr'], ['bea', 'cleo', 'dino']],
+            [{ untag: ['tm-bea'] }, 'tm-cleo', 'tm-cleo:[tm-cleo]', [], [], ['bea', 'dino']],
+            [{ assignees: ['tm-cleo', 'tm-dino', E] }, 'tm-dino', `tm-dino:[tm-dino,tm-cleo,${E}]`, ['Laura tagged Cleo and Ema'], ['cleo@medx.hr', 'ema@medx.hr'], ['bea']],
+            [{ assignees: ['tm-bea', E] }, null, `tm-bea:[tm-bea,${E}]`, ['Laura tagged Bea and Ema'], ['bea@medx.hr', 'ema@medx.hr'], ['cleo', 'dino']],
+        ];
+        for (const [body, to, want, lines, mailed, off] of cases) {
+            const label = JSON.stringify(body) + ' vs ' + (to || 'unassign');
+            const id = await staleTask('Qst between ' + label);
+            REP.reset(); emails.length = 0; const n0 = sys(id).length;
+            REP.onTagRead = n => { if (n === 1) oldPortal(id, to); };   // right after V2 read Bea, Cleo, Dino
+            const r = await REP.put(as.laura, id, body);
+            assert.strictEqual(r.status, 200, label + ' ' + JSON.stringify(r.body));
+            assert.strictEqual(stOf(id), want, label);
+            assert.ok(REP.reads >= 2 && REP.syncs >= 2, label + ': read again before the write ' + REP.events.join(','));
+            assert.deepStrictEqual(sys(id).slice(n0).map(x => x.body), lines, label + ': the lines follow the change as applied');
+            assert.deepStrictEqual(emails.map(e => e.to).sort(), mailed, label + ': emails only to who was newly put on it');
+            for (const k of off) assert.strictEqual((await detail(as[k], id)).status, 404, label + ': ' + k + ' stays off');
+            // a later one-person move by the old portal (to Alen) revives no one either
+            oldPortal(id, M.alen);
+            assert.strictEqual(stOf(id), M.alen + ':[' + M.alen + ']', label + ': a later move is to Alen alone');
+            for (const k of off) assert.strictEqual((await detail(as[k], id)).status, 404, label + ': ' + k + ' still off after the later move');
+            await call('DELETE', '/api/admin/tasks/:id', as.laura, { params: { id } });
+        }
+    });
+
+    await t('STALE: when the people keep moving under the change, three tries then 409 "This task just changed. Reopen it and try again." and nothing is written', async () => {
+        const id = await staleTask('Qst keeps moving');
+        const before = q.get('SELECT updated_at FROM project_tasks WHERE id = ?', [id]).updated_at;
+        REP.reset(); emails.length = 0; const n0 = sys(id).length;
+        const order = ['tm-bea', 'tm-cleo', 'tm-dino'];
+        REP.onSync = n => { if (n >= 2) oldPortal(id, order[n % 3]); };   // a different hand-off before every re-read
+        const r = await REP.put(as.laura, id, { tag: [emaId()] });
+        assert.strictEqual(r.status, 409, JSON.stringify(r.body));
+        assert.deepStrictEqual(r.body, { error: 'This task just changed. Reopen it and try again.' });
+        assert.strictEqual(REP.syncs, 4, 'one sync before the read, then three tries: ' + REP.events.join(','));
+        assert.strictEqual(stOf(id), 'tm-cleo:[tm-cleo]', 'the old portal\'s last move stands, Ema is not on it');
+        assert.strictEqual(sys(id).length, n0, 'no activity line'); assert.strictEqual(emails.length, 0, 'no email');
+        assert.strictEqual(q.get('SELECT updated_at FROM project_tasks WHERE id = ?', [id]).updated_at, before, 'nothing written');
+        // settled: the same change goes through
+        REP.reset();
+        const ok = await REP.put(as.laura, id, { tag: [emaId()] });
+        assert.strictEqual(ok.status, 200, JSON.stringify(ok.body)); assert.strictEqual(stOf(id), `tm-cleo:[tm-cleo,${emaId()}]`);
+        await call('DELETE', '/api/admin/tasks/:id', as.laura, { params: { id } });
     });
 
     await t('BOOT: the stale-row sweep runs first and on its own — a trigger DDL that fails never skips it, a sweep that fails never skips the trigger', () => {
@@ -1303,6 +1484,11 @@ const sys = id => q.all(`SELECT body, kind, author_name FROM v2_task_comments WH
         assert.ok(!/\bhonest|\bplainly/i.test(src));
         const today = fs.readFileSync(path.join(ROOT, 'admin-portal/frontend-v2/js/views/today.js'), 'utf8');
         assert.ok(/const myTasks = tasks\.filter\(onMe\)/.test(today), 'Today\'s YOUR TASKS counts a task I am tagged on');
+        assert.ok(/e\.status === 409 && st && st\.open === t\.id\) \{ await loadDetail\(t\.id, \{ quiet: true \}\); try \{ await load\(\); \} catch \(x\) \{[^}]*\} reloaded = true; \}/.test(src) && /if \(saved \|\| reloaded\) rerenderBoard\(\);/.test(src),
+            'a 409 (the people moved under the change) reloads the drawer and the board');
+        assert.ok(/emptyWhy: 'Add the next thing on the board — everyone you tag who has a portal account gets one short email\.'/.test(today) && !/the person you pick/.test(today),
+            'Today\'s empty state speaks of everyone tagged, as the board does');
+        assert.ok(!/;/.test(/emptyWhy: '([^']*)'/.exec(today)[1]) && !/\bhonest|\bplainly/i.test(today));
         const css = fs.readFileSync(path.join(ROOT, 'admin-portal/frontend-v2/css/views/tasks.css'), 'utf8');
         assert.ok(/\.mx-person, \.mx-person-add \{ height: 44px; \}/.test(css), '44 px targets on a phone');
         assert.ok(/@media \(max-width: 760px\), \(pointer: coarse\) \{\n  \.mx-person, \.mx-person-add \{ height: 44px; \}/.test(css), '…and on any touch screen wider than a phone (a tablet)');
