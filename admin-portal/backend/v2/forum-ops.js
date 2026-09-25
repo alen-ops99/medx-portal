@@ -36,6 +36,7 @@
  */
 'use strict';
 const crypto = require('crypto');
+const emailLayout = require('../../../shared/email-layout');   // THE Med&X email layout
 
 const POLL = 'venue-2027';
 const CHOICES = ['split', 'zagreb'];
@@ -202,27 +203,28 @@ module.exports = function mountForumOps(app, ctx) {
         const url = memberPortalBase() + '/app/auth/forum-code?code=' + encodeURIComponent(invite.code);
         const first = clean(invite.name, 80).split(/\s+/)[0];
         const exp = invite.expires_at ? new Date(invite.expires_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : null;
-        return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#e9e2d2;font-family:Inter,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#191512">
-<div style="max-width:600px;margin:0 auto;padding:28px 12px">
-  <div style="background:#f7f1e6">
-    <div style="background:#191512;padding:22px 40px;color:#f7f1e6"><span style="font-family:Fraunces,Georgia,serif;font-size:22px;letter-spacing:.02em">med<span style="color:#c9a962">&amp;</span>X</span><span style="float:right;font:600 9px Inter,Arial,sans-serif;letter-spacing:.2em;color:#c9a962;margin-top:8px">BIOMEDICAL FORUM</span></div>
-    <div style="height:2px;background:#9b1b22"></div>
-    <div style="padding:36px 40px 30px">
-      <span style="font:600 10px Inter,Arial,sans-serif;letter-spacing:.18em;color:#c9a962">BIOMEDICAL FORUM · BY INVITATION</span>
-      <div style="font-family:Fraunces,Georgia,serif;font-size:28px;line-height:1.15;margin-top:10px">An invitation to the <i>Forum</i>${first ? ', ' + esc(first) : ''}.</div>
-      <div style="font-size:14px;color:#4a4239;line-height:1.65;margin-top:14px">
+        return forumMail({
+            eyebrow: 'BIOMEDICAL FORUM · BY INVITATION', rule: 'crimson',
+            headline: `An invitation to the <i>Forum</i>${first ? ', ' + esc(first) : ''}.`,
+            bodyHtml: `
         <p style="margin:0 0 12px">On behalf of Med&amp;X, it is a pleasure to invite you to join the <strong style="color:#191512">Biomedical Forum</strong> — a standing network of leaders in medicine, science, and industry, limited to ${CAP} members, that meets in person once a year.</p>
         <p style="margin:0 0 12px">Your personal invitation code is below. Enter it in the member portal to join the network and unlock registration for the annual gathering (${esc(GATHERING.start.slice(0, 4))}).</p>
         <div style="border:1px solid rgba(201,169,98,.65);background:#fdfaf3;padding:18px 22px;text-align:center;margin:18px 0"><span style="font:600 10px Inter,Arial,sans-serif;letter-spacing:.16em;color:#6e5626">YOUR INVITATION CODE</span><div style="font:600 22px ui-monospace,Menlo,Consolas,monospace;letter-spacing:.14em;color:#191512;margin-top:8px">${esc(invite.code)}</div></div>
         <p style="margin:0">Membership is annual and renews each year; the full terms appear when you register for the gathering.</p>
-      </div>
-      <div style="text-align:center;margin:26px 0"><a href="${esc(url)}" style="display:inline-block;padding:15px 34px;background:#9b1b22;color:#f7f1e6;font:600 11px Inter,Arial,sans-serif;letter-spacing:.16em;text-decoration:none">ENTER YOUR CODE →</a></div>
-      <div style="font-size:12px;color:#4a4239;line-height:1.6">${exp ? 'The code is valid until ' + esc(exp) + '. ' : ''}One code admits one person. If the button doesn't work, open <span style="font:11px ui-monospace,Menlo,monospace;color:#9b1b22">${esc(url)}</span></div>
-    </div>
-    <div style="border-top:1px solid rgba(25,21,18,.16);padding:18px 40px;font-size:11px;color:#4a4239">© Med&amp;X 2026 · Zagreb <span style="color:#c9a962">·</span> The Biomedical Forum is an initiative of Med&amp;X.</div>
-  </div>
-</div></body></html>`;
+      `,
+            button: { label: 'ENTER YOUR CODE →', href: url },
+            note: `${exp ? 'The code is valid until ' + esc(exp) + '. ' : ''}One code admits one person. If the button doesn't work, open <span style="font:11px ui-monospace,Menlo,monospace;color:#9b1b22">${esc(url)}</span>`
+        });
+    }
+    // THE Med&X email layout (shared/email-layout.js) for the Office of the Forum's mail.
+    function forumMail({ eyebrow, headline, bodyHtml, button, note, rule }) {
+        return emailLayout.layout({
+            title: String(headline || '').replace(/<[^>]+>/g, '') + ' — Med&X',
+            label: 'BIOMEDICAL FORUM',
+            rule: rule === 'gold' ? 'gold' : 'crimson',
+            body: emailLayout.block({ eyebrow, headline, bodyHtml, button, note }),
+            footer: ['© Med&amp;X 2026 · Zagreb <span style="color:#c9a962">·</span> The Biomedical Forum is an initiative of Med&amp;X.']
+        });
     }
     // Queue ONE personal invitation through the approval outbox (scheduled_emails,
     // status 'pending_approval') — the Inbox shows the batch, one human OK sends it.
@@ -241,24 +243,15 @@ module.exports = function mountForumOps(app, ctx) {
     // runs through the invitation-code machinery above, nothing is promised here.
     // TODO: swap to email-templates.forumInvitation family
     function nominationForwardHtml({ firstName, nomineeName }) {
-        return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#e9e2d2;font-family:Inter,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#191512">
-<div style="max-width:600px;margin:0 auto;padding:28px 12px">
-  <div style="background:#f7f1e6">
-    <div style="background:#191512;padding:22px 40px;color:#f7f1e6"><span style="font-family:Fraunces,Georgia,serif;font-size:22px;letter-spacing:.02em">med<span style="color:#c9a962">&amp;</span>X</span><span style="float:right;font:600 9px Inter,Arial,sans-serif;letter-spacing:.2em;color:#c9a962;margin-top:8px">BIOMEDICAL FORUM</span></div>
-    <div style="height:2px;background:#c9a962"></div>
-    <div style="padding:36px 40px 30px">
-      <span style="font:600 10px Inter,Arial,sans-serif;letter-spacing:.18em;color:#c9a962">YOUR NOMINATION · OFFICE OF THE FORUM</span>
-      <div style="font-family:Fraunces,Georgia,serif;font-size:28px;line-height:1.15;margin-top:10px">Your nomination is moving <i>forward</i>.</div>
-      <div style="font-size:14px;color:#4a4239;line-height:1.65;margin-top:14px">
+        return forumMail({
+            eyebrow: 'YOUR NOMINATION · OFFICE OF THE FORUM', rule: 'gold',
+            headline: 'Your nomination is moving <i>forward</i>.',
+            bodyHtml: `
         <p style="margin:0 0 12px">${firstName ? 'Dear ' + esc(firstName) + ',' : 'Dear colleague,'}</p>
         <p style="margin:0 0 12px">Thank you for putting <strong style="color:#191512">${esc(nomineeName)}</strong> forward for the Biomedical Forum. The Office of the Forum has read your words on their standing and character and moved the nomination to the shortlist.</p>
         <p style="margin:0">Every seat in the Forum is personal, so we weigh each name with care — if an invitation goes out, it goes out from here, and we will let you know either way. It means a great deal that you spoke for a colleague.</p>
-      </div>
-    </div>
-    <div style="border-top:1px solid rgba(25,21,18,.16);padding:18px 40px;font-size:11px;color:#4a4239">© Med&amp;X 2026 · Zagreb <span style="color:#c9a962">·</span> The Biomedical Forum is an initiative of Med&amp;X.</div>
-  </div>
-</div></body></html>`;
+      `
+        });
     }
 
     // ================================================================ routes (all admin-only)

@@ -481,7 +481,7 @@ const rowFor = (mid, email) => q.get('SELECT * FROM plexus_meetup_attendees WHER
         assert.ok(e.html.includes('/meetups/manage/' + row.manage_token), 'cancel link');
         assert.ok(e.html.includes('pay.google.com/gp/v/save/'), 'Google Wallet save link');
         assert.ok(e.html.includes('/api/v2/meetups/calendar/' + row.manage_token + '.ics'), 'calendar link');
-        assert.ok(/background:#291e14|background:#120e0a/.test(e.html), 'house DARK shell (tone:dark)');
+        assert.ok(/data-mx-layout="/.test(e.html) && e.html.includes('background:#f7f1e6') && !/background:#291e14|background:#120e0a/.test(e.html), 'the one Med&X email layout (cream card; the espresso shell is retired, 2026-09-25)');
     });
     await t('the waitlist email says the position and carries the cancel link', () => {
         const e = sentTo('luka@example.hr')[0];

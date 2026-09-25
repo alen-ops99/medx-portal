@@ -15,6 +15,7 @@ const { aiDraft } = require('../../shared/ai');
 const caMerge = require('../../shared/ca-merge'); // merged duplicate /plexus registrations follow their survivor
 const wallet = require('../../shared/wallet'); // Google Wallet event-ticket passes (env-gated; no-op until configured)
 const safetyCore = require('../../shared/safety-core'); // REPORT / BLOCK / moderation / content filter (App Store 1.2)
+const emailLayout = require('../../shared/email-layout'); // THE Med&X email layout — every outgoing email is rendered in it (sendEmail)
 const faqKb = require('./faq-kb'); // Member FAQ Assistant grounding corpus + deterministic retrieval (queue 5a6)
 // (email goes out exclusively through the Brevo HTTP API — see sendEmail below)
 const webpush = require('web-push');
@@ -75,6 +76,9 @@ function asyncHandler(fn) {
 // attachments: optional array of { filename, content: Buffer, type? }.
 function mailProviderReady() { return !!process.env.BREVO_API_KEY; }
 async function sendEmail(to, subject, htmlContent, attachments, cc, replyTo) {
+    // One look for every message: whatever built it, the email leaves in THE Med&X layout
+    // (already-branded HTML passes through unchanged; wording and links are never touched).
+    htmlContent = emailLayout.ensureBranded(htmlContent, { subject });
     const fromAddress = process.env.EMAIL_FROM || 'Med&X <noreply@medx.hr>';
     const atts = Array.isArray(attachments) ? attachments.filter(a => a && a.filename && a.content) : [];
     const ccList = cc ? (Array.isArray(cc) ? cc : [cc]).filter(Boolean) : null;
@@ -89,14 +93,9 @@ async function sendEmail(to, subject, htmlContent, attachments, cc, replyTo) {
             const bvFromName = fromAddress.replace(/<[^>]*>/, '').trim() || 'Med&X';
             // Always ship a text/plain alternative next to the HTML: without it Gmail (and some
             // corporate clients) can show an HTML-only message that carries an attachment as
-            // "no content, just the attachment". Derived from the HTML — links kept as URLs.
-            const textContent = String(htmlContent || '')
-                .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-                .replace(/<a\s[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, (m, href, label) => `${label.replace(/<[^>]+>/g, '').trim()} (${href})`)
-                .replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|tr|h\d|li)>/gi, '\n')
-                .replace(/<[^>]+>/g, ' ')
-                .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&mdash;/g, '—').replace(/&ndash;/g, '–').replace(/&middot;/g, '·').replace(/&rsquo;/g, '’').replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&deg;/g, '°').replace(/&rarr;/g, '→').replace(/&#10003;/g, '✓')
-                .replace(/[ \t]+/g, ' ').replace(/\s*\n\s*/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+            // "no content, just the attachment". Derived from the HTML — links kept as URLs,
+            // the layout's chrome (preheader, wordmark row, social icons) left out.
+            const textContent = emailLayout.toText(htmlContent);
             const bvBody = {
                 sender: { email: bvFromEmail, name: bvFromName },
                 to: [{ email: to }],
@@ -485,61 +484,12 @@ function memberLocale(userOrId) {
     return 'en';
 }
 
-// locale is optional; omitting it (or any non-'hr' value) keeps the English chrome byte-identical
-// for all existing callers. Only the shared footer chrome + <html lang> localize.
+// The member portal's letterhead: buildEmailTemplate(title, body, locale) renders in THE Med&X
+// email layout (shared/email-layout.js, 2026-09-25) — the title as the Fraunces headline, the body
+// re-homed to the house palette, and the old footer's words and links (motto, GDPR line,
+// Privacy Policy · Terms, ©) kept. locale 'hr' localizes the footer chrome and <html lang>.
 function buildEmailTemplate(title, bodyHtml, locale) {
-    const hr = locale === 'hr';
-    return `
-<!DOCTYPE html>
-<html lang="${hr ? 'hr' : 'en'}">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin: 0; padding: 0; background: #f0f0f3; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background: #f0f0f3; padding: 40px 16px;">
-<tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; width: 100%; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.08);">
-    <!-- Header with logo -->
-    <tr><td style="background: linear-gradient(135deg, #0f172a 0%, #1a2744 100%); padding: 36px 32px 28px; text-align: center;">
-        <img src="${MEDX_LOGO_URL}" alt="Med&X" width="160" style="display: block; margin: 0 auto 12px; height: auto; max-width: 160px; filter: brightness(0) invert(1);" />
-        <div style="color: #94a3b8; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; font-weight: 500;">Building Bridges in Biomedicine</div>
-    </td></tr>
-    <!-- Gold accent line -->
-    <tr><td style="background: linear-gradient(90deg, #b8922e, #C9A962, #dfc070, #C9A962, #b8922e); height: 3px; font-size: 0; line-height: 0;">&nbsp;</td></tr>
-    <!-- Title bar -->
-    <tr><td style="background: #1e293b; padding: 20px 32px; text-align: center;">
-        <h1 style="margin: 0; color: #C9A962; font-size: 22px; font-weight: 600; letter-spacing: 0.5px;">${title}</h1>
-    </td></tr>
-    <!-- Body -->
-    <tr><td style="background: #ffffff; padding: 36px 40px;">
-        <div style="color: #334155; font-size: 15px; line-height: 1.75;">
-            ${bodyHtml}
-        </div>
-    </td></tr>
-    <!-- Footer -->
-    <tr><td style="background: #0f172a; padding: 28px 32px; text-align: center;">
-        <img src="${MEDX_LOGO_URL}" alt="Med&X" width="80" style="display: block; margin: 0 auto 10px; height: auto; max-width: 80px; filter: brightness(0) invert(1);" />
-        <div style="color: #94a3b8; font-size: 11px; margin-bottom: 16px; letter-spacing: 1px;">Building Bridges in Biomedicine</div>
-        <div style="margin-bottom: 16px;">
-            <a href="https://medx.hr" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 10px; font-weight: 500;">${hr ? 'Web stranica' : 'Website'}</a>
-            <span style="color: #334155;">|</span>
-            <a href="https://www.linkedin.com/company/med-x-association/" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 10px; font-weight: 500;">LinkedIn</a>
-            <span style="color: #334155;">|</span>
-            <a href="https://www.instagram.com/medx_association/" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 10px; font-weight: 500;">Instagram</a>
-            <span style="color: #334155;">|</span>
-            <a href="https://www.facebook.com/profile.php?id=61554188818525" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 10px; font-weight: 500;">Facebook</a>
-        </div>
-        <div style="border-top: 1px solid #1e293b; padding-top: 12px; color: #64748b; font-size: 11px; line-height: 1.55;">
-            ${hr ? 'Vaši se osobni podaci obrađuju u skladu s Općom uredbom EU o zaštiti podataka (GDPR) i koriste isključivo u svrhu organizacije i provedbe ovog događaja.' : 'Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organizing and delivering this event.'}
-            <a href="https://medx-user-portal.onrender.com/privacy" style="color: #C9A962; text-decoration: none;">${hr ? 'Pravila privatnosti' : 'Privacy Policy'}</a>
-            &nbsp;·&nbsp;
-            <a href="https://medx-user-portal.onrender.com/terms" style="color: #C9A962; text-decoration: none;">${hr ? 'Uvjeti korištenja' : 'Terms'}</a>
-        </div>
-        <div style="margin-top: 10px; color: #475569; font-size: 11px;">&copy; ${new Date().getFullYear()} Med&amp;X. ${hr ? 'Sva prava pridržana.' : 'All rights reserved.'}</div>
-    </td></tr>
-</table>
-</td></tr>
-</table>
-</body>
-</html>`;
+    return emailLayout.letterhead({ family: 'member', title, bodyHtml, locale });
 }
 
 // Format an ISO date (YYYY-MM-DD) as "5 December 2026" for emails; falls back to the raw value.

@@ -20,157 +20,41 @@
  *   newsletterWelcome({ firstName, topics, manageUrl, unsubscribeUrl })
  *   newsletterConfirm({ firstName, email, confirmUrl })
  *
- * Logo: white wordmark for the ink header — EMAIL_LOGO_URL env first (read per call so tests
- * can override), else the public jsDelivr mirror of this repo's frontend-v2 asset.
+ * Shell, buttons, tokens and logo come from shared/email-layout.js (the one Med&X email layout);
+ * the white wordmark is EMAIL_LOGO_URL or the member portal's Netlify asset.
  * Brand rules: € never EUR · diacritics kept (escaped, never stripped) · no mailto links.
  */
 'use strict';
 
-const T = {
-    ink: '#191512',
-    cream: '#f7f1e6',
-    cardCream: '#fdfaf3',
-    crimson: '#9b1b22',
-    gold: '#c9a962',
-    goldDark: '#6e5626',
-    soft: '#4a4239',
-    hairline: 'rgba(25,21,18,.16)',
-    canvas: '#e9e2d2',
-    serif: "Fraunces,Georgia,'Times New Roman',serif",
-    sans: "Inter,Helvetica,Arial,sans-serif"
-};
+// Since 2026-09-25 the shell, the buttons and the tokens live in ONE place for every Med&X email:
+// shared/email-layout.js. This library keeps its API (T, esc, escUrl, microStyle, btn, logoUrl,
+// shell) so every builder here and every module that borrows the shell (plexus-ticket, review-gate,
+// gala-paylink, boston, the meetup and awards mail) renders in that one layout.
+const EL = require('../../../shared/email-layout');
+const { T, esc, escUrl, microStyle, btn, logoUrl } = EL;
 
-function logoUrl() {
-    // Netlify CDN default: always on, no sleep, serves today (the jsDelivr @main path only
-    // resolves after the redesign merges — it rendered as a broken image; fixed 2026-08-30).
-    return process.env.EMAIL_LOGO_URL
-        || 'https://medx-member-portal-v2.netlify.app/assets/logo-white.png';
-}
-
-function esc(v) {
-    return String(v == null ? '' : v)
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-}
-// href values: escape but keep a plain URL usable; block javascript: etc.
-function escUrl(v) {
-    const s = String(v == null ? '' : v).trim();
-    if (!/^(https?:|mailto:|data:image\/|\/)/i.test(s)) return '#';
-    return esc(s);
-}
-
-const microStyle = (color, size, spacing) =>
-    `font-family:${T.sans};font-weight:600;font-size:${size || 10}px;letter-spacing:${spacing || '.18em'};color:${color};text-transform:uppercase;`;
-
-function btn(label, href, kind, extra) {
-    const solid = `display:inline-block;white-space:nowrap;padding:15px 34px;background:${T.crimson};color:${T.cream};font-family:${T.sans};font-weight:600;font-size:11px;letter-spacing:.16em;text-decoration:none;text-transform:uppercase;`;
-    const ghost = `display:inline-block;white-space:nowrap;padding:14px 30px;border:1px solid rgba(25,21,18,.3);color:${T.ink};font-family:${T.sans};font-weight:600;font-size:11px;letter-spacing:.16em;text-decoration:none;text-transform:uppercase;`;
-    const gold = `display:inline-block;white-space:nowrap;padding:14px 30px;background:${T.gold};color:#191512;border:1px solid #191512;font-family:${T.sans};font-weight:600;font-size:11px;letter-spacing:.16em;text-decoration:none;text-transform:uppercase;`;
-    const ink = `display:inline-block;white-space:nowrap;padding:14px 30px;background:#191512;color:#f7f1e6;border:1px solid ${T.gold};font-family:${T.sans};font-weight:600;font-size:11px;letter-spacing:.16em;text-decoration:none;text-transform:uppercase;`;
-    return `<a href="${escUrl(href)}" style="${kind === 'ghost' ? ghost : kind === 'gold' ? gold : kind === 'ink' ? ink : solid}${extra || ''}">${label}</a>`;
-}
 // the wallet stack: three actions, ONE width — appended last so it beats the kind padding
 const BTN_STACK_W = 'width:260px;max-width:100%;padding-left:0;padding-right:0;text-align:center;box-sizing:border-box;';
 
-// Dark-mode CSS for shells that opt in (darkReady): class-based !important overrides under
-// prefers-color-scheme (Apple Mail, Outlook iOS) + [data-ogsc] (Outlook.com/Windows). Callers
-// opt in AND class their body text (em-ink/em-soft/em-goldlab/em-hair/em-fact/em-reason/
-// em-ghost) — inline colors stay authoritative for every client that shows the light email.
-const DARK_CSS = `<style>
-@media (prefers-color-scheme: dark) {
-  body, .em-canvas { background:#0f0c0a !important; }
-  .em-cardbg { background:#251d16 !important; }
-  .em-ink { color:#f6efe2 !important; }
-  .em-soft { color:#d9cebd !important; }
-  .em-goldlab { color:#d7b56c !important; }
-  .em-hair { border-color:rgba(247,241,230,.2) !important; }
-  .em-fact { background:#2f251a !important; border-color:rgba(247,241,230,.16) !important; }
-  .em-reason { background:rgba(183,40,47,.3) !important; }
-  .em-ghost { color:#f6efe2 !important; border-color:rgba(247,241,230,.5) !important; }
-  .em-btn { background:#b3242c !important; color:#fff7ea !important; }
-}
-[data-ogsc] body, [data-ogsc] .em-canvas { background:#0f0c0a !important; }
-[data-ogsc] .em-cardbg { background:#251d16 !important; }
-[data-ogsc] .em-ink { color:#f6efe2 !important; }
-[data-ogsc] .em-soft { color:#d9cebd !important; }
-[data-ogsc] .em-goldlab { color:#d7b56c !important; }
-[data-ogsc] .em-hair { border-color:rgba(247,241,230,.2) !important; }
-[data-ogsc] .em-fact { background:#2f251a !important; }
-[data-ogsc] .em-reason { background:rgba(183,40,47,.3) !important; }
-[data-ogsc] .em-ghost { color:#f6efe2 !important; border-color:rgba(247,241,230,.5) !important; }
-[data-ogsc] .em-btn { background:#b3242c !important; color:#fff7ea !important; }
-[data-ogsb] body, [data-ogsb] .em-canvas { background:#0f0c0a !important; }
-[data-ogsb] .em-cardbg { background:#251d16 !important; }
-[data-ogsb] .em-fact { background:#2f251a !important; }
-[data-ogsb] .em-reason { background:rgba(183,40,47,.3) !important; }
-[data-ogsb] .em-btn { background:#b3242c !important; }
-</style>`;
-
-// The 600px shell: ink header (logo + right micro-label), accent rule, body, hairline footer.
-// rule: 'crimson' | 'gold' | 'split' (newsletter's 50/50 crimson→gold).
-// darkReady: opt-in dark-mode support — see DARK_CSS above.
-// tone:'dark' renders the single-look espresso/cappuccino shell: the same warm dark design
-// in every client and both themes — nothing left for Outlook/Gmail dark transforms to mangle
-// (dark backgrounds pass through those transforms untouched).
+// The 600px shell → EL.layout: ink band (wordmark + right label), accent rule, body, footer.
+// rule: 'crimson' | 'gold' | 'split'. darkReady: opt-in dark-mode classes (EL.DARK_CSS).
+// tone:'dark' — the retired espresso card. Every email now wears the one cream layout, so a
+// dark-toned body is translated to its cream twin (EL.restyle mode 'dark': light-on-dark text
+// becomes ink on cream, the cappuccino facts card becomes paper; wording and links untouched).
+// Light bodies get EL.restyle mode 'guard': only text that would not read on its ground changes.
 function shell({ title, preheader, headerRightLabel, headerExtraHtml, rule, bodyHtml, footerItems, lang, darkReady, tone, headerPadX }) {
     const dark = tone === 'dark';
-    // The wordmark sits flush with the body's text column and the right label flush with the
-    // facts card's right edge (Alen 2026-09-16) — so a builder whose body uses a 28px column
-    // passes headerPadX: 28. Default stays 40 for every other email.
-    const padX = Number(headerPadX) || 40;
-    const canvasBg = dark ? '#120e0a' : T.canvas;
-    const cardBg = dark ? '#291e14' : T.cream;
-    const footColor = dark ? '#cbbca7' : T.soft;
-    const footHair = dark ? 'rgba(240,228,210,.16)' : T.hairline;
-    const ruleBg = rule === 'gold' ? `background:${T.gold};`
-        : rule === 'split' ? `background:${T.crimson};background:linear-gradient(90deg,${T.crimson} 0 50%,${T.gold} 50% 100%);`
-        : `background:${T.crimson};`;
-    const footer = (footerItems && footerItems.length ? footerItems : [`© Med&amp;X ${new Date().getFullYear()} · Split, Croatia`])
-        .map(it => `<div class="em-soft" style="font-family:${T.sans};font-size:11px;color:${footColor};line-height:1.7;">${it}</div>`).join('');
-    const scheme = dark ? 'light dark' : (darkReady ? 'light dark' : 'light');
-    return `<!DOCTYPE html>
-<html lang="${lang === 'hr' ? 'hr' : 'en'}">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="${scheme}">
-<meta name="supported-color-schemes" content="${scheme}">
-<meta http-equiv="X-UA-Compatible" content="IE=edge">
-<title>${esc(title || 'Med&X')}</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&amp;family=Inter:wght@400..700&amp;display=swap" rel="stylesheet">
-<style>@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Inter:wght@400..700&display=swap');
-a[x-apple-data-detectors]{color:inherit !important;text-decoration:none !important;font-size:inherit !important;font-family:inherit !important;font-weight:inherit !important;line-height:inherit !important;}
-:root{color-scheme:${scheme};supported-color-schemes:${scheme};}</style>
-${darkReady ? DARK_CSS : ''}
-</head>
-<body class="em-canvas" style="margin:0;padding:0;background:${canvasBg};font-family:${T.sans};-webkit-text-size-adjust:100%;">
-${preheader ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">${esc(preheader)}</div>` : ''}
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="em-canvas" style="background:${canvasBg};padding:32px 12px;"><tr><td align="center">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" class="em-cardbg" style="max-width:600px;width:100%;background:${cardBg};box-shadow:0 10px 34px rgba(25,21,18,.18);">
-  <tr><td style="background:${T.ink};padding:${headerExtraHtml ? `26px ${padX}px 22px` : `22px ${padX}px`};">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-      <td align="left" style="vertical-align:middle;"><img src="${escUrl(logoUrl())}" alt="med&amp;X" height="20" style="height:20px;width:auto;display:block;border:0;"></td>
-      <td align="right" style="vertical-align:middle;${microStyle(T.gold, 9, '.2em')}">${headerRightLabel || 'MEMBER PORTAL'}</td>
-    </tr></table>
-    ${headerExtraHtml || ''}
-  </td></tr>
-  <tr><td style="height:2px;font-size:0;line-height:0;${ruleBg}">&nbsp;</td></tr>
-  <tr><td>${bodyHtml}</td></tr>
-  <tr><td align="center" class="em-hair" style="border-top:1px solid ${footHair};padding:18px 40px;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">${footer}</td></tr></table>
-    <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin-top:12px;"><tr>
-      <td style="${microStyle(T.goldDark, 9, '.16em')};vertical-align:middle;"><a href="https://medx.hr" style="color:${T.goldDark};text-decoration:none;">MEDX.HR</a></td>
-      <td style="padding:0 0 0 16px;vertical-align:middle;"><a href="https://www.facebook.com/profile.php?id=61554188818525"><img src="https://medx-member-portal-v2.netlify.app/assets/social/facebook.png?v=2" width="16" height="16" style="display:block;border:0;" alt="Facebook"></a></td>
-      <td style="padding:0 0 0 14px;vertical-align:middle;"><a href="https://www.instagram.com/medx_association/"><img src="https://medx-member-portal-v2.netlify.app/assets/social/instagram.png?v=2" width="16" height="16" style="display:block;border:0;" alt="Instagram"></a></td>
-      <td style="padding:0 0 0 14px;vertical-align:middle;"><a href="https://www.linkedin.com/company/med-x-association/"><img src="https://medx-member-portal-v2.netlify.app/assets/social/linkedin.png?v=2" width="16" height="16" style="display:block;border:0;" alt="LinkedIn"></a></td>
-    </tr></table>
-  </td></tr>
-</table>
-</td></tr></table>
-</body>
-</html>`;
+    // every body gets the readability pass (pale gold labels on cream deepen to the dark gold);
+    // a dark-toned body is first translated to its cream twin
+    const toLight = html => EL.restyle(html, { mode: dark ? 'dark' : 'guard' });
+    return EL.layout({
+        title, preheader, lang, headerExtraHtml, headerPadX,
+        label: headerRightLabel || 'MEMBER PORTAL',
+        rule: rule === 'gold' || rule === 'split' ? rule : 'crimson',
+        body: toLight(bodyHtml || ''),
+        footer: footerItems && footerItems.length ? footerItems.map(toLight) : null,
+        darkReady: !!darkReady && !dark
+    });
 }
 
 // ---------------------------------------------------------------- 01 · CONFIRM YOUR EMAIL

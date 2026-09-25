@@ -356,10 +356,10 @@ const reviewerRow = (email) => q.get('SELECT * FROM award_reviewers WHERE lower(
         assert.match(toNominee[0].html, /Nothing is needed from you/);
     });
 
-    await t('every awards email is the dark house shell', () => {
+    await t('every awards email is in the one Med&X email layout', () => {
         for (const m of sent) {
             assert.match(m.html, /<!DOCTYPE html>/i, 'a full HTML document');
-            assert.ok(/#120e0a|#291e14|#1a1410|background:#1/.test(m.html), 'the dark espresso ground');
+            assert.ok(/data-mx-layout="/.test(m.html) && m.html.includes('background:#f7f1e6') && !/#120e0a|#291e14/.test(m.html), 'the cream card (the espresso shell is retired, 2026-09-25)');
         }
         const one = emails.nominationReceived({ nomineeName: 'X', awardName: 'Y', manageUrl: 'https://portal.test/awards/manage/' + 'a'.repeat(32) });
         assert.match(one, /awards\/manage\//, 'the acknowledgment carries the manage link');

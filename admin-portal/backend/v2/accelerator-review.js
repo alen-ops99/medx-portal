@@ -56,6 +56,7 @@
  */
 'use strict';
 const crypto = require('crypto');
+const emailLayout = require('../../../shared/email-layout');   // THE Med&X email layout
 
 // ---------------------------------------------------------------- weighted total (pure)
 const TOTAL_SCALE = 100;
@@ -145,15 +146,14 @@ module.exports = function mountAcceleratorReview(app, ctx) {
         try { return `${req.protocol}://${req.get('x-forwarded-host') || req.get('host')}`; } catch (e) { return ''; }
     }
     // Brand email shell — ink header, cream body, Fraunces headline (design tokens).
+    // THE Med&X email layout (shared/email-layout.js): ink band + wordmark, crimson rule, the
+    // headline in Fraunces, the letter in the cream body, the programme's address in the footer.
     function emailShell(headline, bodyHtml) {
-        return `<div style="max-width:600px;margin:0 auto;background:#f7f1e6;font-family:Inter,Arial,sans-serif;color:#191512">
-  <div style="background:#191512;padding:22px 28px;border-bottom:2px solid #9b1b22"><span style="font:600 16px Georgia,serif;color:#f7f1e6;letter-spacing:.02em">Med&amp;X</span></div>
-  <div style="padding:28px;background:#fdfaf3;border:1px solid rgba(25,21,18,.16);border-top:0">
-    <div style="font:italic 600 22px Georgia,serif;margin-bottom:14px">${headline}</div>
-    <div style="font-size:14px;line-height:1.7;color:#4a4239">${bodyHtml}</div>
-  </div>
-  <div style="padding:14px 28px;font-size:11px;color:#4a4239">Med&amp;X · Zagreb · accelerator@medx.hr</div>
-</div>`;
+        return emailLayout.layout({
+            title: String(headline || '').replace(/<[^>]+>/g, '') + ' — Med&X Accelerator',
+            body: emailLayout.block({ headline, bodyHtml }),
+            footer: ['Med&amp;X · Zagreb · accelerator@medx.hr']
+        });
     }
     function queueEmail({ batch, engine, template, to, subject, html, actor }) {
         q.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)

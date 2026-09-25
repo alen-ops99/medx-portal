@@ -40,6 +40,7 @@ let galaTruth = null;
 try { galaTruth = require('./gala-ops.js'); } catch (e) { galaTruth = null; }
 // isLiveLeg — the one "counts as registered" rule for a /plexus leg (Today and the Program editor use it too)
 const caMerge = require('../../../shared/ca-merge');
+const emailLayout = require('../../../shared/email-layout');   // THE Med&X email layout
 
 module.exports = function mountRegistrations(app, ctx) {
     const { db, auth, adminOnly, saveDb } = ctx;
@@ -347,13 +348,15 @@ module.exports = function mountRegistrations(app, ctx) {
                   VALUES (?, 'pending_approval', ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
             [uuid(), batchId, engine, template, JSON.stringify({ to, subject, html }), to, subject, by || 'admin']);
     }
+    // THE Med&X email layout (shared/email-layout.js): ink band + wordmark, crimson/gold rule,
+    // the message in the cream body, the contact line in the footer.
     function emailShell(bodyHtml) {
-        return `<div style="max-width:600px;margin:0 auto;font-family:Georgia,serif;color:#15110f;">
-            <div style="background:#191512;padding:18px 24px;"><span style="color:#f7f1e6;font-size:18px;letter-spacing:.02em;">Med&amp;X</span></div>
-            <div style="height:2px;background:linear-gradient(90deg,#9b1b22,#c9a962);"></div>
-            <div style="background:#f7f1e6;padding:26px 24px;font-family:Inter,Arial,sans-serif;font-size:14px;line-height:1.65;color:#201b16;">${bodyHtml}</div>
-            <div style="background:#191512;padding:14px 24px;font-family:Inter,Arial,sans-serif;font-size:11px;color:rgba(247,241,230,.7);">Med&amp;X · Zagreb · <a href="mailto:info@medx.hr" style="color:#c9a962;">info@medx.hr</a></div>
-        </div>`;
+        return emailLayout.layout({
+            title: 'Med&X',
+            rule: 'split',
+            body: emailLayout.block({ bodyHtml }),
+            footer: ['Med&amp;X · Zagreb · <a href="mailto:info@medx.hr" style="color:#6e5626;">info@medx.hr</a>']
+        });
     }
     const paragraphs = msg => String(msg).split(/\n{2,}/).map(p => `<p style="margin:0 0 14px;">${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
 

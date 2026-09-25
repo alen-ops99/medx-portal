@@ -24,6 +24,7 @@
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const safetyCore = require('../../../shared/safety-core');   // people lists skip closed / suspended / hidden / blocked
+const emailLayout = require('../../../shared/email-layout');   // THE Med&X email layout
 
 const POLL = 'venue-2027';
 const CHOICES = ['split', 'zagreb'];
@@ -189,24 +190,16 @@ module.exports = function mountForum(app, ctx) {
     function portalBase(req) {
         return String(process.env.PUBLIC_BASE_URL || process.env.STAGING_MEMBER_URL || process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
     }
-    // 600px transactional template in the Emails.dc.html voice (ink header · 2px rule · cream body · Fraunces headline)
+    // 600px transactional mail in THE Med&X email layout (shared/email-layout.js): ink band with the
+    // wordmark · 2px rule · cream body · Fraunces headline · one button · footnote.
     function emailShell({ eyebrow, headline, bodyHtml, cta, ctaUrl, footnote, rule = '#9b1b22' }) {
-        return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#e9e2d2;font-family:Inter,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#191512">
-<div style="max-width:600px;margin:0 auto;padding:28px 12px">
-  <div style="background:#f7f1e6">
-    <div style="background:#191512;padding:22px 40px;color:#f7f1e6"><span style="font-family:Fraunces,Georgia,serif;font-size:22px;letter-spacing:.02em">med<span style="color:#c9a962">&amp;</span>X</span><span style="float:right;font:600 9px Inter,Arial,sans-serif;letter-spacing:.2em;color:#c9a962;margin-top:8px">MEMBER PORTAL</span></div>
-    <div style="height:2px;background:${rule}"></div>
-    <div style="padding:36px 40px 30px">
-      <span style="font:600 10px Inter,Arial,sans-serif;letter-spacing:.18em;color:#c9a962">${esc(eyebrow)}</span>
-      <div style="font-family:Fraunces,Georgia,serif;font-size:28px;line-height:1.15;margin-top:10px">${headline}</div>
-      <div style="font-size:14px;color:#4a4239;line-height:1.65;margin-top:14px">${bodyHtml}</div>
-      ${cta ? `<div style="text-align:center;margin:26px 0"><a href="${esc(ctaUrl)}" style="display:inline-block;padding:15px 34px;background:#9b1b22;color:#f7f1e6;font:600 11px Inter,Arial,sans-serif;letter-spacing:.16em;text-decoration:none">${esc(cta)}</a></div>` : ''}
-      ${footnote ? `<div style="font-size:12px;color:#4a4239;line-height:1.6">${footnote}</div>` : ''}
-    </div>
-    <div style="border-top:1px solid rgba(25,21,18,.16);padding:18px 40px;font-size:11px;color:#4a4239">© Med&amp;X 2026 · Zagreb <span style="color:#c9a962">·</span> The Biomedical Forum is an initiative of Med&amp;X.</div>
-  </div>
-</div></body></html>`;
+        return emailLayout.layout({
+            title: String(headline || '').replace(/<[^>]+>/g, '') + ' — Med&X',
+            label: 'MEMBER PORTAL',
+            rule: /c9a962/i.test(rule) ? 'gold' : 'crimson',
+            body: emailLayout.block({ eyebrow: esc(eyebrow), headline, bodyHtml, button: cta ? { label: esc(cta), href: ctaUrl } : null, note: footnote }),
+            footer: ['© Med&amp;X 2026 · Zagreb <span style="color:#c9a962">·</span> The Biomedical Forum is an initiative of Med&amp;X.']
+        });
     }
     async function emailInvite(req, invite) {
         const base = portalBase(req);

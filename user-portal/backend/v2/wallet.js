@@ -41,6 +41,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { PassThrough } = require('stream');
+const emailLayout = require('../../../shared/email-layout');   // THE Med&X email layout
 
 module.exports = function mountWallet(app, ctx) {
     const { auth, sendEmail, ROOT, log } = ctx;
@@ -626,39 +627,30 @@ module.exports = function mountWallet(app, ctx) {
         const qrUrl = `${base}/qr/${item.id}.png`;
         const when = dateRange(item.date, item.end_date) + (item.time ? ` · ${item.time}` : '');
         const n = item.invoice_number || String(item.id).slice(0, 8).toUpperCase();
-        const row = (k, v) => `<span style="display:flex;gap:10px;align-items:baseline"><span style="font:600 9px Inter,Arial,sans-serif;letter-spacing:.16em;color:#4a4239;width:64px">${k}</span><span style="font-size:13px;font-family:Georgia,serif">${escapeHtml(v)}</span></span>`;
-        // 600px transactional shell — Emails.dc.html › "02 · TICKET CONFIRMATION", values live
-        return `<!DOCTYPE html><html><body style="margin:0;background:#e9e2d2;font-family:Inter,Arial,sans-serif;color:#191512;padding:24px 0">
-<div style="width:600px;max-width:100%;margin:0 auto;background:#f7f1e6;box-shadow:0 10px 34px rgba(25,21,18,.18)">
-  <div style="background:#191512;padding:22px 40px;display:flex;align-items:center">
-    <span style="font:600 16px Georgia,serif;color:#f7f1e6">med&amp;X</span>
-    <div style="flex:1"></div>
-    <span style="font:600 9px Inter,Arial,sans-serif;letter-spacing:.2em;color:#c9a962">MEMBER PORTAL</span>
-  </div>
-  <div style="height:2px;background:#c9a962"></div>
-  <div style="padding:36px 40px 30px">
-    <span style="font:600 10px Inter,Arial,sans-serif;letter-spacing:.18em;color:#c9a962">YOUR TICKET</span>
-    <div style="font-family:Georgia,serif;font-size:28px;line-height:1.15;margin-top:10px">${escapeHtml(item.title)} — <i>${item.amount > 0 ? 'seat confirmed' : 'you are in'}</i>.</div>
-    <div style="border:1px solid rgba(201,169,98,.65);background:#fdfaf3;margin-top:20px;padding:20px 24px;display:flex;gap:20px;align-items:center">
-      <div style="flex:1;display:flex;flex-direction:column;gap:8px">
-        ${row('EVENT', item.title)}
-        ${row('WHEN', when || 'To be announced')}
-        ${row('WHERE', item.venue || 'To be announced')}
-        ${row('GUEST', (item.guest_name || fullName(user)) + ' · N° ' + n)}
-      </div>
-      <div style="width:104px;height:104px;background:#fff;flex:none;padding:7px;box-sizing:border-box;border:1px solid rgba(25,21,18,.16)">
-        <img src="${qrUrl}" alt="Check-in QR" width="90" height="90" style="display:block;border:0">
-      </div>
-    </div>
-    <div style="font-size:12.5px;color:#4a4239;line-height:1.6;margin-top:14px">Your member QR admits you at every door — it's also in <strong style="color:#191512">My Med&amp;X</strong>. The ticket PDF is attached.</div>
-    <div style="text-align:center;margin:22px 0 4px">
-      <a href="${base}/app/me" style="display:inline-block;padding:14px 30px;background:#9b1b22;color:#f7f1e6;font:600 11px Inter,Arial,sans-serif;letter-spacing:.16em;text-decoration:none">OPEN MY TICKETS →</a>
-    </div>
-  </div>
-  <div style="border-top:1px solid rgba(25,21,18,.16);padding:18px 40px;font-size:11px;color:#4a4239">
-    <span>${escapeHtml(ORG_LINE)}</span> <span style="color:#c9a962">·</span> <span>Questions? Reply lands in your portal inbox.</span>
-  </div>
-</div></body></html>`;
+        // 600px transactional mail in THE Med&X email layout (shared/email-layout.js) —
+        // Emails.dc.html › "02 · TICKET CONFIRMATION": facts card, the QR tile, one button; values live
+        const EL = emailLayout;
+        const qrTile = `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:18px auto 0;"><tr><td style="background:#ffffff;border:1px solid rgba(25,21,18,.16);padding:8px;"><img src="${qrUrl}" alt="Check-in QR" width="120" height="120" style="display:block;border:0;width:120px;height:120px;"></td></tr></table>`;
+        const body = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td class="mx-pad" style="padding:36px 40px 34px;">
+      <div style="${EL.microStyle(EL.T.gold, 10, '.18em')}">YOUR TICKET</div>
+      <h1 class="mx-h1" style="margin:10px 0 0;font-family:${EL.T.serif};font-weight:400;font-size:28px;line-height:1.18;color:${EL.T.ink};">${escapeHtml(item.title)} — <i>${item.amount > 0 ? 'seat confirmed' : 'you are in'}</i>.</h1>
+      ${EL.facts([
+            ['EVENT', escapeHtml(item.title)],
+            ['WHEN', escapeHtml(when || 'To be announced')],
+            ['WHERE', escapeHtml(item.venue || 'To be announced')],
+            ['GUEST', escapeHtml((item.guest_name || fullName(user)) + ' · N° ' + n)]
+        ])}
+      ${qrTile}
+      <div style="font-family:${EL.T.sans};font-size:14px;color:${EL.T.soft};line-height:1.65;margin-top:18px;">Your member QR admits you at every door — it's also in <strong style="color:#191512">My Med&amp;X</strong>. The ticket PDF is attached.</div>
+      <div style="text-align:center;margin:24px 0 0;">${EL.btn('OPEN MY TICKETS →', `${base}/app/me`)}</div>
+    </td></tr></table>`;
+        return EL.layout({
+            title: `Your ticket — ${item.title}`,
+            label: 'MEMBER PORTAL',
+            rule: 'gold',
+            body,
+            footer: [`<span>${escapeHtml(ORG_LINE)}</span> <span style="color:#c9a962">·</span> <span>Questions? Reply lands in your portal inbox.</span>`]
+        });
     }
     app.post('/api/v2/wallet/tickets/:id/email', auth, async (req, res) => {
         try {

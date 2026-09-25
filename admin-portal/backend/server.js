@@ -15,6 +15,7 @@ const { createDatabase } = require('../../shared/db');
 const { aiDraft } = require('../../shared/ai');
 const caMerge = require('../../shared/ca-merge');
 const wallet = require('../../shared/wallet'); // Google Wallet event-ticket passes (env-gated; no-op until configured)
+const emailLayout = require('../../shared/email-layout'); // THE Med&X email layout — every outgoing email is rendered in it (sendEmail)
 // (email goes out exclusively through the Brevo HTTP API — see sendEmail below)
 const XLSX = require('xlsx');
 const rateLimit = require('express-rate-limit');
@@ -70,6 +71,9 @@ function generateXlsxBuffer(headers, rows, sheetName = 'Sheet1') {
 // attachments: optional array of { filename, content: Buffer, type? }.
 function mailProviderReady() { return !!process.env.BREVO_API_KEY; }
 async function sendEmail(to, subject, htmlContent, attachments, replyTo, fromOverride) {
+    // One look for every message: whatever built it, the email leaves in THE Med&X layout
+    // (already-branded HTML passes through unchanged; wording and links are never touched).
+    htmlContent = emailLayout.ensureBranded(htmlContent, { subject });
     // Optional per-message From (additive, backward-compatible — every existing caller passes
     // <= 5 args). Lets an event-invite campaign send under a selectable sender without a second
     // send path. A bare address is wrapped as "Med&X <email>" so the provider name/email parse holds.
@@ -94,7 +98,9 @@ async function sendEmail(to, subject, htmlContent, attachments, replyTo, fromOve
                 sender: { email: bvFromEmail, name: bvFromName },
                 to: [{ email: to }],
                 subject,
-                htmlContent
+                htmlContent,
+                // text/plain alternative, as the member backend sends (links kept as URLs)
+                textContent: emailLayout.toText(htmlContent)
             };
             if (atts.length) {
                 bvBody.attachment = atts.map(a => ({
@@ -207,10 +213,11 @@ try {
         PRESS_LOGO_DATA_URI = 'data:image/png;base64,' + fs.readFileSync(_pressLogoPath).toString('base64');
     }
 } catch (e) {}
+// Digest / pulse accents — the house palette (ink is Med&X ink, not navy; 2026-09-25).
 const MEDX_EMAIL_ACCENTS = {
     crimson: { bar: '#9b1b22', text: '#ffffff', soft: '#f7ebec', line: '#9b1b22' },
-    ink: { bar: '#0f172a', text: '#ffffff', soft: '#eef1f6', line: '#0f172a' },
-    gold: { bar: '#C9A962', text: '#1f2937', soft: '#faf5e9', line: '#C9A962' }
+    ink: { bar: '#191512', text: '#ffffff', soft: '#f4ede0', line: '#191512' },
+    gold: { bar: '#C9A962', text: '#191512', soft: '#faf5e9', line: '#C9A962' }
 };
 function medxEmailAccent(name) { return MEDX_EMAIL_ACCENTS[name] || MEDX_EMAIL_ACCENTS.ink; }
 
@@ -221,63 +228,13 @@ function newsletterSignupUrl() {
     return (process.env.RENDER_EXTERNAL_URL || process.env.ADMIN_PORTAL_URL || ('http://localhost:' + (process.env.PORT || 3002))).replace(/\/+$/, '') + '/newsletter';
 }
 
-// Branded email template builder — wraps content in Med&X styled HTML. Email-client-safe:
-// 600px table layout, inline CSS only, absolute URLs, Georgia serif headers (echoing
-// Fraunces) with an Arial/Helvetica body, and no webfont dependencies. opts.accent picks
-// the title-bar color (defaults to ink to keep transactional mail calm).
+// Branded email template builder — buildEmailTemplate(title, body, opts) renders in THE Med&X
+// email layout (shared/email-layout.js, 2026-09-25): the title as the Fraunces headline, the body
+// re-homed to the house palette, and the old footer's words and links (motto, newsletter sign-up,
+// GDPR line, Privacy Policy · Terms, ©) kept. opts.accent 'gold' → a gold rule under the band.
 function buildEmailTemplate(title, bodyHtml, opts) {
     opts = opts || {};
-    const accent = medxEmailAccent(opts.accent);
-    const titleBar = title ? `
-    <!-- Title bar -->
-    <tr><td style="background: ${accent.bar}; padding: 15px 32px; text-align: center;">
-        <h1 style="margin: 0; color: ${accent.text}; font-size: 20px; font-weight: 600; font-family: Georgia, 'Times New Roman', serif; letter-spacing: 0.2px;">${title}</h1>
-    </td></tr>` : '';
-    return `
-<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin: 0; padding: 0; background: #f4f4f5; font-family: Arial, Helvetica, sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background: #f4f4f5; padding: 32px 16px;">
-<tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; width: 100%;">
-    <!-- Header: the REAL Med&X logo on a clean white band -->
-    <tr><td style="background: #ffffff; padding: 26px 32px 20px; border-radius: 12px 12px 0 0; text-align: center; border: 1px solid #e2e8f0; border-bottom: 3px solid ${accent.line};">
-        <img src="${MEDX_LOGO_URL}" alt="Med&amp;X" width="164" height="36" style="display: inline-block; height: 36px; width: 164px; max-width: 60%; border: 0; outline: none; text-decoration: none; color: #15110f; font-family: Georgia, 'Times New Roman', serif; font-size: 26px; font-weight: 700; letter-spacing: 0.5px;" />
-        <div style="color: #94a3b8; font-size: 11px; margin-top: 10px; letter-spacing: 2px; text-transform: uppercase; font-family: Arial, Helvetica, sans-serif;">Building Bridges in Biomedicine</div>
-    </td></tr>
-    ${titleBar}
-    <!-- Body -->
-    <tr><td style="background: #ffffff; padding: 32px; border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0;">
-        <div style="color: #334155; font-size: 15px; line-height: 1.7;">
-            ${bodyHtml}
-        </div>
-    </td></tr>
-    <!-- Footer -->
-    <tr><td style="background: #0f172a; padding: 24px 32px; border-radius: 0 0 12px 12px; text-align: center;">
-        <div style="color: #C9A962; font-size: 14px; font-weight: 600; margin-bottom: 8px;">Med&amp;X</div>
-        <div style="color: #94a3b8; font-size: 12px; margin-bottom: 12px;">Building Bridges in Biomedicine</div>
-        <div style="margin-bottom: 8px;">
-            <a href="https://medx.hr" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 8px;">Website</a>
-            <a href="https://www.linkedin.com/company/med-x-croatia/" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 8px;">LinkedIn</a>
-            <a href="https://www.instagram.com/medx.hr/" style="color: #C9A962; text-decoration: none; font-size: 12px; margin: 0 8px;">Instagram</a>
-        </div>
-        <div style="margin-bottom: 12px;">
-            <a href="${newsletterSignupUrl()}" style="color: #94a3b8; text-decoration: underline; font-size: 11px;">Sign up for our newsletter</a>
-        </div>
-        <div style="color: #64748b; font-size: 11px; line-height: 1.55;">
-            Your personal data is processed in accordance with the EU General Data Protection Regulation (GDPR) and used solely for the purposes of organizing and delivering this event.
-            <a href="https://medx-user-portal.onrender.com/privacy" style="color: #C9A962; text-decoration: none;">Privacy Policy</a>
-            &nbsp;·&nbsp;
-            <a href="https://medx-user-portal.onrender.com/terms" style="color: #C9A962; text-decoration: none;">Terms</a>
-        </div>
-        <div style="margin-top: 10px; color: #475569; font-size: 11px;">&copy; ${new Date().getFullYear()} Med&amp;X. All rights reserved.</div>
-    </td></tr>
-</table>
-</td></tr>
-</table>
-</body>
-</html>`;
+    return emailLayout.letterhead({ family: 'admin', title, bodyHtml, accent: opts.accent, newsletterUrl: newsletterSignupUrl() });
 }
 // ============================================================================
 // PUBLER SOCIAL PUBLISHING  (PR & Media -> "Approve & Schedule")

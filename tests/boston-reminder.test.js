@@ -795,8 +795,8 @@ async function t(name, fn) {
             assert.ok(/can&rsquo;t attend Boston/.test(m.html), 'the one line, in the owner\'s words');
             assert.ok(/seat released/.test(m.html), 'and what happened to the seat');
             assert.ok(m.html.includes('Petra Institute'), 'her institution');
-            assert.ok(/<b style="color:#f2e7d6;">4<\/b> registered now/.test(m.html), 'the new head count (5 seats − hers)');
-            assert.ok(m.html.includes('background:#291e14'), 'the dark house shell, like every other FYI');
+            assert.ok(/<b style="color:#191512;">4<\/b> registered now/.test(m.html), 'the new head count (5 seats − hers)');
+            assert.ok(/data-mx-layout="/.test(m.html) && m.html.includes('background:#f7f1e6'), 'the one Med&X email layout, like every other FYI (2026-09-25)');
             assert.ok(m.html.includes('BUILDING BRIDGES · BOSTON'), 'labelled as this evening');
             assert.strictEqual(m.attachments, null, 'an FYI carries no attachment');
             assert.ok(!m.html.includes('undefined') && !m.html.includes('NaN'), 'no leaked placeholders');

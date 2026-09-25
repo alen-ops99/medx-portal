@@ -45,6 +45,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const emailLayout = require('../../../shared/email-layout');   // THE Med&X email layout
 
 const STATUSES = ['todo', 'doing', 'done', 'seen'];
 const STATUS_LABEL = { todo: 'To do', doing: 'In progress', done: 'Done', seen: 'Seen' };
@@ -265,29 +266,22 @@ module.exports = function mountTasks(app, ctx) {
     }
 
     // ---- emails (team only; nothing goes to the actor themself) ----
+    // THE Med&X email layout (shared/email-layout.js) — the cream card every Med&X email wears.
     function emailHtml({ title, headline, lines, quote, links, cta, url }) {
         const sans = "Inter,Helvetica,Arial,sans-serif", serif = "Fraunces,Georgia,'Times New Roman',serif";
         const body = `
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:34px 40px 8px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td class="mx-pad" style="padding:36px 40px 34px;">
           <div style="font-family:${sans};font-weight:600;font-size:10px;letter-spacing:.2em;color:#c9a962;text-transform:uppercase;">THE TASK BOARD</div>
-          <div style="font-family:${serif};font-size:26px;line-height:1.15;color:#f6efe2;margin-top:10px;">${headline}</div>
-          ${(lines || []).map(l => `<p style="font-family:${sans};font-size:14px;line-height:1.65;color:#d9cebd;margin:14px 0 0;">${l}</p>`).join('')}
-          ${quote ? `<div style="margin-top:18px;padding:16px 18px;background:#2f251a;border-left:2px solid #c9a962;font-family:${sans};font-size:14px;line-height:1.6;color:#f6efe2;white-space:pre-wrap;">${quote}</div>` : ''}
-          ${links && links.length ? `<div style="margin-top:14px;">${links.map(l => `<div style="font-family:${sans};font-size:13px;line-height:1.7;"><a href="${esc(l.url)}" style="color:#d7b56c;text-decoration:underline;">${esc(l.label || l.url)}</a></div>`).join('')}</div>` : ''}
-          <div style="margin-top:26px;"><a href="${esc(url)}" style="display:inline-block;padding:14px 30px;background:#9b1b22;color:#f7f1e6;font-family:${sans};font-weight:600;font-size:11px;letter-spacing:.16em;text-decoration:none;text-transform:uppercase;">${cta}</a></div>
+          <div style="font-family:${serif};font-size:26px;line-height:1.18;color:#191512;margin-top:10px;">${headline}</div>
+          ${(lines || []).map(l => `<p style="font-family:${sans};font-size:15px;line-height:1.65;color:#4a4239;margin:14px 0 0;">${l}</p>`).join('')}
+          ${quote ? `<div style="margin-top:18px;padding:16px 18px;background:#fdfaf3;border-left:2px solid #c9a962;font-family:${sans};font-size:14px;line-height:1.6;color:#191512;white-space:pre-wrap;">${quote}</div>` : ''}
+          ${links && links.length ? `<div style="margin-top:14px;">${links.map(l => `<div style="font-family:${sans};font-size:14px;line-height:1.7;"><a href="${esc(l.url)}" style="color:#9b1b22;text-decoration:underline;">${esc(l.label || l.url)}</a></div>`).join('')}</div>` : ''}
+          <div style="margin-top:26px;"><a href="${esc(url)}" style="display:inline-block;padding:15px 34px;background:#9b1b22;color:#f7f1e6;font-family:${sans};font-weight:600;font-size:11px;letter-spacing:.16em;text-decoration:none;text-transform:uppercase;">${cta}</a></div>
         </td></tr></table>`;
-        return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light dark"><title>${esc(title)}</title></head>
-<body style="margin:0;padding:0;background:#120e0a;font-family:${sans};-webkit-text-size-adjust:100%;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#120e0a;padding:32px 12px;"><tr><td align="center">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#291e14;box-shadow:0 10px 34px rgba(0,0,0,.35);">
-  <tr><td style="background:#191512;padding:22px 40px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-    <td align="left" style="vertical-align:middle;"><img src="https://medx-member-portal-v2.netlify.app/assets/logo-white.png" alt="med&amp;X" height="20" style="height:20px;width:auto;display:block;border:0;"></td>
-    <td align="right" style="vertical-align:middle;font-family:${sans};font-weight:600;font-size:9px;letter-spacing:.2em;color:#c9a962;text-transform:uppercase;">ADMIN PORTAL</td>
-  </tr></table></td></tr>
-  <tr><td style="height:2px;font-size:0;line-height:0;background:#9b1b22;">&nbsp;</td></tr>
-  <tr><td>${body}</td></tr>
-  <tr><td style="border-top:1px solid rgba(240,228,210,.16);padding:18px 40px 22px;font-family:${sans};font-size:11px;line-height:1.7;color:#cbbca7;">© Med&amp;X ${new Date().getFullYear()} · Split, Croatia<br>Sent by the Med&amp;X admin portal because a task on the shared board involves you.</td></tr>
-</table></td></tr></table></body></html>`;
+        return emailLayout.layout({
+            title, label: 'ADMIN PORTAL', rule: 'crimson', body,
+            footer: [`© Med&amp;X ${new Date().getFullYear()} · Split, Croatia`, 'Sent by the Med&amp;X admin portal because a task on the shared board involves you.']
+        });
     }
     function teamEmailOf(userId) {
         if (!userId) return null;

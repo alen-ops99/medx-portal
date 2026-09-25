@@ -58,6 +58,7 @@ const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
 const { randomUUID } = require('crypto');
+const emailLayout = require('../../../shared/email-layout');   // THE Med&X email layout
 // The gala payment-state classifier (paid · link_sent · checkout_abandoned · no_link_yet · held ·
 // paid_twins) — ONE truth shared with gala-ops / registrations / people / money, so the audience
 // tag, the "payment open" sub-label and the compose filter agree with the Gala card (audit item A).
@@ -188,23 +189,17 @@ module.exports = function mountInbox(app, ctx) {
 
     // ---- branded email (email-client-safe: 600px table, inline CSS, no webfonts) ----
     const escHtml = (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    const logoUrl = () => (process.env.EMAIL_LOGO_URL
-        || ((process.env.RENDER_EXTERNAL_URL || process.env.ADMIN_PORTAL_URL || ('http://localhost:' + (process.env.PORT || 3002))).replace(/\/+$/, '') + '/assets/email-logo.png'));
     const paragraphs = (text) => String(text || '').trim().split(/\n\s*\n/).map(p =>
         `<p style="margin:0 0 14px;font-size:14px;line-height:1.6;color:#4a4239;">${escHtml(p.trim()).replace(/\n/g, '<br>')}</p>`).join('');
-    // The artboard's "HOW IT WILL LOOK" card: ink header band with the wordmark, "Dear <first name>,",
-    // the plain-text body as paragraphs, a hairline footer.
+    // The artboard's "HOW IT WILL LOOK" card, in THE Med&X email layout (shared/email-layout.js):
+    // ink band with the wordmark, "Dear <first name>,", the plain-text body as paragraphs, a hairline footer.
     function buildHtml({ firstName, body, footerNote }) {
-        return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,Helvetica,sans-serif;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:32px 16px;"><tr><td align="center">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border:1px solid #e5e1d8;">
-<tr><td style="background:#191512;padding:14px 24px;"><img src="${logoUrl()}" alt="Med&amp;X" height="16" style="display:block;height:16px;border:0;"></td></tr>
-<tr><td style="padding:24px;">
-<p style="margin:0 0 14px;font-size:14px;line-height:1.6;color:#191512;">Dear ${escHtml(firstName || 'friend of Med&X')},</p>
-${paragraphs(body)}
-<p style="margin:18px 0 0;padding-top:12px;border-top:1px solid #eee9df;font-size:11px;line-height:1.6;color:#8a8177;">${escHtml(footerNote || 'You are receiving this from the Med&X team in Zagreb. Just reply to reach us.')}</p>
-</td></tr></table></td></tr></table></body></html>`;
+        return emailLayout.layout({
+            title: 'Med&X',
+            body: emailLayout.block({ bodyHtml: `<p style="margin:0 0 14px;font-size:14px;line-height:1.6;color:#191512;">Dear ${escHtml(firstName || 'friend of Med&X')},</p>
+${paragraphs(body)}` }),
+            footer: [escHtml(footerNote || 'You are receiving this from the Med&X team in Zagreb. Just reply to reach us.')]
+        });
     }
 
     // ---- audiences (the EMAIL REGISTRANTS dropdown + tick lists) ----
@@ -383,7 +378,8 @@ ${paragraphs(body)}
                     subject: first.subject || rows[0].subject || '(no subject)',
                     to: first.to || rows[0].recipient_email || null,
                     body_text: first.body_text || null,
-                    html: first.html || first.body_html || first.body || null
+                    // exactly what the drainer will send: sendEmail() puts every message in the one layout
+                    html: (first.html || first.body_html || first.body) ? emailLayout.ensureBranded(first.html || first.body_html || first.body, { subject: first.subject || rows[0].subject || '' }) : null
                 }
             });
         } catch (err) { fail(res, err, 'Could not load that batch.'); }

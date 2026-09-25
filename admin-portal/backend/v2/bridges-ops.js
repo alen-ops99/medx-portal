@@ -28,6 +28,7 @@
 'use strict';
 const crypto = require('crypto');
 const bridgesEvenings = require('../../../shared/bridges-evenings');   // the one "held evening" rule (member recap too)
+const emailLayout = require('../../../shared/email-layout');   // THE Med&X email layout
 
 const MAX_PHOTOS = 40;
 const STAT_KEYS = ['guests', 'cities', 'countries', 'speakers'];
@@ -227,21 +228,16 @@ module.exports = function mountBridgesOps(app, ctx) {
         persist();
         return { batch_id: batchId, count: rows.length };
     }
+    // THE Med&X email layout (shared/email-layout.js): ink band + wordmark · rule · cream body.
+    // Keeps its </body> — eventQueued() finds the event id in an html comment placed before it.
     function emailShell(eyebrow, headline, bodyHtml, rule) {
-        return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#e9e2d2;font-family:Inter,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#191512">
-<div style="max-width:600px;margin:0 auto;padding:28px 12px">
-  <div style="background:#f7f1e6">
-    <div style="background:#191512;padding:22px 40px;color:#f7f1e6"><span style="font-family:Fraunces,Georgia,serif;font-size:22px;letter-spacing:.02em">med<span style="color:#c9a962">&amp;</span>X</span><span style="float:right;font:600 9px Inter,Arial,sans-serif;letter-spacing:.2em;color:#c9a962;margin-top:8px">BUILDING BRIDGES</span></div>
-    <div style="height:2px;background:${rule || '#9b1b22'}"></div>
-    <div style="padding:36px 40px 30px">
-      <span style="font:600 10px Inter,Arial,sans-serif;letter-spacing:.18em;color:#c9a962">${esc(eyebrow)}</span>
-      <div style="font-family:Fraunces,Georgia,serif;font-size:28px;line-height:1.15;margin-top:10px">${headline}</div>
-      <div style="font-size:14px;color:#4a4239;line-height:1.65;margin-top:14px">${bodyHtml}</div>
-    </div>
-    <div style="border-top:1px solid rgba(25,21,18,.16);padding:18px 40px;font-size:11px;color:#4a4239">© Med&amp;X 2026 · Zagreb <span style="color:#c9a962">·</span> Building Bridges in Biomedicine is an initiative of Med&amp;X.</div>
-  </div>
-</div></body></html>`;
+        return emailLayout.layout({
+            title: String(headline || '').replace(/<[^>]+>/g, '') + ' — Med&X',
+            label: 'BUILDING BRIDGES',
+            rule: /c9a962/i.test(String(rule || '')) ? 'gold' : 'crimson',
+            body: emailLayout.block({ eyebrow: esc(eyebrow), headline, bodyHtml }),
+            footer: ['© Med&amp;X 2026 · Zagreb <span style="color:#c9a962">·</span> Building Bridges in Biomedicine is an initiative of Med&amp;X.']
+        });
     }
     function eventWhen(e) {
         const d = String(e.event_date || '').slice(0, 10);
