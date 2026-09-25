@@ -355,7 +355,8 @@ const listFiles = (dir) => { try { return fs.readdirSync(dir).sort(); } catch (e
         r = await api(ADMIN, '/api/admin/tech/tables/project_tasks?limit=500', { token: A.token, headers: TECH });
         check('A (creator): tech table project_tasks still shows T', r.status === 200 && r.text.includes(T));
         r = await api(ADMIN, '/api/admin/tech/tables/scheduled_emails?limit=500', { token: B.token, headers: TECH });
-        check('B: tech table scheduled_emails shows his own digest', r.status === 200 && r.text.includes(SECRET));
+        // the digest is title-free (digest_v 2, same format as the redesign backend): B's row is there, the title is not
+        check('B: tech table scheduled_emails shows his own title-free digest', r.status === 200 && r.text.includes('digest_v') && !r.text.includes(SECRET), r.status + ' ' + r.text.slice(0, 160));
 
         // Task file gate: never served statically; the download route checks the rule.
         r = await api(ADMIN, '/api/tasks/plexus', { token: A.token });

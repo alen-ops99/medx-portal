@@ -1919,8 +1919,15 @@ async function nagBuildReminderEmail(item, payload) {
 // Build the DAILY TEAM DIGEST: one approval-gated scheduled_emails row per active team member
 // (linked portal account + email) summarizing THEIR open items with a dashboard deep link.
 // Idempotent per calendar day — a second call the same day returns the existing pending batch.
+// The staged rows sit in the shared outbox every admin can open, so a task is never named in them
+// (tasks are private to their creator and assignee, shared/task-visibility.js): task items collapse
+// to one count line with a link, and the subject carries no count. Same format ("digest_v":2) as the
+// redesign backend, which shares this database; an older titled digest still waiting is withdrawn
+// (status 'cancelled', never sent) and a title-free one is built in its place.
+const NAG_DIGEST_FORMAT = '"digest_v":2';
 function generateTeamDigest() {
     try {
+        try { db.run("UPDATE scheduled_emails SET status = 'cancelled' WHERE source_engine = 'nag-digest' AND status = 'pending_approval' AND COALESCE(payload_json,'') NOT LIKE ?", ['%' + NAG_DIGEST_FORMAT + '%']); if (db.getRowsModified() > 0) saveDb(); } catch (e) { /* best-effort */ }
         const existing = query.get("SELECT batch_id FROM scheduled_emails WHERE source_engine = 'nag-digest' AND status = 'pending_approval' AND date(created_at) = date('now') LIMIT 1");
         if (existing && existing.batch_id) {
             const c = query.get("SELECT COUNT(*) AS c FROM scheduled_emails WHERE batch_id = ?", [existing.batch_id])?.c || 0;
@@ -1937,8 +1944,10 @@ function generateTeamDigest() {
             const items = query.all("SELECT title, kind, subject_id FROM nag_items WHERE assignee = ? AND status IN ('open','actioned') ORDER BY created_at DESC", [m.tm_id])
                 .filter((it) => taskVis.nagItemVisible(query.get, m.user_id, it));
             if (!items.length) continue;
-            const lis = items.map((it) => `<li style="margin:6px 0;">${nagEscape(it.title)}</li>`).join('');
-            const subject = `Your Med&X action items (${items.length})`;
+            const taskCount = items.filter((it) => taskVis.TASK_NAG_KINDS.has(it.kind)).length;
+            const lis = items.filter((it) => !taskVis.TASK_NAG_KINDS.has(it.kind)).map((it) => `<li style="margin:6px 0;">${nagEscape(it.title)}</li>`).join('')
+                + (taskCount ? `<li style="margin:6px 0;">${taskCount} of your task${taskCount === 1 ? ' is' : 's are'} overdue or due soon: <a href="${nagEscape(ADMIN_PORTAL_URL)}" style="color:#c14b52;">open your tasks</a></li>` : '');
+            const subject = 'Your Med&X action items';
             const html = `<div style="font-family:Georgia,serif;color:#2b2622;line-height:1.6;">
                 <p>Hi ${nagEscape(m.name || 'there')},</p>
                 <p>You have ${items.length} open item${items.length === 1 ? '' : 's'} in the Med&amp;X portal:</p>
@@ -1947,7 +1956,7 @@ function generateTeamDigest() {
                 <p style="color:#8a8178;">— Med&amp;X Action Center</p></div>`;
             db.run(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
                     VALUES (?, 'pending_approval', ?, 'nag-digest', 'daily_team_digest', ?, ?, ?, 'nag-engine', datetime('now'))`,
-                [require('crypto').randomUUID(), batchId, JSON.stringify({ to: m.email, subject, html }), m.email, subject]);
+                [require('crypto').randomUUID(), batchId, JSON.stringify({ to: m.email, subject, html, digest_v: 2 }), m.email, subject]);
             recipients++;
         }
         if (recipients) saveDb();
