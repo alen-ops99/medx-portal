@@ -293,7 +293,7 @@ const sys = id => q.all(`SELECT body, kind, author_name FROM v2_task_comments WH
         fileId = up.body.file.id;
         assert.strictEqual(up.body.file.name, 'TK itinerary — Boston.pdf');
         assert.strictEqual(up.body.file.size, buf.length);
-        assert.match(up.body.file.url, /^\/api\/v2\/tasks\/files\/[^?]+\?exp=\d+&sig=[0-9a-f]{32}$/);
+        assert.match(up.body.file.url, /^\/api\/v2\/tasks\/files\/[^?]+\?exp=\d+&uid=u-laura&sig=[0-9a-f]{32}$/, 'the link names the viewer it was handed to');
         const row = q.get('SELECT * FROM task_files WHERE id = ?', [fileId]);
         assert.ok(row.file_path.startsWith(path.join(tmpRoot, 'user-portal', 'backend', 'uploads', 'tasks')), 'stored under the shared uploads root: ' + row.file_path);
         assert.ok(fs.existsSync(row.file_path));
@@ -302,24 +302,29 @@ const sys = id => q.all(`SELECT body, kind, author_name FROM v2_task_comments WH
         assert.strictEqual(list.file_count, 1);
         // the signed link opens the file with NO session (that is the point of it — a plain <a href>)
         const u = new URL('https://x' + up.body.file.url);
-        const okDl = await call('GET', '/api/v2/tasks/files/:fid', null, { params: { fid: fileId }, query: { exp: u.searchParams.get('exp'), sig: u.searchParams.get('sig') } });
+        const okDl = await call('GET', '/api/v2/tasks/files/:fid', null, { params: { fid: fileId }, query: { exp: u.searchParams.get('exp'), uid: u.searchParams.get('uid'), sig: u.searchParams.get('sig') } });
         assert.strictEqual(okDl.status, 200, JSON.stringify(okDl.body));
         assert.strictEqual(okDl.file, row.file_path);
         assert.match(String(okDl.headers['content-disposition']), /^attachment/);
         assert.strictEqual(okDl.headers['x-content-type-options'], 'nosniff');
         // a forged or expired signature falls back to the session gate → 401 without one
-        const bad = await call('GET', '/api/v2/tasks/files/:fid', null, { params: { fid: fileId }, query: { exp: u.searchParams.get('exp'), sig: 'f'.repeat(32) } });
+        const bad = await call('GET', '/api/v2/tasks/files/:fid', null, { params: { fid: fileId }, query: { exp: u.searchParams.get('exp'), uid: u.searchParams.get('uid'), sig: 'f'.repeat(32) } });
         assert.strictEqual(bad.status, 401);
-        const expired = await call('GET', '/api/v2/tasks/files/:fid', null, { params: { fid: fileId }, query: { exp: '1000', sig: u.searchParams.get('sig') } });
+        const expired = await call('GET', '/api/v2/tasks/files/:fid', null, { params: { fid: fileId }, query: { exp: '1000', uid: u.searchParams.get('uid'), sig: u.searchParams.get('sig') } });
         assert.strictEqual(expired.status, 401);
+        // the viewer is part of the signature: another uid on the same sig, or a link without one, is no link
+        const swapped = await call('GET', '/api/v2/tasks/files/:fid', null, { params: { fid: fileId }, query: { exp: u.searchParams.get('exp'), uid: U.alen, sig: u.searchParams.get('sig') } });
+        assert.strictEqual(swapped.status, 401);
+        const noUid = await call('GET', '/api/v2/tasks/files/:fid', null, { params: { fid: fileId }, query: { exp: u.searchParams.get('exp'), sig: u.searchParams.get('sig') } });
+        assert.strictEqual(noUid.status, 401);
         // a signed link never mints a fresh one (?json=1 hands back the SAME link, so it runs out and a
         // link held after a reassignment cannot renew itself)
         // (a link minted 100 s earlier than a fresh one would be, so a renewal cannot pass by coincidence)
         const exp2 = Number(u.searchParams.get('exp')) - 100;
-        const sig2 = require('node:crypto').createHmac('sha256', 'tasks-test-secret').update('task-file:' + fileId + ':' + exp2).digest('hex').slice(0, 32);
-        const again = await call('GET', '/api/v2/tasks/files/:fid', null, { params: { fid: fileId }, query: { exp: String(exp2), sig: sig2, json: '1' } });
+        const sig2 = require('node:crypto').createHmac('sha256', 'tasks-test-secret').update('task-file:' + fileId + ':' + exp2 + ':' + U.laura).digest('hex').slice(0, 32);
+        const again = await call('GET', '/api/v2/tasks/files/:fid', null, { params: { fid: fileId }, query: { exp: String(exp2), uid: U.laura, sig: sig2, json: '1' } });
         assert.strictEqual(again.status, 200, JSON.stringify(again.body));
-        assert.strictEqual(again.body.url, `/api/v2/tasks/files/${encodeURIComponent(fileId)}?exp=${exp2}&sig=${sig2}`, 'the same exp + sig, not a renewal');
+        assert.strictEqual(again.body.url, `/api/v2/tasks/files/${encodeURIComponent(fileId)}?exp=${exp2}&uid=${U.laura}&sig=${sig2}`, 'the same exp + uid + sig, not a renewal');
         // …and a Bearer session is always enough
         const withSession = await call('GET', '/api/v2/tasks/files/:fid', as.alen, { params: { fid: fileId }, query: { json: '1' } });
         assert.strictEqual(withSession.status, 200);
@@ -513,7 +518,7 @@ const sys = id => q.all(`SELECT body, kind, author_name FROM v2_task_comments WH
     q.run(`INSERT INTO users (id, email, first_name, last_name, is_admin) VALUES ('u-dora', 'dora@medx.hr', 'Dora', 'Kovac', 1)`);
     q.run(`INSERT INTO team_members (id, user_id, name, role) VALUES ('tm-dora', 'u-dora', 'Dora Kovac', 'Team')`);
     as.dora = { id: 'u-dora', email: 'dora@medx.hr', is_admin: 1 };
-    let pid = null, pfid = null, pfurl = null;
+    let pid = null, pfid = null, pfurl = null, afurl = null;
     const MISSING = 'no-such-task-000';
     const listIds = async (user, query) => (await call('GET', '/api/v2/tasks', user, { query: query || {} })).body.tasks.map(x => x.id);
     const legacyIds = async user => (await call('GET', '/api/admin/tasks', user)).body.map(x => x.id);
@@ -605,6 +610,11 @@ const sys = id => q.all(`SELECT body, kind, author_name FROM v2_task_comments WH
         assert.ok((await call('GET', '/api/v2/tasks/badge', as.alen)).body.assigned_open >= 1);
         const dl = await call('GET', '/api/v2/tasks/files/:fid', as.alen, { params: { fid: pfid }, query: { json: '1' } });
         assert.strictEqual(dl.status, 200); assert.strictEqual(dl.body.name, 'appointment.pdf');
+        assert.match(dl.body.url, new RegExp('&uid=' + U.alen + '&'), 'a Bearer caller is handed a link in their own name');
+        afurl = dl.body.url;
+        const au = new URL('https://x' + afurl);
+        const byLink = await call('GET', '/api/v2/tasks/files/:fid', null, { params: { fid: pfid }, query: { exp: au.searchParams.get('exp'), uid: au.searchParams.get('uid'), sig: au.searchParams.get('sig') } });
+        assert.strictEqual(byLink.status, 200, 'his link opens the file while he is on the task');
     });
 
     await t('PRIVACY: no founder override — a task Laura keeps for herself is a 404 for Alen and missing from his board', async () => {
@@ -656,8 +666,25 @@ const sys = id => q.all(`SELECT body, kind, author_name FROM v2_task_comments WH
 
     await t('PRIVACY: a signed file link (handed only to a participant) still opens without a session', async () => {
         const u = new URL('https://x' + pfurl);
-        const r = await call('GET', '/api/v2/tasks/files/:fid', null, { params: { fid: pfid }, query: { exp: u.searchParams.get('exp'), sig: u.searchParams.get('sig') } });
+        const r = await call('GET', '/api/v2/tasks/files/:fid', null, { params: { fid: pfid }, query: { exp: u.searchParams.get('exp'), uid: u.searchParams.get('uid'), sig: u.searchParams.get('sig') } });
         assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+    });
+
+    await t('PRIVACY: a signed link stops the moment its holder is off the task (inside its hour), with the missing-file answer', async () => {
+        const au = new URL('https://x' + afurl);
+        const q1 = { exp: au.searchParams.get('exp'), uid: au.searchParams.get('uid'), sig: au.searchParams.get('sig') };
+        assert.ok(Number(q1.exp) > Math.floor(Date.now() / 1000), 'the link is still inside its hour');
+        const gone = await call('GET', '/api/v2/tasks/files/:fid', null, { params: { fid: pfid }, query: q1 });
+        const goneJson = await call('GET', '/api/v2/tasks/files/:fid', null, { params: { fid: pfid }, query: Object.assign({ json: '1' }, q1) });
+        const missing = await call('GET', '/api/v2/tasks/files/:fid', as.alen, { params: { fid: 'no-such-file' } });
+        assert.deepStrictEqual([gone.status, gone.body], [missing.status, missing.body], 'Alen, handed off, gets the missing-file answer');
+        assert.deepStrictEqual([goneJson.status, goneJson.body], [missing.status, missing.body], 'and ?json=1 hands him no link either');
+        // Laura (its creator, so still on it) is handed a link in her own name that opens it
+        const ld = await call('GET', '/api/v2/tasks/:id', as.laura, { params: { id: pid } });
+        assert.strictEqual(ld.status, 200);
+        const lu = new URL('https://x' + ld.body.files[0].url);
+        assert.strictEqual(lu.searchParams.get('uid'), U.laura);
+        assert.strictEqual((await call('GET', '/api/v2/tasks/files/:fid', null, { params: { fid: pfid }, query: { exp: lu.searchParams.get('exp'), uid: lu.searchParams.get('uid'), sig: lu.searchParams.get('sig') } })).status, 200);
     });
 
     await t('PRIVACY: the audit trail carries task ids, never a title (the audit feed is read by every admin)', () => {
@@ -1109,11 +1136,163 @@ const sys = id => q.all(`SELECT body, kind, author_name FROM v2_task_comments WH
         q.run(`DELETE FROM project_tasks WHERE id = 'qmt-sub'`);
     });
 
+    // ---- the drawer's deltas (tag / untag): applied to the people on the task NOW, never to a stale copy ----
+    const emaId = () => q.get(`SELECT id FROM team_members WHERE user_id = 'u-ema'`).id;
+    await t('DELTAS: a stale drawer adding Ema after Bea took Dino off does NOT put Dino back; only Ema is emailed and "tagged"', async () => {
+        const r = await call('POST', '/api/v2/tasks', as.laura, { body: { title: 'Qdl stale drawer', assignees: ['tm-bea', 'tm-cleo', 'tm-dino'] } });
+        assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+        const id = r.body.id;
+        // Laura's drawer loaded [Bea, Cleo, Dino]; meanwhile Bea takes Dino off
+        const off = await put(as.bea, id, { untag: ['tm-dino'] });
+        assert.strictEqual(off.status, 200, JSON.stringify(off.body));
+        assert.deepStrictEqual(tags(id), ['tm-bea', 'tm-cleo']);
+        assert.ok(sys(id).some(x => x.body === 'Bea removed Dino'));
+        // Laura, still looking at [Bea, Cleo, Dino], adds Ema: the change lands on [Bea, Cleo]
+        emails.length = 0;
+        const n0 = sys(id).length;
+        const add = await put(as.laura, id, { tag: [emaId()] });
+        assert.strictEqual(add.status, 200, JSON.stringify(add.body));
+        assert.deepStrictEqual(tags(id), ['tm-bea', 'tm-cleo', emaId()], 'Dino stays off');
+        assert.deepStrictEqual(add.body.task.people.map(p => p.first), ['Bea', 'Cleo', 'Ema']);
+        assert.deepStrictEqual(emails.map(e => e.to), ['ema@medx.hr'], 'one email, to the one person newly tagged');
+        assert.deepStrictEqual(sys(id).slice(n0).map(x => x.body), ['Laura tagged Ema'], 'one activity line, naming only Ema');
+        const hidden = await detail(as.dino, id); const missing = await detail(as.dino, MISSING);
+        assert.deepStrictEqual([hidden.status, hidden.body], [missing.status, missing.body], 'Dino gets the missing answer');
+        // the whole-set form stays for create and compat (and would have carried the stale Dino): not what the drawer sends
+        await call('DELETE', '/api/admin/tasks/:id', as.laura, { params: { id } });
+    });
+
+    await t('DELTAS: two quick × taps from the same drawer (and one untag of two) take off both, nobody is re-tagged or emailed', async () => {
+        const r = await call('POST', '/api/v2/tasks', as.laura, { body: { title: 'Qdl double untag', assignees: ['tm-bea', 'tm-cleo', 'tm-dino', emaId()] } });
+        const id = r.body.id;
+        emails.length = 0;
+        // both requests leave before either answers (the drawer still shows all four)
+        const [a, b] = await Promise.all([put(as.laura, id, { untag: ['tm-cleo'] }), put(as.laura, id, { untag: ['tm-dino'] })]);
+        assert.strictEqual(a.status, 200); assert.strictEqual(b.status, 200);
+        assert.deepStrictEqual(tags(id), ['tm-bea', emaId()], 'both taken off');
+        assert.strictEqual(emails.length, 0);
+        for (const k of ['cleo', 'dino']) assert.strictEqual((await detail(as[k], id)).status, 404, k);
+        // a × on someone already off (a drawer that is behind) is no change
+        const again = await put(as.laura, id, { untag: ['tm-cleo'] });
+        assert.strictEqual(again.status, 200); assert.strictEqual(again.body.unchanged, true);
+        // tagging someone already on is no change and no email
+        const dup = await put(as.laura, id, { tag: ['tm-bea', 'user:u-bea'] });
+        assert.strictEqual(dup.body.unchanged, true); assert.strictEqual(emails.length, 0);
+        // one untag of two: the first person goes too, and with everyone off assigned_to is cleared
+        const both = await put(as.laura, id, { untag: ['tm-bea', 'user:u-ema'] });
+        assert.strictEqual(both.status, 200, JSON.stringify(both.body));
+        assert.deepStrictEqual(tags(id), []); assert.strictEqual(assignedTo(id), null);
+        assert.ok(sys(id).some(x => x.body === 'Laura removed Bea and Ema'));
+        await call('DELETE', '/api/admin/tasks/:id', as.laura, { params: { id } });
+    });
+
+    await t('DELTAS: untag takes off the account (any of its rows), wins over a tag of the same person, never makes a team row; tag is validated and capped; a non-participant gets the missing answer', async () => {
+        const r = await call('POST', '/api/v2/tasks', as.laura, { body: { title: 'Qdl rules', assignees: ['tm-bea', 'tm-cleo'] } });
+        const id = r.body.id;
+        // untag by account (user:<id>) takes off her team row; untag first person promotes the next one
+        let x = await put(as.laura, id, { untag: ['user:u-bea'] });
+        assert.strictEqual(x.status, 200); assert.deepStrictEqual(tags(id), ['tm-cleo']); assert.strictEqual(assignedTo(id), 'tm-cleo');
+        // the same person in both lists: taking off wins, and no team row is made for an account with none
+        q.run(`INSERT INTO users (id, email, first_name, last_name, is_admin) VALUES ('u-fran', 'fran@medx.hr', 'Fran', 'Franic', 1)`);
+        const rows = q.get('SELECT COUNT(*) AS c FROM team_members').c;
+        x = await put(as.laura, id, { tag: ['user:u-fran', 'tm-dino'], untag: ['user:u-fran'] });
+        assert.strictEqual(x.status, 200, JSON.stringify(x.body));
+        assert.deepStrictEqual(tags(id), ['tm-cleo', 'tm-dino']);
+        assert.strictEqual(q.get('SELECT COUNT(*) AS c FROM team_members').c, rows, 'no team row made for Fran');
+        // an unknown person to tag is refused, and nothing changes; lists only
+        const before = tags(id).join();
+        assert.strictEqual((await put(as.laura, id, { tag: ['nobody-here'] })).status, 400);
+        assert.strictEqual((await put(as.laura, id, { tag: 'tm-bea' })).status, 400);
+        assert.strictEqual((await put(as.laura, id, { untag: 'tm-cleo' })).status, 400);
+        assert.strictEqual(tags(id).join(), before);
+        // an id to untag that is not on the task is a no-op, never an error (a drawer that is behind)
+        assert.strictEqual((await put(as.laura, id, { untag: ['no-such-row'] })).body.unchanged, true);
+        // the cap counts the set after the change
+        for (let i = 0; i < 11; i++) q.run(`INSERT INTO team_members (id, user_id, name, role) VALUES (?,?,?,?)`, ['tm-dl-' + i, null, 'Delta Person ' + i, 'Volunteer']);
+        const ten = Array.from({ length: 10 }, (_, i) => 'tm-dl-' + i);
+        x = await put(as.laura, id, { tag: ten });
+        assert.strictEqual(x.status, 200); assert.strictEqual(tags(id).length, 12);
+        x = await put(as.laura, id, { tag: ['tm-dl-10'] });
+        assert.strictEqual(x.status, 400); assert.match(x.body.error, /at most 12/); assert.strictEqual(tags(id).length, 12);
+        x = await put(as.laura, id, { untag: ['tm-dl-0'], tag: ['tm-dl-10'] });
+        assert.strictEqual(x.status, 200, 'one off and one on stays at 12'); assert.ok(tags(id).includes('tm-dl-10') && !tags(id).includes('tm-dl-0'));
+        // Ema (not on it, not its creator) tagging herself on gets exactly the missing answer
+        const hid = await put(as.ema, id, { tag: [emaId()] }); const mis = await put(as.ema, MISSING, { tag: [emaId()] });
+        assert.deepStrictEqual([hid.status, hid.body], [mis.status, mis.body]);
+        assert.ok(!tags(id).includes(emaId()));
+        // someone on it (not the creator) taking herself off by delta: handed off, the card leaves her
+        const left = await put(as.cleo, id, { untag: ['tm-cleo'] });
+        assert.strictEqual(left.status, 200); assert.strictEqual(left.body.handed_off, true); assert.strictEqual(left.body.task, null);
+        assert.ok(sys(id).some(x => x.body === 'Cleo left the task'));
+        await call('DELETE', '/api/admin/tasks/:id', as.laura, { params: { id } });
+        q.run(`DELETE FROM team_members WHERE id LIKE 'tm-dl-%'`); q.run(`DELETE FROM users WHERE id = 'u-fran'`);
+    });
+
+    await t('RACE: an old-portal unassign landing between setTaskPeople\'s UPDATE and its re-insert leaves no dormant rows (a later hand-off revives no one)', () => {
+        const vis = require(path.join(ROOT, 'shared/task-visibility.js'));
+        for (const unassigned of [null, '']) {
+            const id = 'qrace-' + (unassigned === null ? 'null' : 'blank');
+            q.run(`INSERT INTO project_tasks (id, project, title, status, created_by) VALUES (?, 'general', 'Qrace', 'todo', ?)`, [id, U.laura]);
+            vis.setTaskPeople(q.run, id, ['tm-bea', 'tm-cleo'], U.laura);
+            assert.deepStrictEqual(tags(id), ['tm-bea', 'tm-cleo']);
+            // promote Cleo, Bea stays on later: her row steps aside for the UPDATE and is written again after it —
+            // and right there the old portal (a second writer on the same database) unassigns the task
+            let seenUpdate = false, injected = false;
+            const run = (sql, p) => {
+                if (/^UPDATE project_tasks SET assigned_to = \? WHERE id = \?/.test(sql)) seenUpdate = true;
+                else if (seenUpdate && !injected && /^INSERT OR IGNORE INTO v2_task_people/.test(sql)) { injected = true; q.run('UPDATE project_tasks SET assigned_to = ? WHERE id = ?', [unassigned, id]); }
+                return q.run(sql, p);
+            };
+            vis.setTaskPeople(run, id, ['tm-cleo', 'tm-bea'], U.laura);
+            assert.ok(injected, 'the old-portal write landed in the gap');
+            assert.deepStrictEqual(tags(id), [], 'no dormant rows on an unassigned task');
+            // the old portal later hands it to Cleo alone: Bea is not revived
+            q.run('UPDATE project_tasks SET assigned_to = ? WHERE id = ?', ['tm-cleo', id]);
+            assert.deepStrictEqual(tags(id), ['tm-cleo']);
+            assert.strictEqual((vis.visibleTaskRow(q.get, 'u-bea', id, 'pt.id')), null, 'Bea does not see it');
+            // without the other portal, the same write keeps Bea on in her later place
+            vis.setTaskPeople(q.run, id, ['tm-bea', 'tm-cleo'], U.laura);
+            vis.setTaskPeople(q.run, id, ['tm-cleo', 'tm-bea'], U.laura);
+            assert.deepStrictEqual(tags(id), ['tm-cleo', 'tm-bea']); assert.strictEqual(assignedTo(id), 'tm-cleo');
+            vis.deleteTaskPeople(q.run, id); q.run('DELETE FROM project_tasks WHERE id = ?', [id]);
+        }
+    });
+
+    await t('BOOT: the stale-row sweep runs first and on its own — a trigger DDL that fails never skips it, a sweep that fails never skips the trigger', () => {
+        const vis = require(path.join(ROOT, 'shared/task-visibility.js'));
+        const mk = () => {
+            const d = createDatabase(Database, { localPath: ':memory:' });
+            d.run(`CREATE TABLE project_tasks (id TEXT PRIMARY KEY, title TEXT, created_by TEXT, assigned_to TEXT, parent_id TEXT)`);
+            d.run(`CREATE TABLE v2_task_people (task_id TEXT NOT NULL, member_id TEXT NOT NULL, added_by TEXT, added_at TEXT, PRIMARY KEY (task_id, member_id))`);
+            d.run(`INSERT INTO project_tasks (id, title, assigned_to) VALUES ('live', 'x', 'tm-a'), ('stale', 'x', 'tm-d'), ('noone', 'x', NULL)`);
+            d.run(`INSERT INTO v2_task_people (task_id, member_id) VALUES ('live','tm-a'),('live','tm-b'),('stale','tm-b'),('stale','tm-e'),('noone','tm-f'),('gone','tm-a')`);
+            const all = sql => { const st = d.prepare(sql); st.bind([]); const o = []; while (st.step()) o.push(st.getAsObject()); st.free(); return o; };
+            return { d, rows: () => all('SELECT task_id, member_id FROM v2_task_people ORDER BY task_id, member_id').map(r => r.task_id + ':' + r.member_id),
+                     trigger: () => all(`SELECT name FROM sqlite_master WHERE type = 'trigger' AND name = 'trg_task_people_one_person_write'`).length };
+        };
+        const a = mk();
+        assert.throws(() => vis.ensureTaskPeopleTable((sql, p) => { if (/CREATE TRIGGER/.test(sql)) throw new Error('trigger DDL refused'); return a.d.run(sql, p); }), /trigger DDL refused/);
+        assert.deepStrictEqual(a.rows(), ['live:tm-a', 'live:tm-b'], 'the sweep ran although the trigger DDL failed');
+        const b = mk();
+        assert.throws(() => vis.ensureTaskPeopleTable((sql, p) => { if (/^\s*DELETE FROM v2_task_people/.test(sql)) throw new Error('sweep refused'); return b.d.run(sql, p); }), /sweep refused/, 'a failing sweep is still reported');
+        assert.strictEqual(b.trigger(), 1, 'the trigger was created although the sweep failed');
+        const c = mk();
+        vis.ensureTaskPeopleTable((sql, p) => c.d.run(sql, p));
+        assert.deepStrictEqual(c.rows(), ['live:tm-a', 'live:tm-b']); assert.strictEqual(c.trigger(), 1);
+    });
+
     await t('MULTI: the board view — chips + ADD PERSON in the add bar and the drawer, up to three names on a card, the privacy line never names someone without an account', () => {
         const src = fs.readFileSync(path.join(ROOT, 'admin-portal/frontend-v2/js/views/tasks.js'), 'utf8');
         assert.ok(/peopleField\(addChosen\(\), 'addWho', 'untagAdd'\)/.test(src), 'the add bar WHO is the chips field');
-        assert.ok(/peopleField\(peopleOf\(t\), 'who', 'untag'\)/.test(src), 'the drawer WHO is the chips field');
-        assert.ok(/assignees: st\.addPeople/.test(src) && /\{ assignees: ids \}/.test(src), 'both send assignees');
+        assert.ok(/peopleField\(peopleOf\(t\), 'who', 'untag', !!st\.peopleBusy\)/.test(src), 'the drawer WHO is the chips field (waiting while a save is in flight)');
+        assert.ok(/assignees: st\.addPeople/.test(src), 'the add bar sends the whole set (a new task)');
+        assert.ok(/untag\.length \? \{ untag \} : \{ tag \}/.test(src) && !/\{ assignees: ids \}/.test(src), 'the drawer sends a change (tag / untag), never the whole set it last loaded');
+        assert.ok(/savePeople\(\{ untag: \[el\.dataset\.id\] \}/.test(src) && /savePeople\(\{ tag: \[v\] \}/.test(src), 'the chip × untags one person, the picker tags one');
+        assert.ok(/if \(!st\.open \|\| !st\.detail \|\| st\.peopleBusy\) return;/.test(src) && /markPeopleBusy\(\);/.test(src) && /finally \{ if \(st\) st\.peopleBusy = false; \}/.test(src), 'one people save at a time; the × and the picker wait for it');
+        assert.ok(/aria-label="\$\{esc\(c\.remove\(n\)\)\}"\$\{off\}>/.test(src) && /aria-label="\$\{esc\(c\.pick\)\}"\$\{off\}>/.test(src), 'the × and the picker render disabled while busy');
+        assert.ok(/loadDetail\(id, \{ quiet: true \}\)/.test(src) && /poll = setInterval\(async \(\) => \{[\s\S]{0,400}rerenderDrawer\(\)/.test(src), 'the 60 s poll reloads the open drawer too');
+        assert.ok(/<span class="mx-person-flag">\$\{esc\(c\.noAccountMark\)\}<\/span>/.test(src) && /noAccountMark: 'NO ACCOUNT'/.test(src), 'a person with no portal account is marked on the chip (touch screens never show the tooltip)');
+        assert.ok(/everyone you tag who has a portal account gets one short email/.test(src) && !/the person you pick gets one short email/.test(src), 'the empty board speaks of everyone tagged');
         assert.ok(/names\.slice\(0, 3\)\.join\(' · '\)/.test(src), 'up to three first names on a card');
         assert.ok(/if \(!p \|\| !p\.user_id \|\| isMePerson\(p\)/.test(src), 'a person without an account is never named');
         assert.ok(!/\bhonest|\bplainly/i.test(src));
@@ -1121,6 +1300,12 @@ const sys = id => q.all(`SELECT body, kind, author_name FROM v2_task_comments WH
         assert.ok(/const myTasks = tasks\.filter\(onMe\)/.test(today), 'Today\'s YOUR TASKS counts a task I am tagged on');
         const css = fs.readFileSync(path.join(ROOT, 'admin-portal/frontend-v2/css/views/tasks.css'), 'utf8');
         assert.ok(/\.mx-person, \.mx-person-add \{ height: 44px; \}/.test(css), '44 px targets on a phone');
+        assert.ok(/@media \(max-width: 760px\), \(pointer: coarse\) \{\n  \.mx-person, \.mx-person-add \{ height: 44px; \}/.test(css), '…and on any touch screen wider than a phone (a tablet)');
+        assert.ok(/\.mx-tasks-add input\[data-role="addTitle"\] \{ flex-basis: 100% !important; min-height: 44px; box-sizing: border-box; \}/.test(css), 'the add bar title is a 44 px field on a phone');
+        assert.ok(/\.mx-person\.noacct \{ border-style: dashed;/.test(css) && /\.mx-person-x:disabled/.test(css), 'no-account chips are dashed, a waiting × looks it');
+        assert.ok(!/;/.test(Object.values(require('node:vm').runInNewContext('(' + /export const COPY = (\{[\s\S]*?\n\});/.exec(src)[1] + ')', {}).empty.board).join(' ')), 'no semicolon in the empty-board copy');
+        const cal = fs.readFileSync(path.join(ROOT, 'admin-portal/frontend-v2/js/views/calendar.js'), 'utf8');
+        assert.ok(/exportPdfTitle: 'A print-ready year board in the Med&X look, one page\. Your browser\\'s print dialog opens, choose Save as PDF\.'/.test(cal), 'the calendar export title carries no semicolon');
         assert.ok(/\.mx-person-x \{ width: 44px; margin: -1px -1px -1px 0; \}/.test(css), 'the × itself is 44 × 44 on a phone');
         assert.ok(/\.mx-person-add select \{ inset: -1px; width: auto; height: auto; max-width: none; \}/.test(css), 'the picker fills the whole 44 px button');
         assert.ok(/function drawerPrivacyText\(t\) \{\n  const list = peopleOf\(t\)\.slice\(\);\n  if \(!list\.length && \(!t\.created_by \|\| t\.created_by === me\(\)\.id\)\) return COPY\.privacy\.untagged;/.test(src),

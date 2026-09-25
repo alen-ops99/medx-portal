@@ -20107,17 +20107,21 @@ By applying to this program, I provide the following consents:
         const before = visTaskRow(req, req.params.id, 'pt.id, pt.assigned_to');
         if (!before) return res.status(404).json({ error: 'Task not found' });
         const { title, description, assigned_to, priority, status, due_date, project } = req.body;
+        // assigned_to and due_date change only when the body carries them (as the checklist PUT does): an
+        // edit that leaves them out never unassigns the task (and so never takes it from its people) or
+        // clears its due date
+        const has = k => req.body[k] !== undefined;
         db.run(`UPDATE project_tasks SET
             title = COALESCE(?, title),
             description = COALESCE(?, description),
-            assigned_to = ?,
+            assigned_to = CASE WHEN ? THEN ? ELSE assigned_to END,
             priority = COALESCE(?, priority),
             status = COALESCE(?, status),
-            due_date = ?,
+            due_date = CASE WHEN ? THEN ? ELSE due_date END,
             project = COALESCE(?, project),
             completed_at = ${status === 'done' ? "datetime('now')" : 'NULL'}
             WHERE id = ?`,
-            [title, description, assigned_to, priority, status, due_date, project, req.params.id]);
+            [title, description, has('assigned_to') ? 1 : 0, has('assigned_to') ? assigned_to : null, priority, status, has('due_date') ? 1 : 0, has('due_date') ? due_date : null, project, req.params.id]);
         const after = (query.get('SELECT assigned_to FROM project_tasks WHERE id = ?', [req.params.id]) || {}).assigned_to || null;
         if ((after || null) !== (before.assigned_to || null)) taskVis.setTaskPeople(taskPeopleRun, req.params.id, after ? [after] : [], req.user.id);
         saveDb();

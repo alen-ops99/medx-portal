@@ -29,7 +29,7 @@ export const COPY = {
   add: { placeholder: 'What needs doing?', btn: 'ADD', due: 'Due', noOne: 'No one yet', typeFirst: 'TYPE THE TASK FIRST',
     added: names => names.length ? `ADDED — ${nameList(names).toUpperCase()} ${names.length === 1 ? 'HAS' : 'HAVE'} IT` : 'ADDED TO THE BOARD' },
   // the WHO field: chips for the people tagged, a picker for everyone else
-  people: { label: 'People on this task', add: 'ADD PERSON', pick: 'Add a person…', remove: name => `Take ${name} off this task`, full: n => `Up to ${n} people`, noAccount: name => `${name} · no portal account, so the card never reaches them` },
+  people: { label: 'People on this task', add: 'ADD PERSON', pick: 'Add a person…', remove: name => `Take ${name} off this task`, full: n => `Up to ${n} people`, noAccount: name => `${name} · no portal account, so the card never reaches them`, noAccountMark: 'NO ACCOUNT' },
   filters: { mine: 'MINE', other: who => `FOR ${who.toUpperCase()}`, all: 'ALL MY TASKS', archived: 'ARCHIVED', search: 'Search titles, notes, results, comments…' },
   // one quiet line in the add bar and the drawer: a task is seen only by who made it and who is on it
   // (never naming someone without a portal account — they can never open the board)
@@ -40,7 +40,7 @@ export const COPY = {
   cols: { todo: 'TO DO', doing: 'IN PROGRESS', done: who => who ? `DONE — FOR ${who.toUpperCase()}` : 'DONE — TO SEE', seen: 'SEEN' },
   card: { overdue: d => `${d}D OVERDUE`, today: 'TODAY', due: d => d, unassigned: 'NO ONE', files: n => `${n} file${n === 1 ? '' : 's'}`, comments: n => `${n}` },
   empty: {
-    board: { line: 'Nothing on the board.', why: 'Type the first task above — it lands in TO DO and the person you pick gets one short email.' },
+    board: { line: 'Nothing on the board.', why: 'Type the first task above. It lands in TO DO and everyone you tag who has a portal account gets one short email.' },
     todo: 'Nothing waiting.', doing: 'Nothing in hand.', done: 'Nothing to look at yet.', seen: 'Nothing filed yet.', archived: 'Nothing archived.', search: 'No card matches that.'
   },
   drawer: {
@@ -103,7 +103,8 @@ async function load() {
   D = { tasks: Array.isArray(r.tasks) ? r.tasks : [], people: Array.isArray(r.people) ? r.people : [], me: r.me || {} };
   return true;
 }
-async function loadDetail(id) {
+// `quiet` (the background poll): a failed fetch says nothing, except that the task is gone (a 404 closes it)
+async function loadDetail(id, { quiet = false } = {}) {
   const my = ++detailSeq;
   try {
     const r = await api.get('/api/v2/tasks/' + encodeURIComponent(id));
@@ -114,8 +115,8 @@ async function loadDetail(id) {
     return true;
   } catch (e) {
     if (!st) return false;
-    if (e && e.status === 404) { ui.toast(COPY.drawer.missing, { kind: 'error' }); closeDrawer(); }
-    else ui.toast(e.message, { kind: 'error' });
+    if (e && e.status === 404) { if (st.open === id) { ui.toast(COPY.drawer.missing, { kind: 'error' }); closeDrawer(); } }
+    else if (!quiet) ui.toast(e.message, { kind: 'error' });
     return false;
   }
 }
@@ -170,14 +171,17 @@ function whoLabel(t) {
 }
 // the WHO field (add bar and drawer): each person tagged as a chip with a remove ×, then an ADD PERSON
 // picker (a native select laid over the button, so a phone opens its own wheel) listing everyone else.
-// `chosen` = [{ id, name, first, user_id }] in order; `role` names the picker; `untag` the chip action.
-function peopleField(chosen, role, untag) {
+// `chosen` = [{ id, name, first, user_id }] in order; `role` names the picker; `untag` the chip action;
+// `busy` = a save of this field is in flight (every × and the picker wait for it). A person with no portal
+// account carries a visible NO ACCOUNT mark (a touch screen never shows the title tooltip).
+function peopleField(chosen, role, untag, busy) {
   const c = COPY.people;
   const rest = (D.people || []).filter(p => !chosen.some(x => x.id === p.id || (p.user_id && x.user_id === p.user_id)));
   const full = chosen.length >= MAX_PEOPLE;
-  return `<div class="mx-people" data-role="${role}Field" role="group" aria-label="${esc(c.label)}">
-      ${chosen.map(p => { const n = firstName(p) || p.name || ''; return `<span class="mx-person${isMePerson(p) ? ' me' : ''}" title="${esc(p.user_id ? (p.name || n) : c.noAccount(p.name || n))}"><span class="mx-person-name">${esc(n.toUpperCase())}</span><button type="button" class="mx-person-x" data-act="${untag}" data-id="${esc(p.id)}" aria-label="${esc(c.remove(n))}"><svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="square"/></svg></button></span>`; }).join('')}
-      ${rest.length && !full ? `<label class="mx-person-add"><span aria-hidden="true">+ ${c.add}</span><select data-role="${role}" aria-label="${esc(c.pick)}"><option value="">${esc(c.pick)}</option>${rest.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}</select></label>` : ''}
+  const off = busy ? ' disabled' : '';
+  return `<div class="mx-people" data-role="${role}Field" role="group" aria-label="${esc(c.label)}"${busy ? ' aria-busy="true"' : ''}>
+      ${chosen.map(p => { const n = firstName(p) || p.name || ''; return `<span class="mx-person${isMePerson(p) ? ' me' : ''}${p.user_id ? '' : ' noacct'}" title="${esc(p.user_id ? (p.name || n) : c.noAccount(p.name || n))}"><span class="mx-person-name">${esc(n.toUpperCase())}</span>${p.user_id ? '' : `<span class="mx-person-flag">${esc(c.noAccountMark)}</span>`}<button type="button" class="mx-person-x" data-act="${untag}" data-id="${esc(p.id)}" aria-label="${esc(c.remove(n))}"${off}><svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="square"/></svg></button></span>`; }).join('')}
+      ${rest.length && !full ? `<label class="mx-person-add"><span aria-hidden="true">+ ${c.add}</span><select data-role="${role}" aria-label="${esc(c.pick)}"${off}><option value="">${esc(c.pick)}</option>${rest.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}</select></label>` : ''}
       ${full ? `<span class="mx-people-note">${esc(c.full(MAX_PEOPLE))}</span>` : ''}
     </div>`;
 }
@@ -360,7 +364,7 @@ function drawer() {
         </div>
         <div class="mx-drawer-fields" style="display:grid;grid-template-columns:1fr 1fr;gap:12px 10px">
           <div style="grid-column:1 / -1"><span style="${label}">${b.assignee}</span>
-            ${peopleField(peopleOf(t), 'who', 'untag')}
+            ${peopleField(peopleOf(t), 'who', 'untag', !!st.peopleBusy)}
             <div data-role="privacy" style="font-size:11px;color:#6d6459;line-height:1.4;margin-top:8px">${esc(drawerPrivacyText(t))}</div></div>
           <div><span style="${label}">${b.due}</span><input data-role="due" data-save="due_date" type="date" value="${esc(t.due_date || '')}" aria-label="${b.due}" style="${input}"></div>
           <div><span style="${label}">${b.priority}</span>
@@ -506,22 +510,33 @@ async function setStatus(id, status, opts = {}) {
     chrome.refresh();
   } catch (e) { patchLocal(Object.assign({}, t, { status: prev })); rerenderBoard(); if (st.open === id) rerenderDrawer(); ui.toast(e.message, { kind: 'error' }); }
 }
-// the drawer's WHO: `ids` is the whole new set (team row ids / user:<id>, first person first). Taking
-// myself off a card I did not make takes it off my board — ask once, naming who keeps it.
-async function savePeople(ids, what) {
-  if (!st.open || !st.detail) return;
+// the drawer's WHO sends a change, never the whole set: `delta` = { tag: [id] } or { untag: [id] } (team
+// row ids / user:<id>). The server applies it to the people on the task NOW, so a drawer that is behind
+// (someone else changed the people meanwhile) or two quick taps never put back a person just taken off.
+// While a save is in flight every × and the picker wait for it. Taking myself off a card I did not make
+// takes it off my board — ask once, naming who keeps it.
+function markPeopleBusy() {
+  st.peopleBusy = true;
+  const f = rootEl && rootEl.querySelector('[data-block="drawer"] [data-role="whoField"]');
+  if (f) { f.setAttribute('aria-busy', 'true'); f.querySelectorAll('.mx-person-x, select').forEach(el => { el.disabled = true; }); }
+}
+async function savePeople(delta, what) {
+  if (!st.open || !st.detail || st.peopleBusy) return;
   const t = st.detail.task;
-  const cur = peopleOf(t).map(p => p.id);
-  if (ids.join('|') === cur.join('|')) return;
-  const leaving = peopleOf(t).filter(p => !ids.includes(p.id));
-  if (leaving.some(isMePerson) && t.created_by !== me().id) {
-    const stay = peopleOf(t).filter(p => ids.includes(p.id));
-    const keep = seers([{ user_id: t.created_by, first: t.creator_first }].concat(stay));
-    const ok = await ui.confirm(Object.assign({ eyebrow: 'PLEASE CONFIRM' }, COPY.confirm.handOff(keep)));
-    if (!ok) { rerenderDrawer(); return; }
-  }
+  const cur = peopleOf(t);
+  const tag = (delta.tag || []).filter(id => !cur.some(p => p.id === id));
+  const untag = (delta.untag || []).filter(id => cur.some(p => p.id === id));
+  if (!tag.length && !untag.length) return;
+  markPeopleBusy();
+  let saved = false;
   try {
-    const r = await api.put('/api/v2/tasks/' + encodeURIComponent(t.id), { assignees: ids });
+    const leaving = cur.filter(p => untag.includes(p.id));
+    if (leaving.some(isMePerson) && t.created_by !== me().id) {
+      const stay = cur.filter(p => !untag.includes(p.id));
+      const keep = seers([{ user_id: t.created_by, first: t.creator_first }].concat(stay));
+      if (!(await ui.confirm(Object.assign({ eyebrow: 'PLEASE CONFIRM' }, COPY.confirm.handOff(keep))))) return;
+    }
+    const r = await api.put('/api/v2/tasks/' + encodeURIComponent(t.id), untag.length ? { untag } : { tag });
     if (r && r.handed_off) {
       // I am off it and it is no longer mine to see: close it and drop it from the board
       ui.toast(COPY.toast.handedOff);
@@ -533,10 +548,16 @@ async function savePeople(ids, what) {
     ui.toast(what || COPY.toast.saved);
     await loadDetail(t.id);
     await load();   // a first-time pick gets a team row → the people list changes; MINE / FOR <name> may change
-    rerenderBoard(); rerenderDrawer();
-    const pick = rootEl && rootEl.querySelector('[data-role="who"]'); if (pick && document.activeElement === document.body) { try { pick.focus({ preventScroll: true }); } catch (e) {} }
+    saved = true;
+  } catch (e) { ui.toast(e.message, { kind: 'error' }); }
+  finally { if (st) st.peopleBusy = false; }
+  if (!st || !rootEl) return;
+  if (saved) rerenderBoard();
+  if (st.open) rerenderDrawer();   // the × and the picker answer again (and a cancelled pick resets)
+  if (saved) {
+    const pick = rootEl.querySelector('[data-role="who"]'); if (pick && document.activeElement === document.body) { try { pick.focus({ preventScroll: true }); } catch (e) {} }
     chrome.refresh();
-  } catch (e) { ui.toast(e.message, { kind: 'error' }); rerenderDrawer(); }
+  }
 }
 async function saveField(field, value) {
   if (!st.open || !st.detail) return;
@@ -622,9 +643,9 @@ const handlers = {
   // WHO: a chip's × — in the add bar it only edits the pick; in the drawer it saves
   untagAdd: (el) => { st.addPeople = (st.addPeople || []).filter(id => id !== el.dataset.id); redrawAdd('addWho'); },
   untag: (el) => {
-    if (!st.detail) return;
+    if (!st.detail || st.peopleBusy || el.disabled) return;
     const t = st.detail.task; const gone = peopleOf(t).find(p => p.id === el.dataset.id);
-    savePeople(peopleOf(t).map(p => p.id).filter(id => id !== el.dataset.id), gone ? (isMePerson(gone) ? COPY.toast.left : COPY.toast.untagged(firstName(gone))) : null);
+    savePeople({ untag: [el.dataset.id] }, gone ? (isMePerson(gone) ? COPY.toast.left : COPY.toast.untagged(firstName(gone))) : null);
   },
   open: (el) => { const id = el.dataset.id; if (st.open === id) return; openDrawer(id); },
   close: () => closeDrawer(),
@@ -694,11 +715,11 @@ function bindRootListeners(root) {
       redrawAdd('addWho'); return;
     }
     if (t.matches('[data-role="who"]')) {
-      const v = t.value; if (!v || !st.detail) return;
+      const v = t.value; if (!v || !st.detail || st.peopleBusy) return;
       const cur = peopleOf(st.detail.task);
       if (cur.length >= MAX_PEOPLE) { ui.toast(COPY.toast.tooMany(MAX_PEOPLE), { kind: 'error' }); return; }
       const p = personById(v);
-      savePeople(cur.map(x => x.id).concat([v]), p ? (isMePerson(p) ? COPY.toast.joined : COPY.toast.tagged(firstName(p))) : null);
+      savePeople({ tag: [v] }, p ? (isMePerson(p) ? COPY.toast.joined : COPY.toast.tagged(firstName(p))) : null);
       return;
     }
     if (t.matches('select[data-save], input[type="date"][data-save]')) saveField(t.dataset.save, t.value);
@@ -761,7 +782,7 @@ export default {
   title: 'Tasks',
   async render(root, ctx) {
     rootEl = root; loadCss();
-    st = { filter: 'all', q: '', open: null, detail: null, addTitle: '', addPeople: null, addDue: '', commentDraft: '', linkUrl: '', linkLabel: '', showActivity: false, uploading: false, dragging: null };
+    st = { filter: 'all', q: '', open: null, detail: null, addTitle: '', addPeople: null, addDue: '', commentDraft: '', linkUrl: '', linkLabel: '', showActivity: false, uploading: false, dragging: null, peopleBusy: false };
     D = null;
     try { await load(); } catch (e) { root.innerHTML = `<div class="empty" style="padding:60px 20px"><span style="width:28px;height:1px;background:#c9a962"></span><span class="empty-line">The board did not load.</span><span class="empty-why">${esc(e.message)}</span></div>`; return; }
     if (rootEl !== root) return;
@@ -770,11 +791,16 @@ export default {
     unlisten = bindRootListeners(root);
     if (ctx.params && ctx.params.id) openDrawer(ctx.params.id);
     if (ctx.query && ctx.query.new === '1') { const i = root.querySelector('[data-role="addTitle"]'); if (i) i.focus(); }
-    // the other person's moves arrive on their own — a quiet refresh while nothing is being dragged or typed
-    poll = setInterval(() => {
-      if (document.hidden || st.dragging) return;
-      const a = document.activeElement; if (a && a.matches && a.matches('input, textarea, select') && rootEl && rootEl.contains(a)) return;
+    // the other person's moves arrive on their own — a quiet refresh while nothing is being dragged or typed,
+    // the open drawer's card included (its people, result, comments and file links), so a drawer left open
+    // never works from a set that is long gone
+    const typing = () => { const a = document.activeElement; return !!(a && a.matches && a.matches('input, textarea, select') && rootEl && rootEl.contains(a)); };
+    poll = setInterval(async () => {
+      if (document.hidden || st.dragging || typing()) return;
       refetch();
+      const id = st.open;
+      if (!id || !st.detail || st.peopleBusy || st.uploading) return;
+      if (await loadDetail(id, { quiet: true }) && st && st.open === id && !st.peopleBusy && !typing()) rerenderDrawer();
     }, POLL_MS);
     chrome.refresh();
   },

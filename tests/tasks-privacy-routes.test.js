@@ -29,8 +29,9 @@ const os = require('os');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const USER = 'http://127.0.0.1:3290';
-const ADMIN = 'http://127.0.0.1:3291';
+const PORT_BASE = Number(process.env.TEST_PORT_BASE || 3290);   // the member portal here, the admin portal on the next port
+const USER = 'http://127.0.0.1:' + PORT_BASE;
+const ADMIN = 'http://127.0.0.1:' + (PORT_BASE + 1);
 const SECRET = 'tasks-privacy-test-secret';
 const NO_NET = `
 const net = require('net');
@@ -100,9 +101,9 @@ const waitUp = async (base, ms = 150000) => {
     process.on('exit', cleanup);
 
     try {
-        boot('user-portal/backend', 3290);
+        boot('user-portal/backend', PORT_BASE);
         await waitUp(USER);
-        boot('admin-portal/backend', 3291);
+        boot('admin-portal/backend', PORT_BASE + 1);
         await waitUp(ADMIN);
         const Database = require(path.join(ROOT, 'admin-portal/backend/node_modules/libsql'));
         const jwt = require(path.join(ROOT, 'admin-portal/backend/node_modules/jsonwebtoken'));
@@ -475,6 +476,20 @@ const waitUp = async (base, ms = 150000) => {
         await api(ADMIN, '/api/v2/tasks/' + MT, { method: 'PUT', token: tok.A, body: { assignees: [TMM.F, TMM.E] } });
         x(`UPDATE project_tasks SET title = title, assigned_to = ? WHERE id = ?`, [TMM.F, MT]);
         check('an old-portal edit that re-sends the same first person keeps E tagged', tagsOf(MT).join() === [TMM.F, TMM.E].join(), JSON.stringify(tagsOf(MT)));
+        // a v1 edit that leaves assigned_to and due_date out of its body changes neither: it never unassigns the
+        // task (which would take it from everyone on it) and never clears the due date
+        for (const [label, base] of [['admin', ADMIN], ['member', USER]]) {
+            r = await api(base, '/api/tasks/' + MT, { method: 'PUT', token: tok.A, body: { title: 'Qmtag harbour permit ' + label } });
+            const row = g(`SELECT title, assigned_to, due_date FROM project_tasks WHERE id = ?`, [MT]) || {};
+            check(`${label} PUT /api/tasks/:id with only a title: assigned_to, the due date and the tag rows stay`, r.status === 200 && row.title === 'Qmtag harbour permit ' + label
+                && row.assigned_to === TMM.F && row.due_date === yesterday && tagsOf(MT).join() === [TMM.F, TMM.E].join(), JSON.stringify([row, tagsOf(MT)]));
+            check(`${label} after a title-only v1 edit: E (tagged) still has it`, hasMt((await api(base, '/api/tasks/plexus', { token: tok.E })).d));
+        }
+        // a key that IS in the body still writes: due_date null clears it, the people stay
+        r = await api(USER, '/api/tasks/' + MT, { method: 'PUT', token: tok.A, body: { due_date: null } });
+        check('member PUT /api/tasks/:id with due_date null clears the due date (the people stay)', r.status === 200 && (g(`SELECT due_date FROM project_tasks WHERE id = ?`, [MT]) || {}).due_date === null
+            && tagsOf(MT).join() === [TMM.F, TMM.E].join(), JSON.stringify(tagsOf(MT)));
+        x(`UPDATE project_tasks SET due_date = ?, title = 'Qmtag harbour permit' WHERE id = ?`, [yesterday, MT]);
 
         // the tech tools never hand out who is on which task
         const ttn = (((await tech('C', 'tables')).d || {}).tables || []).map(t => t.name);

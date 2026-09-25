@@ -122,6 +122,18 @@ function ensureTaskPeopleTable(run) {
         PRIMARY KEY (task_id, member_id)
     )`);
     run('CREATE INDEX IF NOT EXISTS idx_v2_task_people_member ON v2_task_people (member_id)');
+    // stale rows (a set whose assigned_to is not among them, or a task with no one) and the rows of tasks
+    // that are gone: the rule above already ignores them; deleted so no later move can revive them. It runs
+    // first and on its own, so a trigger DDL that fails below never skips it (its own failure is thrown
+    // after the trigger DDL has had its turn, so the caller still logs it)
+    let sweepErr = null;
+    try {
+        run(`DELETE FROM v2_task_people
+             WHERE task_id NOT IN (SELECT id FROM project_tasks)
+                OR task_id IN (SELECT pt.id FROM project_tasks pt
+                               WHERE pt.assigned_to IS NULL OR pt.assigned_to = ''
+                                  OR NOT EXISTS (SELECT 1 FROM v2_task_people tp WHERE tp.task_id = pt.id AND tp.member_id = pt.assigned_to))`);
+    } catch (e) { sweepErr = e; }
     // A one-person write (the old portals on main, or this tree's own v1 routes) that changes assigned_to
     // makes the task that person's alone, inside the database, so no tag row is ever left dormant
     // (see MORE THAN ONE PERSON). setTaskPeople never matches the WHEN: before its UPDATE the new first
@@ -139,13 +151,7 @@ function ensureTaskPeopleTable(run) {
                 SELECT NEW.id, NEW.assigned_to, NULL, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
                 WHERE NEW.assigned_to IS NOT NULL AND NEW.assigned_to <> '';
         END`);
-    // stale rows (a set whose assigned_to is not among them, or a task with no one) and the rows of tasks
-    // that are gone: the rule above already ignores them; deleted so no later move can revive them
-    run(`DELETE FROM v2_task_people
-         WHERE task_id NOT IN (SELECT id FROM project_tasks)
-            OR task_id IN (SELECT pt.id FROM project_tasks pt
-                           WHERE pt.assigned_to IS NULL OR pt.assigned_to = ''
-                              OR NOT EXISTS (SELECT 1 FROM v2_task_people tp WHERE tp.task_id = pt.id AND tp.member_id = pt.assigned_to))`);
+    if (sweepErr) throw sweepErr;
 }
 
 /**
@@ -155,7 +161,8 @@ function ensureTaskPeopleTable(run) {
  * caller's writer. A one-person writer (the v1 routes) passes [newAssignee] when it changes assigned_to.
  * The UPDATE of assigned_to comes last and never trips the one-person trigger (ensureTaskPeopleTable):
  * by then the new first person is tagged and the previous first person's row is gone — when that
- * person stays on in a later place, their row steps aside for the UPDATE and is written again after it.
+ * person stays on in a later place, their row steps aside for the UPDATE and is written again after it,
+ * only while the UPDATE still stands (the other portal may have moved the task in between).
  */
 function setTaskPeople(run, taskId, memberIds, addedBy, nowIso) {
     const ids = [];
@@ -168,13 +175,19 @@ function setTaskPeople(run, taskId, memberIds, addedBy, nowIso) {
         return ids;
     }
     // one statement, rows in the order given (same added_at, so rowid keeps the order)
-    const tagAll = () => run(`INSERT OR IGNORE INTO v2_task_people (task_id, member_id, added_by, added_at) VALUES ${ids.map(() => '(?,?,?,?)').join(',')}`,
-        ids.flatMap(m => [tid, m, addedBy || null, now]));
+    const rows = ids.map(() => '(?,?,?,?)').join(',');
+    const vals = ids.flatMap(m => [tid, m, addedBy || null, now]);
     run(`DELETE FROM v2_task_people WHERE task_id = ? AND member_id NOT IN (${ids.map(() => '?').join(',')})`, [tid, ...ids]);
-    tagAll();
+    run(`INSERT OR IGNORE INTO v2_task_people (task_id, member_id, added_by, added_at) VALUES ${rows}`, vals);
     run('DELETE FROM v2_task_people WHERE task_id = ? AND member_id = (SELECT assigned_to FROM project_tasks WHERE id = ?) AND member_id <> ?', [tid, tid, ids[0]]);
     run('UPDATE project_tasks SET assigned_to = ? WHERE id = ?', [ids[0], tid]);
-    tagAll();   // the previous first person, when they stay on in a later place
+    // the previous first person, when they stay on in a later place: written again only while this
+    // UPDATE still stands. A one-person write by the other portal landing in between (an unassign, a
+    // hand-off) has already made the task what it says, and a blind re-insert here would leave its
+    // rows dormant for a later move back to revive.
+    run(`INSERT OR IGNORE INTO v2_task_people (task_id, member_id, added_by, added_at)
+         SELECT column1, column2, column3, column4 FROM (VALUES ${rows})
+         WHERE EXISTS (SELECT 1 FROM project_tasks WHERE id = ? AND assigned_to = ?)`, [...vals, tid, ids[0]]);
     return ids;
 }
 

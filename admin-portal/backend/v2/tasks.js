@@ -36,14 +36,16 @@
  *   GET    /api/v2/tasks/badge                 → { done_unseen, assigned_open } for the caller
  *   GET    /api/v2/tasks/:id                   → { task, comments, files }
  *   POST   /api/v2/tasks                       { title, description?, assignees?: [member id | 'user:<id>'] (≤ 12) | assigned_to?, due_date?, priority?, project? }
- *   PUT    /api/v2/tasks/:id                   { title?, description?, assignees? | assigned_to?, due_date?, priority?, status? }
- *                                              (assigned_to alone = one person: a different one makes the task theirs alone)
+ *   PUT    /api/v2/tasks/:id                   { title?, description?, assignees? | tag?/untag? | assigned_to?, due_date?, priority?, status? }
+ *                                              (assignees = the whole set, for create and compat · tag/untag = deltas the
+ *                                              drawer sends, applied to the set in the database now · assigned_to alone =
+ *                                              one person: a different one makes the task theirs alone)
  *   PUT    /api/v2/tasks/:id/result            { result_text?, result_links? }
  *   POST   /api/v2/tasks/:id/seen              → status seen, seen_at/by
  *   POST   /api/v2/tasks/:id/archive · /unarchive
  *   GET    /api/v2/tasks/:id/comments · POST { body }
  *   GET    /api/v2/tasks/:id/files · POST multipart 'file' (≤ 25 MB, any type)
- *   GET    /api/v2/tasks/files/:fid            Bearer (a participant) OR a signed ?exp=&sig= (only a participant is ever handed one) — S3 302 / local stream
+ *   GET    /api/v2/tasks/files/:fid            Bearer (a participant) OR a signed ?exp=&uid=&sig= (names the participant it was handed to, who must still be on the task) — S3 302 / local stream
  *   DELETE /api/v2/tasks/files/:fid
  *   + the LEGACY surface, re-homed here from server.js so Today/Calendar/v1 keep working on the same rows:
  *   GET/POST /api/admin/tasks · PUT/DELETE /api/admin/tasks/:id   (status reads 'done' for seen rows; archived rows hidden)
@@ -259,6 +261,39 @@ module.exports = function mountTasks(app, ctx) {
         }
         return { ids };
     }
+    // the drawer's deltas against `curPeople` (member ids, first person first) → { next } or { error }.
+    // untag: [member id | 'user:<id>'] takes off that row and every row of the same account (never creates
+    // a team row, an id not on the task is a no-op). tag: resolved like assignees, appended in the order
+    // given, someone already on the task (by row or by account) stays where they are. Taking off wins
+    // when a person is in both lists. At most 12 people after the change.
+    function peopleDelta(curPeople, tag, untag) {
+        const tagList = tag === undefined || tag === null ? [] : tag;
+        const untagList = untag === undefined || untag === null ? [] : untag;
+        if (!Array.isArray(tagList) || !Array.isArray(untagList)) return { error: 'Tag people as a list.' };
+        const tooMany = { error: `A task can have at most ${taskVis.MAX_TASK_PEOPLE} people on it.` };
+        if (untagList.length > taskVis.MAX_TASK_PEOPLE * 4) return tooMany;   // the same abuse bound as a list of assignees
+        const acctOf = id => (q.get('SELECT user_id FROM team_members WHERE id = ?', [id]) || {}).user_id || null;
+        const offRows = new Set(), offAccts = new Set();
+        for (const x of untagList) {
+            const s = String(x == null ? '' : x).trim(); if (!s) continue;
+            if (s.startsWith('user:')) { if (s.slice(5)) offAccts.add(s.slice(5)); }
+            else { offRows.add(s); const a = acctOf(s); if (a) offAccts.add(a); }
+        }
+        const isOff = m => offRows.has(m) || offAccts.has(acctOf(m));
+        const next = curPeople.filter(m => !isOff(m));
+        const toTag = tagList.filter(x => { const s = String(x == null ? '' : x).trim(); return s && !offRows.has(s) && !(s.startsWith('user:') && offAccts.has(s.slice(5))); });
+        const who = toTag.length ? resolveAssignees(toTag) : { ids: [] };
+        if (who.error) return who;
+        const accts = new Set(next.map(acctOf).filter(Boolean));
+        for (const m of who.ids) {
+            if (next.includes(m) || isOff(m)) continue;
+            const a = acctOf(m); if (a && accts.has(a)) continue;
+            if (a) accts.add(a);
+            next.push(m);
+        }
+        if (next.length > taskVis.MAX_TASK_PEOPLE) return tooMany;
+        return { next };
+    }
     // the tag rows of these tasks, in the order they were tagged: Map task id → [member id]
     function tagRowsOf(taskIds) {
         const out = new Map(); const ids = Array.from(new Set((taskIds || []).filter(Boolean)));
@@ -361,20 +396,24 @@ module.exports = function mountTasks(app, ctx) {
             next();
         });
     }
-    const signFile = (fid, exp) => crypto.createHmac('sha256', String(JWT_SECRET || 'medx')).update('task-file:' + fid + ':' + exp).digest('hex').slice(0, 32);
-    function signedPath(fid) { const exp = Math.floor(Date.now() / 1000) + FILE_LINK_TTL_S; return `/api/v2/tasks/files/${encodeURIComponent(fid)}?exp=${exp}&sig=${signFile(fid, exp)}`; }
-    function shapeFile(f) {
-        return { id: f.id, task_id: f.task_id, name: f.original_name || f.filename, size: Number(f.file_size || 0), mime: f.mime_type || '', uploaded_at: f.uploaded_at || null, url: signedPath(f.id) };
+    // a signed link names the viewer it was minted for (task-file:fid:exp:uid), so every download re-checks
+    // the task rule for that viewer: taking someone off a task stops their links at once, not an hour later
+    const signFile = (fid, exp, uid) => crypto.createHmac('sha256', String(JWT_SECRET || 'medx')).update('task-file:' + fid + ':' + exp + ':' + uid).digest('hex').slice(0, 32);
+    const linkOf = (fid, exp, uid) => `/api/v2/tasks/files/${encodeURIComponent(fid)}?exp=${exp}&uid=${encodeURIComponent(uid)}&sig=${signFile(fid, exp, uid)}`;
+    function signedPath(fid, uid) { return linkOf(fid, Math.floor(Date.now() / 1000) + FILE_LINK_TTL_S, String(uid || '')); }
+    function shapeFile(f, uid) {
+        return { id: f.id, task_id: f.task_id, name: f.original_name || f.filename, size: Number(f.file_size || 0), mime: f.mime_type || '', uploaded_at: f.uploaded_at || null, url: signedPath(f.id, uid) };
     }
-    const filesOf = id => q.all('SELECT * FROM task_files WHERE task_id = ? ORDER BY uploaded_at, rowid', [id]).map(shapeFile);
-    // a signed link is as good as the Bearer the SPA holds (only a participant's detail/list hands one
-    // out, and it lives an hour); the Bearer path is checked against the task rule in the handler
+    const filesOf = (id, uid) => q.all('SELECT * FROM task_files WHERE task_id = ? ORDER BY uploaded_at, rowid', [id]).map(f => shapeFile(f, uid));
+    // a signed link stands in for the Bearer of the viewer it names (only a participant's detail/list hands
+    // one out, and it lives an hour); either way the handler checks the task rule for that viewer, now
     function fileGate(req, res, next) {
         const fid = String(req.params.fid || ''); const exp = Number(req.query && req.query.exp); const sig = String((req.query && req.query.sig) || '');
-        req.taskFileSigned = false;
-        if (fid && exp && sig && exp > Math.floor(Date.now() / 1000) && sig.length === 32) {
-            const want = signFile(fid, exp);
-            if (crypto.timingSafeEqual(Buffer.from(want), Buffer.from(sig))) { req.taskFileSigned = true; return next(); }
+        const uid = String((req.query && req.query.uid) || '');
+        req.taskFileSigned = false; req.taskFileUid = null;
+        if (fid && exp && uid && sig && exp > Math.floor(Date.now() / 1000) && sig.length === 32) {
+            const want = signFile(fid, exp, uid);
+            if (crypto.timingSafeEqual(Buffer.from(want), Buffer.from(sig))) { req.taskFileSigned = true; req.taskFileUid = uid; return next(); }
         }
         return auth(req, res, () => adminOnly(req, res, next));
     }
@@ -506,6 +545,12 @@ module.exports = function mountTasks(app, ctx) {
             const who = resolveAssignees(patch.assignees); if (who.error) return { status: 400, body: { error: who.error } };
             const next = curPeople.filter(m => who.ids.includes(m)).concat(who.ids.filter(m => !curPeople.includes(m)));
             if (next.join('|') !== curPeople.join('|')) nextPeople = next;
+        } else if ((patch.tag !== undefined && patch.tag !== null) || (patch.untag !== undefined && patch.untag !== null)) {
+            // deltas (the drawer): applied to the people on the task NOW, never to the set a drawer last
+            // loaded, so a stale drawer or two quick taps never re-tag someone just taken off. Taking off
+            // wins when a person is in both lists.
+            const d = peopleDelta(curPeople, patch.tag, patch.untag); if (d.error) return { status: 400, body: { error: d.error } };
+            if (d.next.join('|') !== curPeople.join('|')) nextPeople = d.next;
         } else if (patch.assigned_to !== undefined) {
             const who = resolveAssignee(patch.assigned_to); if (who.error) return { status: 400, body: { error: who.error } };
             if ((who.id || null) !== (cur.assigned_to || null)) nextPeople = who.id ? [who.id] : [];
@@ -608,7 +653,7 @@ module.exports = function mountTasks(app, ctx) {
         try {
             const row = taskRow(String(req.params.id || ''), uidOf(req));
             if (!row) return res.status(404).json({ error: 'That task is not here.' });
-            res.json({ task: shape(row), comments: commentsOf(row.id), files: filesOf(row.id) });
+            res.json({ task: shape(row), comments: commentsOf(row.id), files: filesOf(row.id, uidOf(req)) });
         } catch (e) { fail(res, e, 'detail'); }
     });
 
@@ -683,7 +728,7 @@ module.exports = function mountTasks(app, ctx) {
         try {
             const id = String(req.params.id || '');
             if (!canSee(req, id)) return res.status(404).json({ error: 'That task is not here.' });
-            res.json({ files: filesOf(id), storage: s3Ready() ? 's3' : 'local' });
+            res.json({ files: filesOf(id, uidOf(req)), storage: s3Ready() ? 's3' : 'local' });
         } catch (e) { fail(res, e, 'files'); }
     });
     app.post('/api/v2/tasks/:id/files', auth, adminOnly, uploadParser, async (req, res) => {
@@ -719,14 +764,15 @@ module.exports = function mountTasks(app, ctx) {
             touch(id);
             audit(req, 'task.file.upload', `task ${id}: file ${fid} (${file.buffer.length} bytes)`);
             persist();
-            res.json({ success: true, file: shapeFile(q.get('SELECT * FROM task_files WHERE id = ?', [fid])), files: filesOf(id) });
+            res.json({ success: true, file: shapeFile(q.get('SELECT * FROM task_files WHERE id = ?', [fid]), uidOf(req)), files: filesOf(id, uidOf(req)) });
         } catch (e) { log('upload failed:', e.message); res.status(502).json({ error: 'The upload did not go through — try again.' }); }
     });
     app.get('/api/v2/tasks/files/:fid', fileGate, (req, res) => {
         try {
             const fid = String(req.params.fid || '');
-            // a valid signature was minted for a participant; a Bearer caller must be one right now
-            const f = req.taskFileSigned ? q.get('SELECT * FROM task_files WHERE id = ?', [fid]) : taskVis.visibleTaskFile(q.get, uidOf(req), fid);
+            // the viewer (the one a signed link names, or the Bearer caller) must be on the task right now:
+            // someone taken off it gets the same 404 as a missing file, even with a link still in its hour
+            const f = taskVis.visibleTaskFile(q.get, req.taskFileSigned ? req.taskFileUid : uidOf(req), fid);
             if (!f) return res.status(404).json({ error: 'That file is not here.' });
             const name = f.original_name || f.filename || 'file';
             const wantJson = String((req.query && req.query.json) || '') === '1';
@@ -741,7 +787,7 @@ module.exports = function mountTasks(app, ctx) {
             if (!f.filename || !fs.existsSync(local)) return res.status(404).json({ error: 'That file is no longer on this server.' });
             // a signed caller gets its own link back, never a fresh one (a link held after a reassignment
             // must run out, not renew itself); a Bearer caller has just passed the task rule
-            if (wantJson) return res.json({ url: req.taskFileSigned ? `/api/v2/tasks/files/${encodeURIComponent(f.id)}?exp=${Number(req.query.exp)}&sig=${encodeURIComponent(String(req.query.sig))}` : signedPath(f.id), name });
+            if (wantJson) return res.json({ url: req.taskFileSigned ? linkOf(f.id, Number(req.query.exp), req.taskFileUid) : signedPath(f.id, uidOf(req)), name });
             res.setHeader('Content-Type', 'application/octet-stream');
             res.setHeader('Content-Disposition', 'attachment; filename="' + name.replace(/["\\]/g, '_').replace(/[^\x20-\x7e]/g, '_') + '"; filename*=UTF-8\'\'' + encodeURIComponent(name));
             res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -761,7 +807,7 @@ module.exports = function mountTasks(app, ctx) {
             touch(f.task_id);
             audit(req, 'task.file.remove', `task ${f.task_id}: file ${f.id}`);
             persist();
-            res.json({ success: true, files: filesOf(f.task_id) });
+            res.json({ success: true, files: filesOf(f.task_id, uidOf(req)) });
         } catch (e) { fail(res, e, 'file remove'); }
     });
 

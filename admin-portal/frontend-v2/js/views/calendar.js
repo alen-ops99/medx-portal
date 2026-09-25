@@ -24,7 +24,7 @@ export const SOURCE = 'Admin Calendar.dc.html';
 
 export const COPY = {
   title: 'Calendar', sub: 'everything Med&amp;X is running, this year and next',
-  exportPdf: 'EXPORT PDF', exportPdfTitle: 'A print-ready year board in the Med&X look — one page; your browser\'s print dialog opens, choose "Save as PDF"',
+  exportPdf: 'EXPORT PDF', exportPdfTitle: 'A print-ready year board in the Med&X look, one page. Your browser\'s print dialog opens, choose Save as PDF.',
   exportPdfToast: 'PRINT-READY YEAR BOARD — CHOOSE “SAVE AS PDF” IN THE DIALOG',
   exportCsv: 'EXPORT CSV', exportedCsv: 'CALENDAR EXPORTED · CSV', addEntry: '+ ADD ENTRY',
   nextUp: { label: 'NEXT UP', inDays: n => n === 0 ? 'today' : `in ${fmt.plural(n, 'day')}`, open: p => `OPEN ${String(p || 'calendar').toUpperCase()} →`, none: 'Nothing dated ahead — add the next thing to the board.' },
