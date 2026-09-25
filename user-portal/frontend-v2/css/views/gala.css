@@ -1,60 +1,62 @@
-/* css/views/gala.css — Gala Evening screen (js/views/gala.js; injected by the view).
-   Responsive overrides ONLY — the look lives inline in the copied artboard markup
-   (ARCHITECTURE.md §4: mx-* hooks never carry look). */
+/* css/views/gala.css — Gala Evening (js/views/gala.js; injected by the view).
+   The page is composed from the PHONE CALM KIT (app.css › hero, countdown, facts, person cards, shelf, timeline,
+   accordions, list rows). Only what is particular to this screen lives here, scoped to its label. */
 
-/* UXFIX-M2 #10 (2026-09-02): with exactly five speakers the 4-column stage grid strands one card
-   on row two. Five across on desktop instead — one even row, uniform square crop (the crop rule
-   itself — aspect-ratio:1/1 + object-fit:cover — already lives inline on the cards). Scoped to
-   the stage grid: the only other .mx-grid-4 in this view is the moments gallery (.mx-gala-gallery).
-   Harmless fallback (4+1) where :has() is unsupported. */
-@media (min-width: 901px) {
-  [data-screen-label="Gala Evening"] .mx-grid-4:not(.mx-gala-gallery):has(> div:nth-child(5):last-child) {
-    grid-template-columns: repeat(5, 1fr) !important;
-  }
-}
+[data-screen-label="Gala Evening"] { background: #f7f1e6; color: #191512; }
 
-@media (max-width: 900px) {
-  .mx-gala-band { gap: 14px 18px !important; }
-}
-/* ON STAGE THAT NIGHT: five speakers are 3 + 2 on a tablet (two across left one alone and grew each portrait
-   to a 384 px square); on a phone each speaker is one row — a 96 px portrait beside the name — so a small
-   source image is never blown up to the full width of the screen */
-@media (min-width: 501px) and (max-width: 900px) {
-  .mx-gala-stage { grid-template-columns: repeat(3, 1fr) !important; }
-}
-@media (max-width: 500px) {
-  .mx-gala-stage { gap: 10px !important; }
-  .mx-gala-stage > div { flex-direction: row !important; align-items: center; }
-  .mx-gala-stage > div > div:first-child { width: 96px; flex: none; }
-}
+/* the one action: gold on the photo, full width on a phone (kit), a comfortable fixed width beside the title above */
+[data-screen-label="Gala Evening"] .mx-gala-cta { min-height: 48px; display: inline-flex; align-items: center; justify-content: center; padding: 0 28px; font-size: 13px; letter-spacing: .12em; }
+[data-screen-label="Gala Evening"] .mx-gala-cta[aria-disabled="true"] { opacity: .6; }
+
+/* 02 · the statement: one Fraunces sentence, the crimson italic its only accent */
+.mx-gala-statement { margin: 0 0 8px; max-width: 640px; font: 400 22px/28px Fraunces, serif; color: #191512; text-wrap: balance; }
+.mx-gala-statement i { color: #9b1b22; }
+@media (min-width: 901px) { .mx-gala-statement { font-size: 28px; line-height: 36px; } }
+[data-screen-label="Gala Evening"] [data-block="why"] .mx-accs { margin-top: 0; border-top: 0; }
+
+/* 01 · on stage: five cards are 2 + 2 + 1 on a phone — the fifth sits centred on its own row, the same card */
 @media (max-width: 700px) {
-  /* two fixed-width performer cards → stacked full-width */
-  .mx-gala-perf { flex-wrap: wrap !important; }
-  .mx-gala-perf > div { width: 100% !important; box-sizing: border-box; }
-  /* moments strip: 4 columns → 2 */
-  .mx-gala-gallery { grid-template-columns: 1fr 1fr !important; }
+  .mx-gala-stage > :last-child:nth-child(odd) { grid-column: 1 / -1; justify-self: center; width: calc(50% - 6px); }
 }
-@media (max-width: 500px) {
-  .mx-gala-gallery { grid-auto-rows: 120px !important; }
-  .mx-gala-hero-date { font-size: 17px !important; }
-  .mx-gala-glance-row { flex-wrap: wrap; }
+@media (min-width: 901px) {
+  .mx-gala-stage:has(> :nth-child(5):last-child) { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
+.mx-gala-stage .mx-person { padding: 4px 0; }
+/* a role such as "President & CEO, University Health Network" reads whole: three lines at most, never an ellipsis mid-name */
+.mx-gala-stage .mx-person-role { -webkit-line-clamp: 3; }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .mx-gala-stage .mx-person .mx-pic { transition: transform var(--t-quick) var(--ease), box-shadow var(--t-quick) var(--ease); }
+  .mx-gala-stage .mx-person:hover .mx-pic { transform: translateY(-2px); box-shadow: 0 10px 22px -12px rgba(25,21,18,.45); }
+  .mx-gala-stage .mx-person:hover .mx-person-name { color: #9b1b22; }
+}
+.mx-gala-stage .mx-person:active .mx-pic { opacity: .86; }
+.mx-gala-stage .mx-person:focus-visible { outline: 2px solid #9b1b22; outline-offset: 4px; }
 
-/* "THE EVENING BEGINS IN" band — one row needs ~1,400 px (22 px gaps, so a desktop window with a scrollbar
-   still fits). Narrower (the Mac app's 1280 window, iPad landscape) the countdown keeps the first line and the
-   three facts share the second; below ~940 the facts no longer fit one line, so each takes its own centred
-   line — the phone pattern — instead of wrapping one fact alone after a dangling rule */
-.mx-gala-band { column-gap: 22px !important; }
-@media (max-width: 1419px) {
-  .mx-gala-band { row-gap: 10px !important; }
-  .mx-gala-band > .mx-band-break { display: block; flex-basis: 100%; height: 0; }
-  .mx-gala-band > .mx-band-break + span[style*="width:1px"] { display: none; }
-}
-/* the same band on a tablet or phone: label on its own line, the three digits together, each fact
-   on a centred line; the vertical rules only read side by side, so they go */
-@media (max-width: 940px) {
-  .mx-gala-band { gap: 10px 22px !important; padding-top: 16px !important; padding-bottom: 16px !important; }
-  .mx-gala-band > span[style*="width:1px"] { display: none !important; }
-  .mx-gala-band > span:first-child { flex-basis: 100%; text-align: center; }
-  .mx-gala-band > span:not(:first-child):not([style*="display:flex"]) { flex-basis: 100%; text-align: center; }
+/* the bio sheet: the circle, the name, the role, the bio */
+.mx-gala-bio { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.mx-gala-bio .mx-pic { margin-bottom: 14px; }
+.mx-gala-bio .mx-modal-title { margin-bottom: 4px !important; }
+.mx-gala-bio-role { font: 400 14px/20px Inter, sans-serif; color: #4a4239; }
+.mx-gala-bio p { margin: 16px 0 0; font: 400 16px/24px Inter, sans-serif; color: #191512; text-align: left; }
+
+/* moments: the photo tiles answer a tap like every card */
+.mx-gala-shelf .mx-ph { cursor: pointer; }
+.mx-gala-shelf .mx-ph img { transition: transform var(--t-drift) var(--ease); }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) { .mx-gala-shelf .mx-ph:hover img { transform: scale(1.04); } }
+.mx-gala-shelf .mx-ph:active { opacity: .86; }
+
+/* named performers, once announced: 64 rows under the schedule */
+.mx-gala-perf { margin-top: 24px; max-width: 720px; }
+.mx-gala-perf-h { display: block; margin-bottom: 8px; font: 600 12px/16px Inter, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: #6e5626; }
+
+/* good to know: the message row sits under the accordion with the section rhythm */
+[data-screen-label="Gala Evening"] [data-block="know"] .mx-list { margin-top: 20px; }
+[data-screen-label="Gala Evening"] .mx-acc-a a { display: inline-flex; align-items: center; min-height: 44px; font-weight: 500; }
+
+/* wide screens: the evening at a glance and good-to-know share a row instead of leaving the right half empty */
+@media (min-width: 1100px) {
+  [data-screen-label="Gala Evening"] .mx-p { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 64px; align-items: start; }
+  [data-screen-label="Gala Evening"] .mx-p > * { grid-column: 1 / -1; }
+  [data-screen-label="Gala Evening"] .mx-p > [data-block="glance"] { grid-column: 1; }
+  [data-screen-label="Gala Evening"] .mx-p > [data-block="know"] { grid-column: 2; }
 }

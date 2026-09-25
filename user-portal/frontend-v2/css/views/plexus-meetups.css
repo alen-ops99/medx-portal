@@ -1,38 +1,69 @@
-/* css/views/plexus-meetups.css — Plexus Week meetups (board + host page).
-   Injected once by js/views/plexus-meetups.js. Rules here carry NO look: only responsive overrides
-   for the inline layouts and the two fixed-size elements the markup cannot express inline
-   (ARCHITECTURE.md §4 — mx-* hooks never carry look). */
+/* css/views/plexus-meetups.css — Plexus Week meetups (board + host page), injected by js/views/plexus-meetups.js.
+   Composed from the PHONE CALM KIT (app.css); only what is particular to these screens lives here. */
 
-/* the QR on a "My meetups" row: a fixed square the flex row never squeezes */
-.mx-meetup-qr { width: 104px; height: 104px; flex: none; object-fit: contain; background: #fff; border: 1px solid rgba(25,21,18,.16); padding: 6px; box-sizing: content-box; display: block; }
+.mx-mu { background: #f7f1e6; color: #191512; }
+.mx-mu-facts { margin-top: 20px; }
+.mx-mu-eyebrow { display: block; font: 600 12px/16px Inter, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: #9b1b22; }
+.mx-mu-eyebrow + .mx-lt { margin-top: 8px; }
+.mx-mu-about { margin-top: 12px; }
+.mx-mu-h3 { margin: 24px 0 8px; font: 600 12px/16px Inter, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: #6e5626; }
 
-/* the host composer's textarea inherits .input (tokens.css) — it only needs room to breathe */
-.mx-meetup-textarea { min-height: 110px; line-height: 1.6; resize: vertical; font-family: Inter, sans-serif; }
+/* filters: one sideways row of chips, never a second line */
+.mx-meetup-filters { display: flex; align-items: center; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 0 calc(-1 * var(--g, 20px)) 16px; padding: 0 var(--g, 20px); }
+.mx-meetup-filters::-webkit-scrollbar { display: none; }
+.mx-meetup-filters > * { flex: none; }
+.mx-mu-div { width: 1px; height: 20px; background: rgba(25,21,18,.16); }
+.mx-mu-textbtn { display: inline-flex; align-items: center; min-height: 44px; font: 500 14px/20px Inter, sans-serif; color: #9b1b22; cursor: pointer; white-space: nowrap; }
 
-/* filter strip scrolls sideways rather than pushing the page wide on a narrow screen */
-.mx-meetup-filters { max-width: 100%; }
+/* a table: date tile · kind and time · title · host; the venue, the places left and the table's own control */
+.mx-meetup-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+@media (min-width: 901px) { .mx-meetup-grid { grid-template-columns: 1fr 1fr; gap: 16px; } }
+.mx-meetup-card { display: flex; flex-direction: column; gap: 12px; padding: 16px; background: #fdfaf3; border: 1px solid rgba(25,21,18,.16); min-width: 0; }
+.mx-mu-top { display: flex; gap: 14px; align-items: flex-start; }
+.mx-mu-date { flex: none; width: 56px; height: 56px; box-sizing: border-box; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  background: #191512; color: #f7f1e6; }
+.mx-mu-date > span { font: 600 12px/1 Inter, sans-serif; letter-spacing: .1em; text-transform: uppercase; color: #c9a962; }
+.mx-mu-date > b { font: 400 22px/1 Fraunces, serif; font-variant-numeric: lining-nums; }
+.mx-mu-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.mx-mu-kind { font: 500 14px/20px Inter, sans-serif; color: #6e5626; }
+.mx-mu-title { font: 400 18px/24px Fraunces, serif; color: #191512; }
+.mx-mu-host { font: 400 14px/20px Inter, sans-serif; color: #4a4239; }
+.mx-mu-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.mx-mu-tags:empty { display: none; }
+.mx-mu-venue { display: inline-flex; gap: 8px; align-items: flex-start; font: 400 14px/20px Inter, sans-serif; color: #4a4239; text-decoration: none; }
+.mx-mu-venue > .mx-ic { color: #6e5626; flex: none; margin-top: 1px; }
+a.mx-mu-venue { min-height: 44px; align-items: center; }
+.mx-mu-desc { margin: 0; font: 400 16px/24px Inter, sans-serif; color: #4a4239; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.mx-mu-for { font: 600 12px/16px Inter, sans-serif; letter-spacing: .1em; text-transform: uppercase; color: #6e5626; }
+.mx-meetup-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-top: 12px; border-top: 1px solid rgba(25,21,18,.1); }
+.mx-mu-seats { display: inline-flex; align-items: center; gap: 8px; font: 500 14px/20px Inter, sans-serif; color: #9b1b22; }
+.mx-mu-seats.is-full { color: #6e5626; }
+/* one filled button per screen height: a table's join is the small ghost, in crimson */
+.mx-mu-join { color: #9b1b22; border-color: rgba(155,27,34,.55); }
+.mx-mu-empty { align-items: flex-start; text-align: left; padding: 8px 0 0; }
 
-@media (max-width: 1100px) {
-  /* four Plexus Week blocks and three attendee cards → two across before they get cramped */
-  .mx-week-grid { grid-template-columns: 1fr 1fr !important; }
-  .mx-meetup-people { grid-template-columns: 1fr 1fr !important; }
-}
-@media (max-width: 900px) {
-  .mx-meetup-mine { flex-wrap: wrap !important; }
-  .mx-meetup-people { grid-template-columns: 1fr !important; }
-}
-@media (max-width: 700px) {
-  .mx-week-grid { grid-template-columns: 1fr !important; }
-  .mx-meetup-card { padding: 16px !important; }
-  /* the seats line and the join button stop sharing a row */
-  .mx-meetup-foot > div { display: none !important; }
-  .mx-meetup-foot { gap: 10px !important; }
-  /* "My meetups": the QR, the details and the action stack instead of sharing one cramped row
-     (flex:1 on the middle column shrinks past readable width before wrap would ever fire) */
-  .mx-meetup-mine { flex-direction: column !important; gap: 14px !important; }
-  .mx-meetup-mine > div { width: 100%; }
-  .mx-meetup-mine > div:last-child { align-items: center !important; flex-direction: row !important; flex-wrap: wrap; gap: 14px !important; }
-}
-@media (max-width: 500px) {
-  .mx-meetup-qr { width: 88px; height: 88px; }
-}
+/* my places */
+.mx-mu-minelist { display: flex; flex-direction: column; gap: 12px; max-width: 720px; }
+.mx-meetup-mine { display: flex; gap: 14px; align-items: flex-start; padding: 16px; background: #fdfaf3; border: 1px solid rgba(25,21,18,.16); }
+.mx-meetup-qr { width: 88px; height: 88px; flex: none; object-fit: contain; background: #fff; border: 1px solid rgba(25,21,18,.16); padding: 6px; box-sizing: content-box; display: block; }
+.mx-mu-note { font: 400 14px/20px Inter, sans-serif; color: #4a4239; margin: 0; }
+.mx-mu-note.is-alert { color: #9b1b22; }
+.mx-mu-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 6px; }
+.mx-mu-acts .mx-iconbtn { color: #6e5626; }
+
+/* host page */
+.mx-mu-link { margin-top: 12px; }
+.mx-mu-person { align-items: flex-start; padding: 12px 0; }
+.mx-mu-bio { font: 400 14px/20px Inter, sans-serif; color: #4a4239; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-top: 4px; }
+.mx-mu-form { display: flex; flex-direction: column; gap: 8px; max-width: 620px; }
+.mx-mu-form .label { margin-top: 8px; }
+.mx-meetup-textarea { min-height: 120px; line-height: 1.5; resize: vertical; font-family: Inter, sans-serif; }
+.mx-mu-form > .btn-block { margin-top: 8px; }
+@media (min-width: 501px) { .mx-mu-form > .btn-block { width: auto; align-self: flex-start; } }
+.mx-mu-scanrow { display: flex; gap: 10px; align-items: center; }
+.mx-mu-scanrow .input { flex: 1 1 auto; }
+.mx-mu-scanrow .btn-sm { flex: none; min-height: 52px; }
+.mx-mu-scanres { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; padding: 16px; background: #fdfaf3; border: 1px solid rgba(25,21,18,.16); box-shadow: inset 3px 0 0 #6e5626; }
+.mx-mu-scanres.is-bad { box-shadow: inset 3px 0 0 #9b1b22; }
+.mx-mu-scanstate { font: 600 12px/16px Inter, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: #6e5626; }
+.mx-mu-scanres.is-bad .mx-mu-scanstate { color: #9b1b22; }

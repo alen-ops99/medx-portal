@@ -1,15 +1,15 @@
-// Source: Building Bridges.dc.html
-// Blocks (artboard order): "Breadcrumb" › "Hero" › "Stats band" › "01 · THE MISSION" ›
-// "02 · NEXT EVENT" › "03 · WHERE WE'VE BEEN" › "Questions".
+// Source: Building Bridges.dc.html, redrawn to the phone calm rules (DESIGN-RULES.md 2026-09-25).
+// Blocks, top to bottom: "Breadcrumb" (desktop) › "Hero" (eyebrow · title · date · ONE action) › "Stats" (2×2 tiles) ›
+// "01 · The mission" (one statement + what every evening brings, as facts) › "02 · Next event" (one card, its
+// register button the card's one action) › "Event app" + "Updates" rows › "03 · Where we've been" (a shelf) ›
+// "Message us".
 // Data: next event = the soonest upcoming published row of GET /api/bridges/events (admin-run
 // table; REGISTER posts to /api/bridges/events/:id/register — open to every signed-in member, no
 // application); past-edition recap cards (admin-editable guests / new-connections + photo
 // galleries) from GET /api/v2/bridges/editions (backend/v2/bridges.js); follow via /api/notify-topics.
-// Boston copy rule — SUPERSEDED 2026-09-02 (UX audit item 1). The August rule ("exact date & venue
-// announced later, no Harvard branding") outlived the announcement: the date, time and room are
-// confirmed and public, while this screen still said "announced soon" beside a hero that named a
-// date and a Home rail that named a different one. Boston now reads from FACTS.bridges.next —
-// Monday, September 21, 2026 · 18:00, Waterhouse Room, Gordon Hall — everywhere on the page.
+// Boston reads from FACTS.bridges.next (UX audit 2026-09-02 item 1) — one date, one time, one room everywhere.
+// FROZEN (DESIGN-RULES §8): the register controls (hero link, the button function and the Plexus Week form link)
+// keep every href, data-act and handler; only their look and place changed.
 import { api } from '../api.js';
 import { session } from '../state.js';
 import { ui, esc, fmt } from '../ui.js';
@@ -24,55 +24,46 @@ const NUM_WORDS = ['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 
 export const COPY = {
   crumb: { left: 'PROJECTS', right: 'BUILDING BRIDGES' },
   live: 'EVENT APP →',                   // Plexus Week Live (/app/live): the evening's program, my schedule, speakers
+  liveRow: { title: 'Event app', sub: 'Program and your schedule' },
   hero: {
-    eyebrow: (city, dateLabel) => `NEXT EDITION · ${city} · ${dateLabel}`,
-    eyebrowNone: 'NEXT EDITION · TO BE ANNOUNCED',
-    eyebrowHome: 'NEXT EDITION · ZAGREB · DURING PLEXUS WEEK',
-    title: 'Building Bridges <i style="color:#c9a962">in Biomedicine</i>',
-    lede: per => `Connecting Croatian medicine and science with international medicine and science — intimate evenings of ${per}, built for collaboration that outlasts the night.`,
-    register: `${CTA.register} →`,
-    follow: on => `GET UPDATES FROM BUILDING BRIDGES · ${on ? 'ON' : 'OFF'}`,
-    followSub: 'Email + portal alerts · manage topics in Profile &amp; settings'
+    eyebrow: city => `Next edition · ${city}`,
+    eyebrowNone: 'Building Bridges in Biomedicine',
+    eyebrowHome: 'Zagreb · Plexus Week',
+    title: 'Building <i>Bridges</i>',
+    homeDate: 'During Plexus Week · December',
+    register: `${CTA.register} →`
   },
-  band: { cities: 'CITIES WORLDWIDE', guests: 'GUESTS HOSTED', events: 'EVENTS COMPLETED', per: 'GUESTS PER EVENING', perEvening: '40–50' },
+  band: { cities: 'Cities', guests: 'Guests hosted', events: 'Evenings', per: 'Per evening', perEvening: '40–50' },
   mission: {
-    n: '01', title: 'THE MISSION',
-    body: 'Building Bridges connects Croatian biomedical professionals across the globe and their respective affiliated institutions with the biomedical community in Croatia through diplomatic events and institutional initiatives. Each evening gathers 40–50 guests.',
-    whoLabel: "WHO IT'S FOR", whoSub: 'Registration is open to everyone — the evenings are made for:',
-    chips: ['RESEARCHERS', 'PHYSICIANS', 'LEADERS IN BIOMEDICINE'],
-    bringsLabel: 'EVERY EVENING BRINGS',
+    n: '01', title: 'The mission',
+    line: 'Evenings that connect Croatian biomedicine abroad with the <i>community at home</i>.',
     brings: [
-      { text: "Keynotes from the host city's leading institutions", gold: false },
-      { text: 'Structured networking, professionally facilitated', gold: false },
-      { text: 'Prestigious venues, dinner and drinks', gold: false },
-      { text: '40–50 guests, so every conversation counts', gold: true }
+      { icon: 'mic', v: 'Keynotes', s: 'From the host city’s leading institutions' },
+      { icon: 'users', v: 'Structured networking', s: 'Professionally facilitated' },
+      { icon: 'star', v: 'Prestigious venues', s: 'Dinner and drinks' },
+      { icon: 'user', v: 'Open to everyone', s: 'Researchers, physicians, leaders in biomedicine' }
     ]
   },
   home: {
-    when: 'During Plexus Week · December',
     title: year => `Building Bridges — Zagreb ${year}`,
-    desc: 'The home edition: Croatian medicine and science and the colleagues who work abroad, in one room during Plexus Week.',
-    how: 'Free to attend — register with the Plexus Week form and tick Building Bridges; one form covers the conference and the Gala too.',
-    side: 'FREE TO ATTEND', chip: 'PART OF PLEXUS WEEK'
+    desc: 'Croatian medicine and science, and the colleagues who work abroad, in one room.',
+    how: 'Free · one Plexus Week form for every evening', tag: 'Part of Plexus Week'
   },
   next: {
-    n: '02', title: 'NEXT EVENT',
-    venueLabel: venue => (venue || '').toUpperCase(),
+    n: '02', title: 'Next event',
     cardTitle: (city, year) => `Building Bridges — ${city} ${year}`,
     // Generic line for any city the admin adds; the confirmed edition prints the admin's own description
-    // (the Boston evening is a panel + five-minute presentations + reception, not keynotes).
-    desc: city => `An evening connecting the Croatian biomedical community of greater ${city} with colleagues at the city's leading institutions. Short presentations, a panel, and a shared table.`,
-    goal: '<strong style="color:#191512">The goal:</strong> every guest leaves with at least one collaboration worth continuing — a co-author, a mentor, a clinical exchange.',
-    spots: n => `ONLY ${n} SPOTS`, full: 'FULLY BOOKED',
-    chip2: 'PRESENTATIONS · PANEL · RECEPTION',
-    starts: 'EVENT STARTS IN', units: ['DAYS', 'HOURS', 'MINS'],
+    desc: city => `The Croatian biomedical community of greater ${city}, with colleagues at the city's leading institutions.`,
+    spots: n => `Only ${n} spots`, full: 'FULLY BOOKED', fullTag: 'Fully booked',
+    starts: 'Starts in', units: ['days', 'hours', 'min'],
     register: `${CTA.register} →`, registered: 'REGISTERED ✓ · MY TICKET →',
     closed: 'Registration opens soon — follow Building Bridges above and we tell you first.',
     fullToast: 'This evening is fully booked — follow Building Bridges above and we tell you if a seat opens.',
     emptyLine: 'The next evening is being planned.',
-    emptyWhy: 'Follow Building Bridges and we tell you the moment the next city and date are confirmed.',
-    emptyCta: 'GET UPDATES →'
+    emptyWhy: 'Follow Building Bridges and hear the moment the next city is confirmed.',
+    emptyCta: 'Get updates'
   },
+  follow: { title: 'Building Bridges updates', sub: on => on ? 'On · email and portal alerts' : 'Off · email and portal alerts' },
   form: {
     eyebrow: city => `BUILDING BRIDGES · ${city.toUpperCase()}`,
     title: city => `Reserve your place in ${city}.`,
@@ -85,25 +76,17 @@ export const COPY = {
     already: city => `You're already registered for ${city} — your entry QR is in My Med&X.`
   },
   been: {
-    n: '03', title: "WHERE WE'VE BEEN",
-    sub: n => `${NUM_WORDS[n] || n} evenings so far — each one, a room full of new collaborations.`,
-    edition: (no, isLatest, isFirst) => `EDITION ${String(no).padStart(2, '0')}${isLatest ? ' · MOST RECENT' : isFirst ? ' · THE FIRST' : ''}`,
-    // Audit C5: no invented figures and no placeholder captions on a member page. A missing
-    // guest/connection count hides its row instead of printing "— GUESTS", and an edition with no
-    // photo yet gets a plain city plate, not the literal "PHOTO · ZÜRICH EVENING".
-    photoLabel: city => String(city || '').toUpperCase(),
-    guests: 'GUESTS', conns: 'NEW CONNECTIONS',
+    n: '03', title: "Where we've been",
+    sub: n => `${NUM_WORDS[n] || n} evenings so far`,
+    edition: (no, isLatest, isFirst) => `Edition ${String(no).padStart(2, '0')}${isLatest ? ' · most recent' : isFirst ? ' · the first' : ''}`,
+    guests: n => `${n} guests`,
     gallerySoon: city => `Photos from the ${city} evening are being added — check back soon.`,
     galleryEyebrow: city => `BUILDING BRIDGES · ${city.toUpperCase()}`,
     galleryTitle: city => `The ${city} evening`, close: 'CLOSE'
   },
   followed: 'You follow Building Bridges — updates reach your inbox and alerts.',
   unfollowed: 'Building Bridges updates are off.',
-  footer: {
-    line: 'Want Building Bridges in your city, or a seat at the next evening?',
-    sub: 'Message us · replies land right here in your portal inbox.',
-    cta: 'MESSAGE US →'
-  }
+  footer: { ask: 'Message us', sub: 'Building Bridges in your city' }
 };
 
 // ---- view state ----
@@ -119,8 +102,7 @@ function ensureCss() {
 function factsEditions() {
   // last-resort fallback (canonical editions from FACTS) when GET /api/v2/bridges/editions fails
   return FACTS.bridges.editions.map(e => ({
-    // guests/connections stay null on purpose: the card now hides a figure nobody has entered
-    // rather than printing a dash beside its label (audit C5).
+    // guests/connections stay null on purpose: the card hides a figure nobody has entered (audit C5)
     id: 'facts-' + e.n, edition_no: Number(e.n), city: e.city, venue: e.host, note: null,
     guests: null, connections: null, photos: []
   })).reverse();
@@ -162,14 +144,13 @@ async function load() {
     };
   }
   // No dated evening ahead, but Plexus Week's Building Bridges Zagreb is open: show THAT as the next
-  // evening (registration = the Plexus Week form with Bridges ticked). The page used to say "the next
-  // evening is being planned" while the Plexus page and the Home card said "Zagreb · registration open".
+  // evening (registration = the Plexus Week form with Bridges ticked).
   let home = null;
   const hb = !next && r.week && Array.isArray(r.week.blocks) ? r.week.blocks.find(b => b && b.key === 'bridges') : null;
   if (hb && hb.status_kind === 'open') {
     const venue = hb.venue && !/to be announced/i.test(hb.venue) ? hb.venue : '';
     home = { city: r.week.city || 'Zagreb', year: String((r.week.date_label || '').match(/\d{4}/) || FACTS.year),
-      dateLabel: hb.date_label || COPY.home.when, venue };
+      dateLabel: hb.date_label || COPY.hero.homeDate, venue };
   }
   const editions = (r.editions && Array.isArray(r.editions.editions) && r.editions.editions.length)
     ? r.editions.editions : factsEditions();
@@ -183,238 +164,205 @@ async function load() {
   };
 }
 
+// ---------------------------------------------------------------- kit helpers
+const icon = (n, s) => ui.icon(n, s || 20);
+const chev = () => ui.icon('chevron-right', 18);
+function sectionHead(n, title, right) {
+  return `<div class="mx-sh">${n ? `<span class="mx-sh-n">${n}</span>` : ''}<h2 class="mx-sh-t">${title}</h2>${right || ''}</div>`;
+}
+function fact({ ic, v, s }) {
+  return `<li class="mx-fact">${icon(ic)}<div class="mx-fact-body"><span class="mx-fact-v">${v}</span>${s ? `<span class="mx-fact-s">${s}</span>` : ''}</div></li>`;
+}
+
 // ---------------------------------------------------------------- blocks
 function blockCrumb() {
   return `
-  <!-- dc: Building Bridges.dc.html › "Breadcrumb" -->
+  <!-- dc: Building Bridges.dc.html › "Breadcrumb" (desktop; phones carry back in the top bar) -->
   <div class="mx-crumbs mx-gutter" style="display:flex;align-items:center;gap:13px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16)">
-    <a href="/app/projects" data-dir="back" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239" data-hover="color:#191512">${COPY.crumb.left}</a>
-    <span style="color:rgba(25,21,18,.35);font-size:10px">→</span>
-    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#191512">${COPY.crumb.right}</span>
-    <div style="flex:1"></div>
-    <a href="/app/live" data-v2="Plexus Week Live — the event app (docs/EVENT-APP-BRIEF.md)" style="display:inline-flex;align-items:center;gap:7px;min-height:24px;font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;text-decoration:none;white-space:nowrap" data-hover="color:#7e151b"><span style="width:6px;height:6px;background:#9b1b22;display:inline-block"></span>${COPY.live}</a>
+    <a href="/app/projects" data-dir="back" style="font:600 12px Inter,sans-serif;letter-spacing:.12em;color:#4a4239" data-hover="color:#191512">${COPY.crumb.left}</a>
+    <span style="color:rgba(25,21,18,.35);font-size:12px">→</span>
+    <span style="font:600 12px Inter,sans-serif;letter-spacing:.12em;color:#191512">${COPY.crumb.right}</span>
   </div>
   <!-- /dc -->`;
+}
+
+// The event app (Plexus Week Live) — it lived in the breadcrumb row, which phones no longer show: now a row of its
+// own under the next event, on every width.
+function blockEventApp() {
+  return `<a href="/app/live" class="mx-row" data-v2="Plexus Week Live — the event app (docs/EVENT-APP-BRIEF.md)" aria-label="${esc(COPY.live.replace(' →', ''))}">${icon('sparkle')}<span class="mx-row-l">${COPY.liveRow.title}<span class="mx-row-s">${COPY.liveRow.sub}</span></span>${chev()}</a>`;
 }
 
 function followToggle() {
-  return `
-      <div data-block="follow" style="display:flex;align-items:center;gap:10px;margin-top:20px">
-        <span data-act="tgFollow" role="switch" aria-checked="${st.follow}" aria-label="Get updates from Building Bridges" class="mx-switch"><span></span></span>
-        <span style="display:flex;flex-direction:column;gap:3px"><span data-role="follow-label" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.8)">${COPY.hero.follow(st.follow)}</span><span style="font-size:10.5px;color:rgba(247,241,230,.5)">${COPY.hero.followSub}</span></span>
-      </div>`;
+  return `<div class="mx-row" data-block="follow">${icon('bell')}<span class="mx-row-l">${COPY.follow.title}<span class="mx-row-s" data-role="follow-label">${COPY.follow.sub(st.follow)}</span></span><span data-act="tgFollow" role="switch" aria-checked="${st.follow}" aria-label="Get updates from Building Bridges" class="mx-switch"><span></span></span></div>`;
 }
 
+// §6: eyebrow · title · one date line · ONE action (the same #bb-next link as before)
 function blockHero() {
   const n = D.next;
+  const eyebrow = n ? COPY.hero.eyebrow(esc(n.city)) : D.home ? COPY.hero.eyebrowHome : COPY.hero.eyebrowNone;
+  const date = n ? n.dateLabel : D.home ? (D.home.dateLabel || COPY.hero.homeDate) : '';
   return `
   <!-- dc: Building Bridges.dc.html › "Hero" -->
-  <div class="mx-ink" style="position:relative;overflow:hidden">
-    <img class="mx-hero-photo" src="/assets/photo-bridges.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 45%">
-    <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(25,21,18,.72) 0%,rgba(25,21,18,.55) 55%,rgba(25,21,18,.85) 100%)"></div>
-    <div class="mx-pad-hero" style="position:relative;padding:54px 36px 44px;display:flex;flex-direction:column;align-items:center;text-align:center">
-      <span style="padding:6px 12px;border:1px solid rgba(201,169,98,.7);color:#c9a962;font:600 10px Inter,sans-serif;letter-spacing:.18em">${n ? COPY.hero.eyebrow(esc(fmt.upper(n.city)), esc(fmt.upper(n.dateLabel))) : D.home ? COPY.hero.eyebrowHome : COPY.hero.eyebrowNone}</span>
-      <div class="mx-display-46" style="font-family:Fraunces,serif;font-size:48px;line-height:1.1;color:#f7f1e6;margin-top:20px">${COPY.hero.title}</div>
-      <div style="font-size:15px;color:rgba(247,241,230,.85);margin-top:10px;max-width:600px">${COPY.hero.lede(COPY.band.perEvening)}</div>
+  <section class="mx-hero mx-ink mx-bb-hero">
+    <img class="mx-hero-photo" src="/assets/photo-bridges.jpg" alt="" style="object-position:62% 50%">
+    <div class="mx-scrim"></div>
+    <div class="mx-hero-body">
+      <span class="mx-hero-eyebrow">${eyebrow}</span>
+      <h1 class="mx-hero-title">${COPY.hero.title}</h1>
+      ${date ? `<p class="mx-hero-date">${esc(date)}</p>` : ''}
       ${n || D.home ? `
-      <div style="display:flex;gap:13px;margin-top:26px;justify-content:center;flex-wrap:wrap">
-        <a href="#bb-next" style="padding:13px 22px;background:#9b1b22;color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap" data-hover="background:#7e151b">${COPY.hero.register}</a>
+      <div class="mx-hero-cta">
+        <a href="#bb-next" class="btn-gold btn-block">${COPY.hero.register}</a>
       </div>` : ''}
-      ${followToggle()}
     </div>
-  </div>
+  </section>
   <!-- /dc -->`;
 }
 
-function blockBand() {
+function blockStats() {
   const s = D.stats;
-  const stat = (v, label, gold) => `<span style="display:flex;align-items:baseline;gap:6px"><span style="font-family:Fraunces,serif;font-size:24px${gold ? ';color:#c9a962' : ''}">${esc(v)}</span><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.65)">${label}</span></span>`;
-  const rule = '<span style="width:1px;height:18px;background:rgba(247,241,230,.25)"></span>';
+  const tile = (v, label) => `<div class="mx-tile"><span class="mx-tile-n">${esc(v)}</span><span class="mx-tile-l">${label}</span></div>`;
   return `
   <!-- dc: Building Bridges.dc.html › "Stats band" -->
-  <div class="mx-pad-band mx-bb-band" style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;background:#191512;color:#f7f1e6;flex-wrap:wrap">
-    ${stat(s.cities, COPY.band.cities)}
-    ${rule}
-    ${stat(s.guests, COPY.band.guests)}
-    ${rule}
-    ${stat(s.events, COPY.band.events)}
-    ${rule}
-    ${stat(COPY.band.perEvening, COPY.band.per, true)}
-  </div>
+  <section class="mx-sec mx-sec--tight" data-block="stats">
+    <div class="mx-tiles">
+      ${tile(s.cities, COPY.band.cities)}${tile(s.guests, COPY.band.guests)}${tile(s.events, COPY.band.events)}${tile(COPY.band.perEvening, COPY.band.per)}
+    </div>
+  </section>
   <!-- /dc -->`;
 }
 
 function blockMission() {
   return `
-    <!-- dc: Building Bridges.dc.html › "01 · THE MISSION" -->
-    <div style="display:flex;align-items:baseline;gap:14px;padding:26px 0 10px">
-      <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.mission.n}</span>
-      <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.mission.title}</span>
-    </div>
-    <div class="mx-grid-side" style="display:grid;grid-template-columns:1fr 340px;gap:44px;align-items:start;padding-bottom:20px">
-      <div>
-        <div style="font-size:13.5px;color:#4a4239;line-height:1.65">${COPY.mission.body}</div>
-        <div class="mx-wrap-row" style="display:flex;align-items:baseline;gap:14px;padding:16px 0 8px"><span style="font:600 11px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">${COPY.mission.whoLabel}</span><span style="font-size:12px;color:#4a4239">${COPY.mission.whoSub}</span></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          ${COPY.mission.chips.map(c => `<span style="padding:6px 11px;border:1px solid rgba(25,21,18,.22);font:600 9.5px Inter,sans-serif;letter-spacing:.14em">${c}</span>`).join('\n          ')}
-        </div>
-      </div>
-      <div style="border-left:1px solid rgba(25,21,18,.16);padding-left:32px;display:flex;flex-direction:column;gap:11px">
-        <span style="font:600 11px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">${COPY.mission.bringsLabel}</span>
-        ${COPY.mission.brings.map(b => `<span style="display:flex;gap:10px;align-items:baseline;font-size:13px"><span style="width:6px;height:6px;background:${b.gold ? '#c9a962' : '#9b1b22'};flex:none;align-self:center"></span>${b.text}</span>`).join('\n        ')}
-      </div>
-    </div>
-    <!-- /dc -->`;
+  <!-- dc: Building Bridges.dc.html › "01 · THE MISSION" -->
+  <section class="mx-sec" data-block="mission">
+    ${sectionHead(COPY.mission.n, COPY.mission.title)}
+    <p class="mx-bb-statement">${COPY.mission.line}</p>
+    <ul class="mx-facts">${COPY.mission.brings.map(b => fact({ ic: b.icon, v: b.v, s: b.s })).join('')}</ul>
+  </section>
+  <!-- /dc -->`;
 }
 
+// FROZEN: every href and data-act here is the one the card had; the look is the house button
 function registerButton() {
   const n = D.next;
-  if (n.registered) return `<a href="/app/me" style="padding:11px 0;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;text-align:center;display:block;white-space:nowrap" data-hover="background:#7e151b">${COPY.next.registered}</a>`;
-  // A full room is closed too: the chip beside the card already says FULLY BOOKED, so the button
+  if (n.registered) return `<a href="/app/me" class="btn-primary btn-block">${COPY.next.registered}</a>`;
+  // A full room is closed too: the tag on the card already says fully booked, so the button
   // must not open the form for a seat the server will refuse (audit 2026-09-17, item 1).
-  if (n.spots === 0) return `<span data-act="regFull" aria-disabled="true" style="padding:11px 0;border:1px solid rgba(247,241,230,.35);color:rgba(247,241,230,.7);font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:default;white-space:nowrap">${COPY.next.full}</span>`;
-  if (!n.open) return `<span data-act="regClosed" style="padding:11px 0;background:#9b1b22;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${COPY.next.register}</span>`;
-  return `<span data-act="register" style="padding:11px 0;background:#9b1b22;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${COPY.next.register}</span>`;
+  if (n.spots === 0) return `<span data-act="regFull" aria-disabled="true" class="btn-ghost btn-block">${COPY.next.full}</span>`;
+  if (!n.open) return `<span data-act="regClosed" role="button" class="btn-primary btn-block">${COPY.next.register}</span>`;
+  return `<span data-act="register" role="button" class="btn-primary btn-block">${COPY.next.register}</span>`;
 }
 
 function nextCard() {
   const n = D.next;
-  // The confirmed edition carries its real photo (the Boston hero); any other event the admin adds
-  // keeps the striped venue plate until it has a picture of its own.
-  const plate = n.isNext
-    ? `<div style="position:relative;overflow:hidden;min-height:150px"><img src="/assets/bb-boston-hero-wide.jpg" alt="${esc(COPY.next.cardTitle(n.city, n.year))}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block"></div>`
-    : `<div style="position:relative;background:repeating-linear-gradient(45deg,rgba(25,21,18,.08) 0 10px,rgba(25,21,18,.03) 10px 20px);display:flex;align-items:center;justify-content:center;font:600 8.5px Inter,sans-serif;font-variant-numeric:tabular-nums;color:#4a4239;text-align:center;padding:0 14px">${esc(COPY.next.venueLabel(n.venue) || fmt.upper(n.city))}</div>`;
-  return `<div data-block="next" data-eid="${esc(n.id)}" class="mx-bb-next" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:grid;grid-template-columns:230px 1fr 260px;align-items:stretch">
-      ${plate}
-      <div style="padding:24px 28px;display:flex;flex-direction:column;gap:8px">
-        <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">${esc(fmt.upper(n.city))} · ${esc(fmt.upper(n.dateLabel))}</span>
-        ${n.venue ? `<span style="font-size:12.5px;color:#4a4239">${esc(n.venue)}</span>` : ''}
-        <span style="font-family:Fraunces,serif;font-size:26px;line-height:1.15">${esc(COPY.next.cardTitle(n.city, n.year))}</span>
-        <span style="font-size:12.5px;color:#4a4239;line-height:1.55;max-width:520px">${esc((n.ev && n.ev.description) || COPY.next.desc(n.city))}</span>
-        <span style="font-size:12.5px;color:#4a4239;line-height:1.55;max-width:520px">${COPY.next.goal}</span>
-        <span style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
-          ${n.spots !== null ? `<span style="padding:4px 9px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">${n.spots > 0 ? esc(COPY.next.spots(n.spots)) : COPY.next.full}</span>` : ''}
-          <span style="padding:4px 9px;border:1px solid rgba(25,21,18,.22);color:#4a4239;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">${COPY.next.chip2}</span>
-        </span>
-      </div>
-      <div style="background:#191512;color:#f7f1e6;padding:22px 24px;display:flex;flex-direction:column;justify-content:center;gap:10px;text-align:center">
-        <span style="font:600 9px Inter,sans-serif;letter-spacing:.18em;color:#c9a962">${COPY.next.starts}</span>
-        <span style="display:flex;justify-content:center;gap:14px">
-          ${['days', 'hrs', 'min'].map((k, i) => `<span style="display:flex;flex-direction:column"><span data-cd="${k}" style="font-family:Fraunces,serif;font-size:26px">—</span><span style="font:600 8px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.6)">${COPY.next.units[i]}</span></span>`).join('')}
-        </span>
+  // The confirmed edition carries its real photo (the Boston hero); any other city gets the ink tile with the X
+  // until it has a picture of its own.
+  const media = n.isNext
+    ? `<img src="/assets/bb-boston-hero-wide.jpg" alt="" loading="lazy">`
+    : `<img class="mx-media-mark" src="/assets/mark-x.png" alt="">`;
+  const tag = n.spots !== null ? `<span class="mx-tag ${n.spots > 0 ? 'mx-tag--gold' : 'mx-tag--cream'}">${esc(n.spots > 0 ? COPY.next.spots(n.spots) : COPY.next.fullTag)}</span>` : '';
+  const cell = (id, unit) => `<span class="mx-cd-cell"><b class="mx-cd-num" data-cd="${id}">—</b><i class="mx-cd-unit">${unit}</i></span>`;
+  return `<article data-block="next" data-eid="${esc(n.id)}" class="mx-pcard mx-bb-card">
+      <div class="mx-media r-16x9">${media}<div class="mx-scrim"></div>${tag}<h3 class="mx-pcard-title">${esc(COPY.next.cardTitle(n.city, n.year))}</h3></div>
+      <div class="mx-pcard-body">
+        <ul class="mx-facts mx-bb-cardfacts">
+          ${fact({ ic: 'calendar', v: esc(n.dateLabel) })}
+          ${n.venue ? fact({ ic: 'pin', v: esc(n.venue) }) : ''}
+        </ul>
+        <p class="mx-pcard-line">${esc((n.ev && n.ev.description) || COPY.next.desc(n.city))}</p>
+        <div class="mx-countdown mx-countdown--line mx-bb-cd"><span class="mx-cd-label">${COPY.next.starts}</span>${cell('days', COPY.next.units[0])}${cell('hrs', COPY.next.units[1])}${cell('min', COPY.next.units[2])}</div>
         ${registerButton()}
       </div>
-    </div>`;
+    </article>`;
 }
 
 function homeCard() {
   const h = D.home, c = COPY.home;
-  return `<div data-block="next" class="mx-bb-next" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:grid;grid-template-columns:230px 1fr 260px;align-items:stretch">
-      <div style="position:relative;overflow:hidden;min-height:150px"><img src="/assets/photo-stage.jpg" alt="Plexus Week in Zagreb" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 60%;display:block"></div>
-      <div style="padding:24px 28px;display:flex;flex-direction:column;gap:8px">
-        <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">${esc(fmt.upper(h.city))} · ${esc(fmt.upper(h.dateLabel))}</span>
-        ${h.venue ? `<span style="font-size:12.5px;color:#4a4239">${esc(h.venue)}</span>` : ''}
-        <span style="font-family:Fraunces,serif;font-size:26px;line-height:1.15">${esc(c.title(h.year))}</span>
-        <span style="font-size:12.5px;color:#4a4239;line-height:1.55;max-width:520px">${esc(c.desc)}</span>
-        <span style="font-size:12.5px;color:#4a4239;line-height:1.55;max-width:520px">${esc(c.how)}</span>
-        <span style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px"><span style="padding:4px 9px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">${c.chip}</span></span>
+  return `<article data-block="next" class="mx-pcard mx-bb-card">
+      <div class="mx-media r-16x9"><img src="/assets/photo-stage.jpg" alt="Plexus Week in Zagreb" loading="lazy" style="object-position:88% 50%"><div class="mx-scrim"></div><span class="mx-tag mx-tag--gold">${c.tag}</span><h3 class="mx-pcard-title">${esc(c.title(h.year))}</h3></div>
+      <div class="mx-pcard-body">
+        <ul class="mx-facts mx-bb-cardfacts">
+          ${fact({ ic: 'calendar', v: esc(h.dateLabel) })}
+          ${h.venue ? fact({ ic: 'pin', v: esc(h.venue) }) : ''}
+        </ul>
+        <p class="mx-pcard-line">${esc(c.desc)}</p>
+        <a href="/plexus?pick=bridges&amp;src=portal" class="btn-primary btn-block">${COPY.next.register}</a>
+        <span class="mx-bb-how">${esc(c.how)}</span>
       </div>
-      <div style="background:#191512;color:#f7f1e6;padding:22px 24px;display:flex;flex-direction:column;justify-content:center;gap:12px;text-align:center">
-        <span style="font:600 9px Inter,sans-serif;letter-spacing:.18em;color:#c9a962">${c.side}</span>
-        <a href="/plexus?pick=bridges&amp;src=portal" style="padding:11px 0;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap;text-decoration:none" data-hover="background:#7e151b;color:#f7f1e6">${COPY.next.register}</a>
-      </div>
-    </div>`;
+    </article>`;
 }
 
 function blockNext() {
-  const head = `
-    <div id="bb-next" style="display:flex;align-items:baseline;gap:14px;padding:16px 0 12px;border-top:1px solid rgba(25,21,18,.16)">
-      <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.next.n}</span>
-      <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.next.title}</span>
+  const head = sectionHead(COPY.next.n, COPY.next.title);
+  const body = D.next ? nextCard() : D.home ? homeCard() : `
+    <div class="empty">
+      <span class="empty-line">${COPY.next.emptyLine}</span>
+      <span class="empty-why">${COPY.next.emptyWhy}</span>
+      <span data-act="tgFollow" role="button" class="btn-ghost btn-sm">${COPY.next.emptyCta}</span>
     </div>`;
-  if (!D.next && D.home) return `${head}${homeCard()}`;
-  if (!D.next) return `
-    <!-- dc: Building Bridges.dc.html › "02 · NEXT EVENT" -->
-    ${head}
-    <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3">
-      <div class="empty">
-        <span style="width:28px;height:1px;background:#c9a962;margin-bottom:6px"></span>
-        <span style="font-family:Fraunces,serif;font-style:italic;font-size:17px">${COPY.next.emptyLine}</span>
-        <span style="font-size:12.5px;color:#4a4239;max-width:400px;line-height:1.55">${COPY.next.emptyWhy}</span>
-        <span data-act="tgFollow" style="margin-top:8px;padding:11px 20px;border:1px solid rgba(25,21,18,.3);font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;color:#191512;white-space:nowrap" data-hover="border-color:#191512">${COPY.next.emptyCta}</span>
-      </div>
-    </div>
-    <!-- /dc -->`;
   return `
-    <!-- dc: Building Bridges.dc.html › "02 · NEXT EVENT" -->
+  <!-- dc: Building Bridges.dc.html › "02 · NEXT EVENT" -->
+  <section class="mx-sec" id="bb-next" data-block="next-sec">
     ${head}
-    ${nextCard()}
-    <!-- /dc -->`;
+    ${body}
+    <div class="mx-list mx-bb-rows">${blockEventApp()}${followToggle()}</div>
+  </section>
+  <!-- /dc -->`;
 }
 
 function editionCard(e, isLatest) {
   const first = Number(e.edition_no) === Math.min(...D.editions.map(x => Number(x.edition_no)));
-  const photo = (Array.isArray(e.photos) && e.photos[0] && e.photos[0].url)
-    ? `<span class="mx-ph"><img src="${esc(api.url(e.photos[0].url))}" alt="" style="width:100%;height:130px;object-fit:cover;display:block"></span>`
-    : `<div style="height:130px;background:repeating-linear-gradient(45deg,rgba(25,21,18,.08) 0 10px,rgba(25,21,18,.03) 10px 20px);display:flex;align-items:center;justify-content:center;font:600 10px Inter,sans-serif;letter-spacing:.2em;color:#4a4239;text-align:center;padding:0 12px">${esc(COPY.been.photoLabel(e.city))}</div>`;
-  // A figure nobody has entered is left out — never shown as a dash beside its label.
+  const own = Array.isArray(e.photos) && e.photos[0] && e.photos[0].url;
+  // Boston has its real photo in the bundle; any edition without one is the ink tile with the X — never a striped wireframe
+  const src = own ? api.url(e.photos[0].url) : (/boston/i.test(String(e.city || '')) ? '/assets/bb-boston-hero-wide.jpg' : '');
+  const media = src ? `<img src="${esc(src)}" alt="" loading="lazy">` : `<img class="mx-media-mark" src="/assets/mark-x.png" alt="">`;
   const has = v => v !== null && v !== undefined && v !== '';
-  const stat = (v, label) => has(v)
-    ? `<span style="display:flex;align-items:baseline;gap:5px"><span style="font-family:Fraunces,serif;font-size:16px;color:#9b1b22">${esc(fmt.num(v))}</span><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.13em;color:#4a4239">${label}</span></span>`
-    : '';
-  const stats = stat(e.guests, COPY.been.guests) + stat(e.connections, COPY.been.conns);
+  const sub = [e.venue || '', has(e.guests) ? COPY.been.guests(fmt.num(e.guests)) : ''].filter(Boolean).join(' · ');
   return `
-        <div data-act="gallery" data-id="${esc(e.id)}" aria-label="${esc(e.city)} photos" class="mx-card-link" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column;cursor:pointer;text-align:left">
-          ${photo}
-          <div style="padding:14px 16px 16px;display:flex;flex-direction:column;gap:5px;flex:1">
-            <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">${esc(COPY.been.edition(e.edition_no, isLatest, first))}</span>
-            <span style="font-family:Fraunces,serif;font-size:19px;line-height:1.15">${esc(e.city)}</span>
-            <span style="font-size:11.5px;color:#4a4239">${esc(e.venue || '')}</span>
-            <span style="font-size:11.5px;color:#4a4239;line-height:1.5;font-style:italic">${esc(e.note || '')}</span>
-            ${stats ? `<span style="display:flex;gap:14px;border-top:1px solid rgba(25,21,18,.1);padding-top:9px;margin-top:auto">${stats}</span>` : ''}
-          </div>
-        </div>`;
+      <div class="mx-shelf-item mx-bb-edition" data-act="gallery" data-id="${esc(e.id)}" role="button" aria-label="${esc(e.city)} photos">
+        <div class="mx-media r-4x3 mx-ph">${media}</div>
+        <span class="mx-bb-ed-label">${esc(COPY.been.edition(e.edition_no, isLatest, first))}</span>
+        <span class="mx-shelf-title">${esc(e.city)}</span>
+        ${sub ? `<span class="mx-shelf-sub">${esc(sub)}</span>` : ''}
+      </div>`;
 }
 
 function blockBeen() {
   const maxNo = Math.max(...D.editions.map(x => Number(x.edition_no)));
   return `
-    <!-- dc: Building Bridges.dc.html › "03 · WHERE WE'VE BEEN" -->
-    <div id="bb-schedule" class="mx-wrap-row" style="display:flex;align-items:baseline;gap:14px;padding:26px 0 6px">
-      <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.been.n}</span>
-      <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.been.title}</span>
-      <span style="font-size:12px;color:#4a4239">${esc(COPY.been.sub(D.editions.length))}</span>
-    </div>
-    <div class="mx-grid-3 mx-bb-cities" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;padding-bottom:26px">
+  <!-- dc: Building Bridges.dc.html › "03 · WHERE WE'VE BEEN" -->
+  <section class="mx-sec" id="bb-schedule" data-block="been">
+    ${sectionHead(COPY.been.n, COPY.been.title)}
+    <p class="mx-sh-sub">${esc(COPY.been.sub(D.editions.length))}</p>
+    <div class="mx-shelf mx-bb-shelf" style="--w:200px">
       ${D.editions.map(e => editionCard(e, Number(e.edition_no) === maxNo)).join('')}
     </div>
-    <!-- /dc -->`;
+  </section>
+  <!-- /dc -->`;
 }
 
 function blockFooter() {
   return `
   <!-- dc: Building Bridges.dc.html › "Questions" -->
-  <div class="mx-gutter mx-wrap-row" style="display:flex;align-items:center;gap:20px;padding:18px 36px 30px;border-top:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
-    <span style="font-family:Fraunces,serif;font-style:italic;font-size:16px;color:#4a4239">${COPY.footer.line}</span>
-    <span style="font-size:12px;color:#4a4239">${COPY.footer.sub}</span>
-    <div style="flex:1"></div>
-    <a href="/app/messages?about=bridges" style="padding:10px 16px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.footer.cta}</a>
-  </div>
+  <section class="mx-sec">
+    <div class="mx-list"><a class="mx-row" href="/app/messages?about=bridges">${icon('mail')}<span class="mx-row-l">${COPY.footer.ask}<span class="mx-row-s">${COPY.footer.sub}</span></span>${chev()}</a></div>
+  </section>
   <!-- /dc -->`;
 }
 
 function template() {
   return `
-<div data-screen-label="Building Bridges" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
+<div data-screen-label="Building Bridges" class="mx-bb">
   ${blockCrumb()}
   ${blockHero()}
-  ${blockBand()}
-  <div class="mx-gutter" style="padding:0 36px">
+  <div class="mx-p">
+    ${blockStats()}
     ${blockMission()}
     ${blockNext()}
     ${blockBeen()}
+    ${blockFooter()}
   </div>
-  ${blockFooter()}
 </div>`;
 }
 
@@ -487,7 +435,7 @@ const handlers = {
   // flips in place at once (ui.toggleSwitch) — the POST runs behind it and a failure flips it back.
   // The empty-state "GET UPDATES" button shares this act; it is not a switch, so it keeps the old path.
   tgFollow: async (el) => {
-    const paint = on => { const l = rootEl && rootEl.querySelector('[data-block="follow"] [data-role="follow-label"]'); if (l) l.innerHTML = COPY.hero.follow(on); };
+    const paint = on => { const l = rootEl && rootEl.querySelector('[data-block="follow"] [data-role="follow-label"]'); if (l) l.innerHTML = COPY.follow.sub(on); };
     const save = async on => {
       await api.post('/api/notify-topics', { project: 'bridges', on });
       if (st) st.follow = on;
@@ -514,7 +462,7 @@ const handlers = {
       body: `<div style="display:grid;grid-template-columns:${e.photos.length === 1 ? '1fr' : '1fr 1fr'};gap:10px">${e.photos.map(p => `
         <figure style="margin:0">
           <img src="${esc(api.url(p.url))}" alt="${esc(p.caption || e.city)}" style="width:100%;height:${e.photos.length === 1 ? '260px' : '150px'};object-fit:cover;display:block">
-          ${p.caption ? `<figcaption style="font-size:11px;color:#4a4239;margin-top:4px">${esc(p.caption)}</figcaption>` : ''}
+          ${p.caption ? `<figcaption style="font-size:12px;color:#4a4239;margin-top:4px">${esc(p.caption)}</figcaption>` : ''}
         </figure>`).join('')}</div>`,
       actions: [{ label: COPY.been.close }]
     });

@@ -1,198 +1,179 @@
-// Source: Plexus Conference.dc.html · Plexus Program.dc.html · Plexus Zagreb.dc.html · My Plexus.dc.html
-// Route /app/plexus/:tab? — '' (overview) · program · zagreb · mine. One module, one artboard per
-// tab; blocks are the <!-- dc: <file> › "<label>" --> markers, in artboard order. Every number,
-// date, price and list is a live read (see load()); FACTS fills gaps and wording only.
+// Source: Plexus Conference.dc.html · Plexus Program.dc.html · Plexus Zagreb.dc.html · My Plexus.dc.html,
+// redrawn to the phone calm rules (DESIGN-RULES.md 2026-09-25).
+// Route /app/plexus/:tab? — '' (overview) · program · zagreb · mine. One module, one screen per tab, one
+// segmented control between them. Every number, date, price and list is a live read (see load()); FACTS fills
+// gaps and wording only.
 // Registration NEVER happens here: REGISTER / RESERVE / RSVP open the ONE server-rendered form at
 // /plexus (server path → full page load; ?pick= preselect is a requested server change, harmless today).
+// FROZEN (DESIGN-RULES §8): every registration-form href, the Gala pay action and its handler are unchanged —
+// moved and restyled only.
 import { api } from '../api.js';
 import { session } from '../state.js';
 import { ui, esc, fmt } from '../ui.js';
 import { FACTS, galaPriceNow, CTA, routeFor, setLiveGalaPrice, plexusStartsAt, plexusStartTime } from '../facts.js';
 import { chrome } from '../chrome.js';
 import router from '../router.js';
+import { portraitSrc, portraitKey } from './_portraits.js';
 
 export const SOURCE = 'Plexus Conference.dc.html · Plexus Program.dc.html · Plexus Zagreb.dc.html · My Plexus.dc.html';
 
 const TABS = [
-  { key: '', label: 'OVERVIEW', to: '/app/plexus', title: 'Plexus Week' },
-  { key: 'mine', label: 'MY PLEXUS &amp; REGISTER', to: '/app/plexus/mine', title: 'My Plexus' },
-  { key: 'program', label: 'PROGRAM &amp; SPEAKERS', to: '/app/plexus/program', title: 'Program & Speakers' },
-  { key: 'zagreb', label: 'EXPLORE ZAGREB', to: '/app/plexus/zagreb', title: 'Explore Zagreb' }
+  { key: '', label: 'Overview', to: '/app/plexus', title: 'Plexus Week' },
+  { key: 'program', label: 'Program', to: '/app/plexus/program', title: 'Program & Speakers' },
+  { key: 'zagreb', label: 'Zagreb', to: '/app/plexus/zagreb', title: 'Explore Zagreb' },
+  { key: 'mine', label: 'My Plexus', to: '/app/plexus/mine', title: 'My Plexus' }
 ];
 const FORM = '/plexus';                      // the ONE server-rendered registration form (README: never rebuild)
 const formUrl = pick => `${FORM}?pick=${encodeURIComponent(pick)}&src=portal`; // ?pick is the requested preselect param; ignored harmlessly until server.js adds it
 const EXPORT_PHOTOS = ['photo-hall.jpg', 'photo-ballroom.jpg', 'photo-candlelit.jpg', 'photo-stage.jpg', 'photo-gala.jpg', 'photo-bridges.jpg'];
-const WD3 = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-const MON3 = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+const MOMENT_ALTS = ['The Plexus hall during a keynote', 'The Emerald Ballroom set for the Gala', 'Guests in conversation', 'A panel on the Plexus stage', 'The Gala Evening', 'A Building Bridges evening'];
+const WD3 = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MON3 = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 // ---- COPY: every string that may change in a revision (dates/prices/venues live via API + FACTS) --
 export const COPY = {
   crumb: { projects: 'PROJECTS', plexus: 'PLEXUS WEEK', program: 'PROGRAM &amp; SPEAKERS', zagreb: 'EXPLORE ZAGREB', mine: 'MY PLEXUS &amp; REGISTRATION' },
   live: 'PLEXUS WEEK LIVE →',            // the event app (/app/live) — the phone-first program + my schedule
+  liveRow: { title: 'Plexus Week Live', sub: 'Program, your schedule, speakers' },
   // The four blocks of one edition (design/MEETUPS-SPEC.md §1) — fed by GET /api/v2/plexus-week/overview
   week: {
-    n: '00', title: 'PLEXUS WEEK',
-    sub: 'One week in Zagreb, four ways in — the conference, the Gala Evening, Building Bridges, and the small tables in between.',
-    edition: year => `${year} ▾`, past: 'PAST EDITION',
-    archived: 'You are looking at a past edition — everything here is read-only.',
+    title: 'Plexus Week',
+    edition: year => `${year}`, past: 'Past edition',
+    archived: 'A past edition — read-only.',
     modalEyebrow: 'PLEXUS WEEK · EDITIONS', modalTitle: 'Past editions',
     modalBody: 'Every Plexus Week is kept. Pick a year to read it back exactly as it stood.',
     current: 'This year', close: 'CLOSE',
     none: 'Only this year exists so far.', noneWhy: 'Each December, the week just gone is archived and the next one opens in its place.'
   },
   hero: {
-    eyebrow: (status, cap) => `${status || 'PRE-REGISTRATION OPEN'} · FREE · ${FACTS.plexus.edition}TH YEAR${cap ? ` · CAPPED AT ${cap} SEATS` : ''}`,
-    title: 'Plexus Conference', line: (range, venue) => `${range} · ${venue} — keynotes, research, and the Gala Evening.`,
+    eyebrow: year => `Plexus ${year}`,
+    title: 'Plexus <i>Conference</i>',
     // "PRE-REGISTER" sat beside "REGISTER — FREE" on one page while registration was open
     // (UX audit 2026-09-02 › item 6). One verb, and it is the true one.
-    register: `${CTA.register} →`, mine: 'MY PLEXUS →', schedule: 'VIEW SCHEDULE',
-    follow: on => `GET UPDATES FROM PLEXUS · ${on ? 'ON' : 'OFF'}`,
-    followSub: 'Email + portal alerts · manage topics in Profile &amp; settings'
+    register: `${CTA.register} →`, mine: 'MY PLEXUS →'
   },
-  band: {
-    startsIn: 'STARTS IN', units: ['DAYS', 'HOURS', 'MINUTES'],
-    eb: label => `GALA EARLY BIRD UNTIL ${label}`, ebPast: 'GALA · REGULAR PRICE',
-    ics: 'ADD TO CALENDAR →', icsFile: 'medx-plexus-2026.ics',
-    icsDone: 'Calendar file downloaded — open it to add Plexus to your calendar.'
+  countdown: { label: 'Begins in', units: ['days', 'hours', 'min'] },
+  facts: {
+    firstSession: t => `First session at ${t}`,
+    map: 'Map',
+    free: 'Free entry', cap: n => `Capped at ${n} seats · ${FACTS.plexus.edition}th year`, noCap: `${FACTS.plexus.edition}th year`,
+    calendar: 'Add to calendar', calendarSub: 'Both conference days and the Gala',
+    follow: 'Plexus updates', followSub: on => on ? 'On · email and portal alerts' : 'Off · email and portal alerts'
   },
+  band: { icsFile: 'medx-plexus-2026.ics', icsDone: 'Calendar file downloaded — open it to add Plexus to your calendar.' },
   stage: {
-    n: '01', title: 'ON THE PLEXUS STAGE', all: 'ALL SPEAKERS →',
-    sub: 'Global hospital and university leaders headline Plexus 2026, alongside the full conference speaker programme.',
-    confirmed: 'CONFIRMED', viewBio: 'VIEW BIO →',
-    teaser: n => `${n} speaker${n === 1 ? '' : 's'} confirmed for the stage.`,
-    teaserWhy: 'Portraits are up on Program & speakers — bios and sessions follow there as they are published.',
-    emptyLine: 'Speakers are announced as they confirm.', emptyWhy: 'The team is confirming this year’s speakers now — follow Plexus and hear the moment names go up.'
+    n: '01', title: 'On the Plexus stage', all: 'All →',
+    emptyLine: 'Speakers are announced as they confirm.', emptyWhy: 'Follow Plexus and hear the moment names go up.'
   },
   threads: {
-    n: '02', title: "THIS YEAR'S THREADS", sub: 'Two conversations run through everything on the program.',
+    n: '02', title: "This year's threads",
     items: [
-      { n: 'THREAD 01', color: '#9b1b22', accent: '#9b1b22', title: 'Artificial intelligence <i style="color:#9b1b22">in medicine</i>', body: 'Where AI is already changing diagnosis, research, and hospital practice — and what it means for clinicians here.' },
-      { n: 'THREAD 02', color: '#6e5626', accent: '#c9a962', title: 'The career paths of <i style="color:#6e5626">biomedical leaders</i>', body: 'How the people running the world’s leading hospitals and universities built their careers — told first-hand.' }
+      { n: 'Thread 01', title: 'Artificial intelligence <i>in medicine</i>', body: 'Where AI already changes diagnosis, research and practice.' },
+      { n: 'Thread 02', title: 'The career paths of <i>biomedical leaders</i>', body: 'How the heads of leading hospitals built their careers.' }
     ]
   },
   glance: {
-    n: '03', title: 'THE PROGRAM', full: 'FULL PROGRAM →',
+    n: '03', title: 'The program', full: 'Full program →',
     dayTitles: ['Opening, keynotes &amp; workshops', 'Research, panels &amp; closing keynote'],
     dayGeneric: i => `Conference day ${i}`,
-    inPrep: 'IN PREPARATION', from: t => `FROM ${t}`,
-    galaTitle: 'Gala Evening <i style="color:#c9a962">&amp;</i> Annual Awards', reception: 'Welcome Reception', free: 'FREE'
+    inPrep: 'In preparation', from: t => `From ${t}`,
+    galaTitle: 'Gala Evening &amp; Annual Awards', reception: 'Welcome Reception', free: 'Free'
   },
   galaBlock: {
-    eyebrow: 'EXCLUSIVE EVENING EVENT · THE JEWEL OF PLEXUS',
-    title: 'Gala Evening <i style="color:#c9a962">&amp;</i> Awards Ceremony',
-    body: (when, venue) => `${when} — ${venue}. Five courses, keynote addresses, live music — seating limited to keep the room personal.`,
-    reserve: price => `${CTA.reserve(price)} →`, note: 'Same form as Plexus — pick the conference, the Gala, or both.'
+    tag: price => `${price} until`, title: 'Gala Evening <i>&amp;</i> Awards',
+    line: 'Five courses, keynote addresses, live music.',
+    reserve: price => `${CTA.reserve(price)} →`
   },
-  connect: {
-    n: '04', title: 'CONNECT WITH PARTICIPANTS',
-    line: 'Meet the room before you walk into it.',
-    body: 'Find attendees, send messages, and schedule 1-on-1 meetings — across Plexus and the Gala.',
-    cta: 'OPEN THE NETWORK →'
-  },
+  connect: { title: 'Meet the room', sub: 'Message attendees before December' },
   photos: {
-    label: 'MOMENTS FROM PAST CONFERENCES',
-    line: n => `${n ? fmt.num(n) + '+' : '2,500+'} researchers and clinicians, built across our Plexus conferences.`,
-    all: 'ALL PHOTOS →', modalEyebrow: 'PLEXUS · PHOTO GALLERY', modalTitle: 'Moments from past conferences',
+    title: 'Moments', all: 'All photos →', modalEyebrow: 'PLEXUS · PHOTO GALLERY', modalTitle: 'Moments from past conferences',
     pending: 'The team’s full gallery lands here as photos are uploaded — these are moments from past editions.'
   },
-  help: {
-    overview: 'Questions about Plexus — attending, speaking, sponsoring?',
-    program: 'Questions about the program?', zagreb: 'Planning your trip and need a hand?', mine: 'Questions about your registration?',
-    sub: 'Message us — you’re signed in, so replies land right here in your portal inbox.',
-    subShort: 'Message us — replies land right here in your portal inbox.', cta: 'MESSAGE US →'
-  },
-  bio: { pending: 'Bio to follow — the team is preparing it. Follow Plexus and hear when the full profiles go up.', sessions: 'SESSIONS', none: 'No session published for this speaker yet — it appears here the moment the program is out.', add: '＋ ADD TO MY SCHEDULE', added: '✓ IN MY SCHEDULE' },
+  help: { ask: 'Message us', overview: 'Attending, speaking, sponsoring', program: 'Questions about the program', zagreb: 'Planning your trip', mine: 'Your registration or Gala seat' },
+  bio: { pending: 'Bio to follow — the team is preparing it.', sessions: 'Sessions', none: 'No session published for this speaker yet.', add: '＋ Add to my schedule', added: '✓ In my schedule' },
   prog: {
-    n: '01', title: 'THE PROGRAM', ics: 'ADD TO CALENDAR →', pdf: 'DOWNLOAD PROGRAM · PDF', hint: 'Tap a day to expand its sessions.',
-    expand: '▼ EXPAND', collapse: '▲ COLLAPSE',
-    prepLine: 'The detailed program is in preparation — session times appear here as they are published, and registered members hear first.',
+    title: 'Program &amp; speakers', lede: dates => `${dates} · Novinarski dom, Zagreb`,
+    n: '01', daysTitle: 'The days',
+    ics: 'Add to calendar', icsSub: 'Both days and the Gala', pdf: 'Download the program', pdfSub: 'PDF, updated as sessions are published',
+    prepLine: 'Session times appear here as they are published.',
     timesNote: 'Final session times are published closer to the event.',
-    register: 'REGISTER — FREE →', mine: 'MY PLEXUS →',
-    daySummary: (n, first) => `${n} session${n === 1 ? '' : 's'} · ${first}${n > 1 ? ' …' : ''}`,
-    add: '＋ ADD', added: '✓ ADDED',
-    // UX audit 2026-09-02 › item 9: the ALL/PLEXUS/GALA chips could never change a result (every
-    // speaker is tagged PLEXUS · GALA) and a search box stood over four names; both are gone until
-    // the roster passes ~12. The helper line went too — each card already says BIO + ADD SESSION.
-    spN: '02', spTitle: 'SPEAKERS',
-    bioAdd: 'BIO + ADD SESSION →',
+    register: 'Register — free', registerSub: 'Conference and Gala, one form', mine: 'My Plexus', mineSub: 'You are registered · your pass and schedule',
+    sessions: n => `${n} session${n === 1 ? '' : 's'}`,
+    add: 'Add', added: 'Added',
+    spN: '02', spTitle: 'Speakers',
     spEmpty: 'No speakers announced yet.',
-    spEmptyWhy: 'Names go up here as the team confirms them — follow Plexus to hear first.'
+    spEmptyWhy: 'Names go up here as the team confirms them.'
   },
   zagreb: {
-    eyebrow: 'PLEXUS 2026 · YOUR DECEMBER IN CROATIA’S CAPITAL', title: 'Dobrodošli u Zagreb.',
-    line: 'Austro-Hungarian elegance, Mediterranean warmth, and Europe’s best advent season — compact, walkable, and at its most magical in December.',
-    guide: 'DOWNLOAD THE WELCOME GUIDE', myPlexus: 'MY PLEXUS →',
-    stopsN: '01', stopsTitle: 'SIX STOPS BEFORE DINNER', stopsSub: 'All in the walkable centre, an easy stroll from the venue.',
+    eyebrow: 'Your December', title: 'Dobrodošli u <i>Zagreb</i>',
+    line: 'Walkable, warm, and at its best in December.',
+    guide: 'DOWNLOAD THE WELCOME GUIDE',
+    stopsN: '01', stopsTitle: 'Six stops before dinner', stopsSub: 'All in the walkable centre, near the venue.',
     stops: [
-      { n: '01', name: 'Ban Jelačić Square', note: 'The city’s beating heart — cafés on every side, advent stalls in December. 5 minutes from the venue.' },
+      { n: '01', name: 'Ban Jelačić Square', note: 'The city’s heart, five minutes from the venue.' },
       { n: '02', name: 'St. Mark’s Church', note: 'The famous tiled roof, coats of arms and all.' },
-      { n: '03', name: 'Zagreb Cathedral', note: 'Zagreb’s grand dame over Kaptol — rising again, stone by stone, after the 2020 earthquake.' },
-      { n: '04', name: 'Dolac Market', note: 'The “Belly of Zagreb” — red umbrellas, morning buzz.' },
+      { n: '03', name: 'Zagreb Cathedral', note: 'Rising again, stone by stone, after the 2020 earthquake.' },
+      { n: '04', name: 'Dolac Market', note: 'The “Belly of Zagreb”: red umbrellas, morning buzz.' },
       { n: '05', name: 'Upper Town at dusk', note: 'Cobblestones, the Stone Gate, gas lamps lit by hand.' },
-      { n: '06', name: 'Tkalčićeva Street', note: 'Café-lined and lively till late — end the night here.' }
+      { n: '06', name: 'Tkalčićeva Street', note: 'Café-lined and lively till late.' }
     ],
-    bonus: { title: 'December bonus: Advent in Zagreb', note: 'Voted Europe’s best Christmas market three years running — mulled wine, lights, and music on every square.' },
-    tasteN: '02', tasteTitle: 'TASTE ZAGREB', tasteSub: 'Come hungry.',
+    bonus: { title: 'Advent in Zagreb', note: 'Voted Europe’s best Christmas market three years running' },
+    tasteN: '02', tasteTitle: 'Taste Zagreb',
     taste: [
-      { name: 'Štrukli', note: 'Baked dough, fresh cheese, sour cream — the city’s signature comfort.' },
-      { name: 'Ćevapi', note: 'The Balkan classic — flatbread, raw onion, ajvar. No cutlery required.' },
-      { name: 'Croatian wine', note: '130+ native grapes — start with a Graševina, stay for the Plavac Mali.' },
-      { name: 'Craft beer', note: 'The Garden, Zmajska, Nova Runda — a scene in full swing.' }
+      { name: 'Štrukli', note: 'Baked dough, fresh cheese, sour cream.' },
+      { name: 'Ćevapi', note: 'Flatbread, raw onion, ajvar.' },
+      { name: 'Croatian wine', note: 'Start with a Graševina, stay for Plavac Mali.' },
+      { name: 'Craft beer', note: 'The Garden, Zmajska, Nova Runda.' }
     ],
-    aroundTitle: '03 · GETTING AROUND',
+    aroundN: '03', aroundTitle: 'Getting around',
     around: [
-      { b: 'On foot', t: '&nbsp;— the centre is compact and walkable' },
-      { b: 'Blue trams', t: '&nbsp;— Zagreb’s classic way around · ZET app' },
-      { b: 'Bolt &amp; Uber', t: '&nbsp;— available across the city and from the airport' }
+      { icon: 'user', b: 'On foot', t: 'The centre is compact and walkable' },
+      { icon: 'globe', b: 'Blue trams', t: 'Zagreb’s classic way around · ZET app' },
+      { icon: 'pin', b: 'Bolt &amp; Uber', t: 'Across the city and from the airport' }
     ],
-    closing: 'December in Zagreb: advent stalls, mulled wine, and the season’s best conversations.',
     guideDone: 'The welcome guide opened in a new tab — save it for December.'
   },
   mine: {
-    eyebrow: { open: 'MY PLEXUS · PRE-REGISTRATION OPEN', closed: 'MY PLEXUS · PRE-REGISTRATION OPENS SOON', registered: 'MY PLEXUS · YOU ARE REGISTERED', galaPending: 'MY PLEXUS · GALA SEAT REQUESTED', galaApproved: 'MY PLEXUS · GALA SEAT APPROVED — PAYMENT OPEN', galaPaid: 'MY PLEXUS · REGISTERED · GALA SEAT PAID' },
-    title: 'Your Plexus <i>2026</i>.',
-    lead: {
-      none: 'The conference is <strong style="color:#191512">free</strong> — two full days, keynotes, workshops, and the opening evening. The Gala Evening seat is the only thing with a price. One form covers both.',
-      registered: 'You are in — two full days, keynotes, workshops, and the opening evening, <strong style="color:#191512">free</strong>. The Gala Evening seat is the only thing left with a price.',
-      galaPending: 'Your Gala seat request is with the team. Once it is approved you get a payment link — and your conference registration stays free either way.',
-      galaApproved: 'Your Gala seat is approved — settle the payment and the seat is yours. Everything else about your Plexus stays free.',
-      galaPaid: 'Everything is set: conference registered, Gala seat paid. Your QR pass below opens every door you registered for.'
+    title: 'Your Plexus <i>2026</i>',
+    lede: {
+      none: 'The conference is free. The Gala seat is the only thing with a price.',
+      registered: 'You are registered. The Gala seat is the only thing left with a price.',
+      galaPending: 'Your Gala seat request is with the team. A payment link follows once it is approved.',
+      galaApproved: 'Your Gala seat is approved. Settle the payment and the seat is yours.',
+      galaPaid: 'Everything is set: conference registered, Gala seat paid.'
     },
     register: `${CTA.register} →`, addGala: 'ADD THE GALA →', pay: 'PAY FOR YOUR SEAT →', tickets: 'MY TICKETS →',
-    ctaSub: { none: 'OPENS THE REGISTRATION FORM · PICK EITHER OR BOTH', gala: 'OPENS THE SAME FORM · GALA PRESELECTED', pay: 'SECURE CARD PAYMENT · STRIPE', done: 'TICKETS, RECEIPTS &amp; WALLET PASSES LIVE IN MY MED&amp;X' },
-    facts: { conference: 'Conference', gala: 'Gala Evening', eb: 'Gala early bird', until: l => `UNTIL ${l}` },
-    includedN: '01', includedTitle: "WHAT'S INCLUDED",
+    ctaSub: { none: 'Opens the registration form · pick either or both', gala: 'Opens the same form, Gala preselected', pay: 'Secure card payment · Stripe', done: 'Tickets, receipts and wallet passes live in My Med&amp;X' },
+    facts: { conference: 'Conference', confSub: 'Free entry', gala: 'Gala Evening', galaSub: (p, l, p2) => `${p} until ${l}, ${p2} after` },
+    includedN: '01', includedTitle: "What's included",
     confCard: {
-      title: 'Plexus Conference', tag: 'FREE ENTRY', tagDone: '✓ REGISTERED',
-      items: (d, first, from) => [`Both conference days — ${d}`, 'All keynotes, panels, and research sessions', 'Workshops and poster sessions', `Opening &amp; networking evening — ${first}, from ${from}`, 'Certificate of attendance'],
+      title: 'Plexus Conference', tag: 'Free', tagDone: 'Registered',
+      items: (d, first, from) => [`Both conference days · ${d}`, 'Keynotes, panels and research sessions', `Opening day · ${first}, from ${from}`, 'Certificate of attendance'],
       cta: `${CTA.register} →`, ctaDone: 'VIEW TICKET →'
     },
     galaCard: {
-      title: 'Gala Evening <i style="color:#c9a962">&amp;</i> Awards', price: p => `${p} PER GUEST`, tagPaid: '✓ SEAT PAID', tagPending: 'SEAT REQUESTED', tagApproved: 'APPROVED · PAY NOW',
-      items: ['Five-course gala dinner with wine pairing', 'Med&amp;X Annual Awards ceremony', 'Live music and entertainment', 'Keynote speaker meet &amp; greet', 'Black tie / formal evening attire'],
+      title: 'Gala Evening <i>&amp;</i> Awards', price: p => `${p} per guest`, tagPaid: 'Seat paid', tagPending: 'SEAT REQUESTED', tagApproved: 'Approved · pay now',
+      items: ['Five-course dinner with wine pairing', 'The Med&amp;X Annual Awards', 'Live music', 'Black tie'],
       cta: price => `${CTA.reserve(price)} →`, ctaPay: 'PAY FOR YOUR SEAT →', ctaPaid: 'VIEW TICKET →'
     },
-    knowN: '02', knowTitle: 'GOOD TO KNOW',
+    knowN: '02', knowTitle: 'Good to know',
     know: [
-      { tag: 'EARLY BIRD', title: 'Seats are capped', note: (p, l, p2) => `Book your Gala seat by ${l} for ${p} — the room is kept intentionally small, and Gala seats go first. After that the seat is ${p2}.` },
-      // UX audit 2026-09-02 › item 15: the note promised a transfer "right from this page" to
-      // members with nothing to transfer. It says what the policy is until a seat exists, and only
-      // then does it point at the control that is genuinely on this card.
-      { tag: 'CAN’T MAKE IT?', title: 'Transfer to a colleague',
+      { title: 'Seats are capped', note: (p, l, p2) => `Book your Gala seat by ${l} for ${p}; after that the seat is ${p2}. The room is kept small and Gala seats go first.` },
+      // UX audit 2026-09-02 › item 15: the transfer control is offered only to a member who holds something.
+      { title: 'Transfer to a colleague',
         note: (p, l, p2, holds) => (holds
-          ? 'Seats are non-refundable — but you can transfer your seat to a colleague up to the day of the event, right from this page.'
-          : 'Seats are non-refundable — once you hold one, you can transfer it to a colleague up to the day of the event.'),
-        act: 'transfer', actLabel: 'TRANSFER →', actLabelSeat: 'TRANSFER YOUR SEAT →' },
-      { tag: 'QUESTIONS?', title: 'We’re one message away', note: () => 'Anything about your registration or Gala seat — message us and replies land in your portal inbox.', href: '/app/messages?about=plexus', actLabel: 'OPEN MESSAGES →' }
+          ? 'Seats are non-refundable. You can transfer your seat to a colleague up to the day of the event.'
+          : 'Seats are non-refundable. Once you hold one, you can transfer it to a colleague up to the day of the event.'),
+        act: 'transfer', actLabel: 'Transfer →', actLabelSeat: 'Transfer your seat →' }
     ],
-    passN: '03', passTitle: 'MY PASS',
+    passN: '03', passTitle: 'My pass',
     passEmptyLine: 'Your QR pass appears here once you register.',
-    passEmptyWhy: 'One QR for everything you registered for — also in <a href="/app/me">My Med&amp;X</a> and your phone wallet.',
-    passNote: 'One QR for everything you registered for — also in <a href="/app/me">My Med&amp;X</a> and your phone wallet.',
+    passEmptyWhy: 'One QR for everything you registered for, also in <a href="/app/me">My Med&amp;X</a>.',
+    passNote: 'One QR for everything you registered for, also in <a href="/app/me">My Med&amp;X</a> and your phone wallet.',
     passPending: 'Awaiting payment — the QR appears the moment the seat is settled.',
-    whoN: '04', whoTitle: 'WHO FROM YOUR NETWORK ATTENDS', attending: n => `${n} ATTENDING`,
-    whoEmptyLine: 'No attendees on the public list yet.', whoEmptyWhy: 'Members who register and share their profile show up here — say hello before December.',
-    message: 'MESSAGE →', findMore: 'FIND MORE ATTENDEES · OPEN MEMBER DIRECTORY →',
+    whoN: '04', whoTitle: 'Who from your network attends', attending: n => `${n} attending`,
+    whoEmptyLine: 'No attendees on the public list yet.', whoEmptyWhy: 'Members who register and share their profile show up here.',
+    message: 'Message', findMore: 'Find more attendees', findMoreSub: 'Open the member directory',
     transfer: {
       eyebrow: 'PLEXUS · TICKET TRANSFER', title: 'Transfer to a colleague',
       body: 'The team approves every transfer. Your colleague takes over the registration exactly as it stands.',
@@ -245,15 +226,15 @@ function ensureCss() {
 }
 
 // ---------------------------------------------------------------- date/price helpers
-function d3(iso) { const d = fmt.toDate(iso); return d ? `${WD3[d.getDay()]}, ${MON3[d.getMonth()]} ${d.getDate()}` : ''; }
+// '4–5 Dec 2026' · '5 Dec 2026' · '30 Nov – 2 Dec 2026'
 function shortRange(a, b) {
   const x = fmt.toDate(a), y = fmt.toDate(b);
   if (!x) return '';
-  if (!y || x.getTime() === y.getTime()) return `${MON3[x.getMonth()]} ${x.getDate()}, ${x.getFullYear()}`;
-  if (x.getMonth() === y.getMonth()) return `${MON3[x.getMonth()]} ${x.getDate()}–${y.getDate()}, ${x.getFullYear()}`;
-  return `${MON3[x.getMonth()]} ${x.getDate()} – ${MON3[y.getMonth()]} ${y.getDate()}, ${y.getFullYear()}`;
+  if (!y || x.getTime() === y.getTime()) return `${x.getDate()} ${MON3[x.getMonth()]} ${x.getFullYear()}`;
+  if (x.getMonth() === y.getMonth()) return `${x.getDate()}–${y.getDate()} ${MON3[x.getMonth()]} ${x.getFullYear()}`;
+  return `${x.getDate()} ${MON3[x.getMonth()]} – ${y.getDate()} ${MON3[y.getMonth()]} ${y.getFullYear()}`;
 }
-function monthDay(iso) { const d = fmt.toDate(iso); return d ? `${MON3[d.getMonth()]} ${d.getDate()}` : ''; }
+function dayMon(iso) { const d = fmt.toDate(iso); return d ? `${d.getDate()} ${MON3[d.getMonth()]}` : ''; }
 function hhmm(t) { const m = String(t || '').match(/(\d{1,2}):(\d{2})/); return m ? `${m[1].padStart(2, '0')}:${m[2]}` : ''; }
 function eachDay(a, b) {
   const out = []; const x = fmt.toDate(a), y = fmt.toDate(b) || x;
@@ -262,6 +243,7 @@ function eachDay(a, b) {
   return out;
 }
 function norm(s) { return String(s || '').toLowerCase().replace(/[^a-z]/g, ''); }
+const mapUrl = q => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
 
 // ---------------------------------------------------------------- data
 async function load(t) {
@@ -314,6 +296,7 @@ async function load(t) {
   const sessions = ((r.schedule && r.schedule.sessions) || []).slice();
   const speakers = (Array.isArray(r.speakers) ? r.speakers : []).slice();
   const galaSpeakerNames = (Array.isArray(gala.speakers) ? gala.speakers : []).map(g => norm(g.name));
+  const liveConf = ((r.live && r.live.events) || []).find(e => e && e.key === 'conference') || null;
 
   const start = conf.start_date || confFull.start_date || FACTS.plexus.start;
   const end = conf.end_date || confFull.end_date || FACTS.plexus.end;
@@ -327,19 +310,21 @@ async function load(t) {
       range: conf.date_range || fmt.longRange(start, end),
       venue: conf.venue_name || confFull.venue_name || FACTS.plexus.venue,
       city: conf.venue_city || confFull.venue_city || FACTS.plexus.city,
+      address: (liveConf && liveConf.address) || '',
       open: conf.registration_open !== undefined ? !!conf.registration_open : true,
       cap: Number(confFull.max_capacity) || null,
       spotsLeft: Number.isFinite(Number(confFull.spots_remaining)) ? Number(confFull.spots_remaining) : null,
       startTime: plexusStartTime(r.live)
     },
     countdownTo: plexusStartsAt(r.live, start),
-    statusLabel: fmt.upper(fmt.detail((projects.plexus || {}).status_label || 'Pre-registration open')),
+    statusLabel: fmt.detail((projects.plexus || {}).status_label || 'Pre-registration open'),
     gala: {
       title: gala.title || `Plexus Gala Evening ${FACTS.year}`,
       date: gala.date || FACTS.gala.date, time: hhmm(gala.time) || FACTS.gala.time,
       venueFull: galaVenueFull, venueShort: galaVenueShort,
       price: galaPrice, priceRegular: galaRegular, ebDeadline: galaEbDeadline, ebActive,
-      speakers: galaSpeakerNames
+      speakers: galaSpeakerNames,
+      people: Array.isArray(gala.speakers) ? gala.speakers.filter(g => g && g.name) : []
     },
     sessions, speakers,
     meta: (r.meta && r.meta.meta) || {},
@@ -373,23 +358,8 @@ function speakerRole(sp) {
   const joined = t && inst && !norm(t).includes(norm(inst)) ? `${t}, ${inst}` : (t || inst);
   return joined.replace(/\s*;\s*/g, ' · ');
 }
-function instShort(sp) {
-  const s = String(sp.institution || '').trim();
-  if (!s) return 'INSTITUTION';
-  if (s.length <= 16) return s.toUpperCase();
-  return s.split(/\s+/).filter(w => !/^(of|the|and|for|de)$/i.test(w)).map(w => w[0]).join('').toUpperCase();
-}
 function speakerSessions(sp) {
   return D.sessions.filter(s => String(s.speaker_ids || '').split(',').map(x => x.trim()).includes(sp.id));
-}
-function speakerTag(sp) {
-  const meta = D.meta[sp.id] || {};
-  if (meta.event_tag) return meta.event_tag === 'both' ? 'PLEXUS · GALA' : meta.event_tag.toUpperCase();
-  const atGala = D.gala.speakers.includes(norm(sp.name));
-  const atPlexus = !!sp.talk_title || speakerSessions(sp).length > 0;
-  // Alen 2026-08-31: the four headliners speak at BOTH the conference and the Gala
-  if (atGala) return 'PLEXUS · GALA';
-  return 'PLEXUS';
 }
 function icsEvents() {
   const evs = [];
@@ -402,39 +372,56 @@ function icsEvents() {
   return evs;
 }
 
+// ---------------------------------------------------------------- kit helpers (DESIGN-RULES §10)
+const icon = (n, s) => ui.icon(n, s || 20);
+const chev = () => ui.icon('chevron-right', 18);
+function sectionHead(n, title, right) {
+  return `<div class="mx-sh">${n ? `<span class="mx-sh-n">${n}</span>` : ''}<h2 class="mx-sh-t">${title}</h2>${right || ''}</div>`;
+}
+function fact({ ic, v, s, go, act, attrs }) {
+  const open = act ? `<li class="mx-fact" data-act="${act}"${attrs || ''}>` : '<li class="mx-fact">';
+  return `${open}${icon(ic)}<div class="mx-fact-body"><span class="mx-fact-v">${v}</span>${s ? `<span class="mx-fact-s">${s}</span>` : ''}</div>${go || ''}</li>`;
+}
+function listRow({ href, act, ic, l, s, attrs }) {
+  const inner = `${icon(ic)}<span class="mx-row-l">${l}${s ? `<span class="mx-row-s">${s}</span>` : ''}</span>${chev()}`;
+  return href ? `<a class="mx-row" href="${href}"${attrs || ''}>${inner}</a>` : `<span class="mx-row" data-act="${act}" role="button"${attrs || ''}>${inner}</span>`;
+}
+function followFact(label) {
+  return `<li class="mx-fact" data-block="follow">${icon('bell')}<div class="mx-fact-body"><span class="mx-fact-v">${COPY.facts.follow}</span><span class="mx-fact-s" data-role="follow-label">${COPY.facts.followSub(D.followed)}</span></div><span data-act="tgFollow" role="switch" aria-checked="${D.followed}" aria-label="${esc(label)}" class="mx-switch"><span></span></span></li>`;
+}
+
 // ---------------------------------------------------------------- shared blocks
 function crumb(items) {
-  const sep = '<span style="color:rgba(25,21,18,.35);font-size:10px">→</span>';
+  const sep = '<span style="color:rgba(25,21,18,.35);font-size:12px">→</span>';
   return `
-  <!-- dc: Plexus Conference.dc.html › "Breadcrumb" -->
+  <!-- dc: Plexus Conference.dc.html › "Breadcrumb" (desktop; phones carry back in the top bar) -->
   <div class="mx-crumbs mx-gutter" style="display:flex;align-items:center;gap:13px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
     ${items.map((it, i) => (i ? sep + '\n    ' : '') + (it.to
-      ? `<a href="${it.to}" data-dir="back" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239" data-hover="color:#191512">${it.label}</a>`
-      : `<span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:${i ? '#191512' : '#4a4239'}">${it.label}</span>`)).join('\n    ')}
+      ? `<a href="${it.to}" data-dir="back" style="font:600 12px Inter,sans-serif;letter-spacing:.12em;color:#4a4239" data-hover="color:#191512">${it.label}</a>`
+      : `<span style="font:600 12px Inter,sans-serif;letter-spacing:.12em;color:${i ? '#191512' : '#4a4239'}">${it.label}</span>`)).join('\n    ')}
     <div style="flex:1"></div>
   </div>
   <!-- /dc -->`;
 }
+// the four tabs as one segmented control (data-tabs keeps it lit and still while a tab changes), and the event
+// app as one quiet row card under it — on every tab
 function tabStrip() {
   return `
-  <!-- dc: Plexus Conference.dc.html › "Section tabs" -->
-  <div class="mx-plexus-tabs mx-gutter" data-tabs="plexus" style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;border-bottom:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
-    ${TABS.map(t => t.key === tab
-      ? `<span class="mx-tab is-on" aria-current="page" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22">${t.label}</span>`
-      : `<a href="${t.to}" class="mx-tab" style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#4a4239;text-decoration:none" data-hover="color:#191512">${t.label}</a>`).join('\n    ')}
-    <a href="/app/live" data-v2="Plexus Week Live — the event app (docs/EVENT-APP-BRIEF.md)" style="display:inline-flex;align-items:center;gap:7px;font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;text-decoration:none;white-space:nowrap" data-hover="color:#7e151b"><span style="width:6px;height:6px;background:#9b1b22;display:inline-block"></span>${COPY.live}</a>
-  </div>
-  <!-- /dc -->`;
+  <section class="mx-sec mx-sec--tight mx-px-nav">
+    <nav class="mx-seg mx-px-seg" data-tabs="plexus" aria-label="Plexus">
+      ${TABS.map(t => t.key === tab
+        ? `<span class="is-on" aria-current="page">${t.label}</span>`
+        : `<a href="${t.to}">${t.label}</a>`).join('\n      ')}
+    </nav>
+    <a href="/app/live" class="mx-linkcard mx-px-live" data-v2="Plexus Week Live — the event app (docs/EVENT-APP-BRIEF.md)" aria-label="${esc(COPY.live.replace(' →', ''))}">${icon('sparkle')}<span class="mx-row-l">${COPY.liveRow.title}<span class="mx-row-s">${COPY.liveRow.sub}</span></span>${chev()}</a>
+  </section>`;
 }
-function blockHelp(line, sub, border) {
+function blockHelp(sub) {
   return `
   <!-- dc: Plexus Conference.dc.html › "Message us" -->
-  <div class="mx-gutter" style="display:flex;align-items:center;gap:20px;${border ? 'border-top:1px solid rgba(25,21,18,.16);' : ''}padding:18px 36px 30px;flex-wrap:wrap">
-    <span style="font-family:Fraunces,serif;font-style:italic;font-size:16px;color:#4a4239">${line}</span>
-    <span style="font-size:12px;color:#4a4239">${sub}</span>
-    <div style="flex:1"></div>
-    <a href="/app/messages?about=plexus" style="padding:10px 16px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.help.cta}</a>
-  </div>
+  <section class="mx-sec">
+    <div class="mx-list">${listRow({ href: '/app/messages?about=plexus', ic: 'mail', l: COPY.help.ask, s: sub })}</div>
+  </section>
   <!-- /dc -->`;
 }
 function blockBio() {
@@ -442,114 +429,93 @@ function blockBio() {
   const sp = D.speakers.find(s => s.id === st.bio);
   if (!sp) return '';
   const sess = speakerSessions(sp);
+  const name = fmt.person(sp.name);
+  // the program's speaker rows carry no bio yet; the Gala's roster does for the same people — use it rather than "bio to follow"
+  const key = portraitKey(sp);
+  const twin = !sp.bio && D.gala.people.find(g => (key && portraitKey(g) === key) || norm(g.name) === norm(sp.name));
+  const bio = sp.bio || (twin && twin.bio) || '';
   return `
   <!-- dc: Plexus Conference.dc.html › "Bio modal" -->
-  <div data-role="bio-scrim" role="dialog" aria-modal="true" aria-label="Speaker bio" style="position:fixed;inset:0;background:rgba(25,21,18,.55);z-index:70;display:flex;align-items:center;justify-content:center;padding:30px">
-    <div class="mx-bio-sheet" style="background:#fdfaf3;max-width:520px;width:100%;padding:26px 30px;border-top:3px solid #9b1b22">
-      <div style="display:flex;align-items:baseline;gap:12px"><span style="font-family:Fraunces,serif;font-size:24px;flex:1">${esc(fmt.person(sp.name))}</span><span data-act="bioClose" role="button" tabindex="0" aria-label="Close" style="cursor:pointer;color:#4a4239;font-size:18px">×</span></div>
-      <div style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;margin-top:4px">${esc(fmt.upper(speakerRole(sp)))}</div>
-      <div style="font-size:13px;color:#4a4239;line-height:1.65;margin-top:12px">${sp.bio ? esc(sp.bio) : `<i>${esc(COPY.bio.pending)}</i>`}</div>
-      <div data-v2="speaker sessions + add-to-my-schedule (Program page wiring map)" style="margin-top:16px;border-top:1px solid rgba(25,21,18,.12);padding-top:12px">
-        <div style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#6e5626;margin-bottom:8px">${COPY.bio.sessions}</div>
-        ${sess.length ? sess.map(s => `
-        <div style="display:flex;gap:12px;align-items:baseline;padding:6px 0">
-          <span style="font:600 10px Inter,sans-serif;color:#9b1b22;flex:none">${esc(hhmm(s.start_time))}</span>
-          <span style="font-size:12.5px;color:#191512;flex:1">${esc(s.title || 'Session')}</span>
-          <span data-act="tgSession" data-id="${esc(s.id)}" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:${D.mySched.has(s.id) ? '#6e5626' : '#9b1b22'};cursor:pointer;white-space:nowrap">${D.mySched.has(s.id) ? COPY.bio.added : COPY.bio.add}</span>
-        </div>`).join('') : `<div style="font-size:12px;color:#4a4239;font-style:italic">${esc(COPY.bio.none)}</div>`}
+  <div data-role="bio-scrim" role="dialog" aria-modal="true" aria-label="Speaker bio" class="mx-bio-scrim">
+    <div class="mx-bio-sheet">
+      <span data-act="bioClose" role="button" tabindex="0" aria-label="Close" class="mx-iconbtn mx-bio-x">${icon('x')}</span>
+      <div class="mx-bio-head">
+        ${ui.portrait({ name, src: portraitSrc(sp), size: 96, alt: '' })}
+        <div class="mx-bio-name">${esc(name)}</div>
+        <div class="mx-bio-role">${esc(speakerRole(sp))}</div>
+      </div>
+      <p class="mx-bio-text">${bio ? esc(bio) : `<i>${esc(COPY.bio.pending)}</i>`}</p>
+      <div data-v2="speaker sessions + add-to-my-schedule (Program page wiring map)" class="mx-bio-sess">
+        <div class="mx-bio-sess-h">${COPY.bio.sessions}</div>
+        ${sess.length ? `<ol class="mx-timeline">${sess.map(s => `
+          <li class="mx-tl-row"><time class="mx-tl-time">${esc(hhmm(s.start_time))}</time><div class="mx-tl-body"><span class="mx-tl-title">${esc(s.title || 'Session')}</span>
+            <span data-act="tgSession" data-id="${esc(s.id)}" class="mx-px-add${D.mySched.has(s.id) ? ' is-on' : ''}">${D.mySched.has(s.id) ? COPY.bio.added : COPY.bio.add}</span></div></li>`).join('')}</ol>`
+          : `<p class="mx-bio-none">${esc(COPY.bio.none)}</p>`}
       </div>
     </div>
   </div>
   <!-- /dc -->`;
+}
+// ONE speaker card everywhere (the Gala's): a 96 circle from the bundled crop, name, role
+function speakerCard(sp) {
+  const name = fmt.person(sp.name);
+  return `
+      <div class="mx-person" data-act="vb" data-id="${esc(sp.id)}" aria-label="${esc(name)}, biography">
+        ${ui.portrait({ name, src: portraitSrc(sp), size: 96, alt: '' })}
+        <span class="mx-person-name">${esc(name)}</span>
+        <span class="mx-person-role">${esc(speakerRole(sp))}</span>
+      </div>`;
 }
 
 // ---------------------------------------------------------------- OVERVIEW (Plexus Conference.dc.html)
-// UX audit 2026-09-02 › item 12: the hero used to offer "I'M INTERESTED" directly above the
-// "GET UPDATES FROM PLEXUS · OFF" toggle — two adjacent controls setting the same follow flag, and
-// no way to tell what either committed you to. The labelled toggle is the better control because it
-// shows its state, so it is the only one left. Hero: register + schedule, then the toggle.
+// UX audit 2026-09-02 › item 12: the follow control is one labelled switch — now a row in the facts.
 function ovHero() {
-  const on = D.followed;
-  const capBit = D.conf.cap ? `CAPPED AT ${fmt.num(D.conf.cap)} SEATS` : '';
+  const d1 = fmt.toDate(D.conf.start), d2 = fmt.toDate(D.conf.end);
+  const date = d1 ? `${d1.getDate()}${d2 && d2.getTime() !== d1.getTime() ? '–' + d2.getDate() : ''} ${MON3[d1.getMonth()]} · ${D.conf.city}` : D.conf.city;
   return `
   <!-- dc: Plexus Conference.dc.html › "Hero" -->
-  <div class="mx-ink" style="position:relative;overflow:hidden">
-    <img class="mx-hero-photo" src="/assets/photo-stage.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
-    <div class="mx-px-scrim" style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(25,21,18,.66) 0%,rgba(25,21,18,.5) 55%,rgba(25,21,18,.82) 100%)"></div>
-    <div class="mx-pad-hero" style="position:relative;padding:54px 36px 44px;display:flex;flex-direction:column;align-items:center;text-align:center">
-      <span style="padding:6px 12px;border:1px solid rgba(201,169,98,.7);color:#c9a962;font:600 10px Inter,sans-serif;letter-spacing:.18em">${esc(D.statusLabel)} · FREE · ${FACTS.plexus.edition}TH YEAR${capBit ? ' · ' + esc(capBit) : ''}</span>
-      <div class="mx-display-52" style="font-family:Fraunces,serif;font-size:52px;line-height:1.08;color:#f7f1e6;margin-top:20px">${esc(D.conf.name.replace(/\s*\d{4}$/, ''))} <i style="color:#c9a962">${esc(String(D.conf.year))}</i></div>
-      <div style="font-size:15px;color:rgba(247,241,230,.85);margin-top:10px">${esc(COPY.hero.line(D.conf.range, `${D.conf.venue}, ${D.conf.city}`))}</div>
-      <div style="display:flex;gap:13px;margin-top:26px;justify-content:center;flex-wrap:wrap">
+  <section class="mx-hero mx-ink mx-px-hero">
+    <img class="mx-hero-photo mx-px-heroimg" src="/assets/photo-stage.jpg" alt="">
+    <div class="mx-scrim"></div>
+    <div class="mx-hero-body">
+      <span class="mx-hero-eyebrow">${esc(COPY.hero.eyebrow(D.conf.year))}</span>
+      <h1 class="mx-hero-title">${COPY.hero.title}</h1>
+      <p class="mx-hero-date">${esc(date)}</p>
+      <div class="mx-hero-cta">
         ${D.next.registered
-          ? `<a href="/app/plexus/mine" style="padding:13px 22px;background:#9b1b22;color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;text-decoration:none;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.hero.mine}</a>`
-          : `<a href="${formUrl('conference')}" style="padding:13px 22px;background:#9b1b22;color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;text-decoration:none;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.hero.register}</a>`}
-        <a href="/app/plexus/program" style="padding:13px 22px;border:1px solid rgba(247,241,230,.45);color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;text-decoration:none;white-space:nowrap" data-hover="border-color:#f7f1e6;color:#f7f1e6">${COPY.hero.schedule}</a>
-      </div>
-      <div style="display:flex;align-items:center;gap:10px;margin-top:20px">
-        <span data-act="tgFollow" role="switch" aria-checked="${on}" aria-label="Get updates from Plexus" class="mx-switch"><span></span></span>
-        <span style="display:flex;flex-direction:column;gap:3px;text-align:left"><span data-role="follow-label" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.8)">${COPY.hero.follow(on)}</span><span style="font-size:10.5px;color:rgba(247,241,230,.5)">${COPY.hero.followSub}</span></span>
+          ? `<a href="/app/plexus/mine" class="btn-gold btn-block">${COPY.hero.mine}</a>`
+          : `<a href="${formUrl('conference')}" class="btn-gold btn-block">${COPY.hero.register}</a>`}
       </div>
     </div>
-  </div>
+  </section>
   <!-- /dc -->`;
 }
-function ovBand() {
-  const cell = (id, unit) => `<span style="display:flex;align-items:baseline;gap:6px"><span data-cd="${id}" style="font-family:Fraunces,serif;font-size:24px">—</span><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.65)">${unit}</span></span>`;
-  const vr = '<span style="width:1px;height:18px;background:rgba(247,241,230,.25)"></span>';
-  const ebLabel = D.gala.ebActive ? COPY.band.eb(fmt.upper(monthDay(D.gala.ebDeadline))) : COPY.band.ebPast;
+function ovCountdown() {
+  const cell = (id, unit) => `<span class="mx-cd-cell"><b class="mx-cd-num" data-cd="${id}">—</b><i class="mx-cd-unit">${unit}</i></span>`;
   return `
-  <!-- dc: Plexus Conference.dc.html › "Countdown band" -->
-  <div class="mx-pad-band mx-px-band" style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;background:#191512;color:#f7f1e6;flex-wrap:wrap">
-    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.18em;color:#c9a962">${COPY.band.startsIn}</span>
-    ${cell('days', COPY.band.units[0])}
-    ${cell('hrs', COPY.band.units[1])}
-    ${cell('min', COPY.band.units[2])}
-    <span class="mx-band-break" aria-hidden="true"></span>
-    ${vr}
-    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.9)">${esc(ebLabel)}</span>
-    ${vr}
-    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.9)">${esc(fmt.upper(`${shortRange(D.conf.start, D.conf.end).replace(/, \d{4}$/, '')} · ${D.conf.venue}, ${D.conf.city}`))}</span>
-    ${vr}
-    <span data-act="dlIcs" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#c9a962;cursor:pointer;white-space:nowrap">${COPY.band.ics}</span>
-  </div>
-  <!-- /dc -->`;
+  <div class="mx-countdown" role="timer" aria-label="Time until Plexus begins">
+    <span class="mx-cd-label">${COPY.countdown.label}</span>
+    ${cell('days', COPY.countdown.units[0])}${cell('hrs', COPY.countdown.units[1])}${cell('min', COPY.countdown.units[2])}
+  </div>`;
 }
-function speakerCard(sp, { program } = {}) {
-  const meta = D.meta[sp.id] || {};
-  const portrait = sp.photo_url
-    ? `<img class="mx-portrait" src="${esc(sp.photo_url)}" alt="${esc(sp.name)}" loading="lazy">`
-    : ui.monogram(sp.name, 54);
-  const logo = meta.institution_logo_url
-    ? `<img class="mx-logo" src="${esc(meta.institution_logo_url)}" alt="${esc(sp.institution || '')}" loading="lazy">`
-    : '';   // no logo on file → nothing (the role line above already names the institution)
-  if (program) return `
-      <div class="mx-card-link mx-sp-card" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column">
-        <div class="mx-ph" style="aspect-ratio:1/1;background:#191512;position:relative;overflow:hidden">${portrait}<span style="position:absolute;top:10px;left:10px;padding:2px 7px;border:1px solid rgba(201,169,98,.65);background:#fdfaf3;color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">${esc(speakerTag(sp))}</span></div>
-        <div style="padding:14px 16px;display:flex;flex-direction:column;gap:6px;flex:1">
-          <span style="font-family:Fraunces,serif;font-size:16px;line-height:1.2">${esc(fmt.person(sp.name))}</span>
-          <span style="font-size:11.5px;color:#4a4239">${esc(speakerRole(sp))}</span>
-          <span data-act="vb" data-id="${esc(sp.id)}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;margin-top:auto;cursor:pointer;white-space:nowrap">${speakerSessions(sp).length ? COPY.prog.bioAdd : COPY.stage.viewBio}</span>
-        </div>
-      </div>`;
+function ovFacts() {
+  const d1 = fmt.toDate(D.conf.start), d2 = fmt.toDate(D.conf.end);
+  const long = d1 ? `${WD3[d1.getDay()]} ${d1.getDate()}${d2 && d2.getTime() !== d1.getTime() ? ` – ${WD3[d2.getDay()]} ${d2.getDate()}` : ''} ${d1.toLocaleDateString('en-GB', { month: 'long' })} ${d1.getFullYear()}` : D.conf.range;
+  const where = `${D.conf.venue}, ${D.conf.city}`;
   return `
-      <div class="mx-card-link mx-sp-card" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column">
-        <div class="mx-ph" style="aspect-ratio:1/1;background:#191512;position:relative;overflow:hidden">${portrait}</div>
-        <div style="padding:16px;display:flex;flex-direction:column;gap:7px;flex:1">
-          <span style="align-self:flex-start;padding:3px 7px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">${COPY.stage.confirmed}</span>
-          <span style="font-family:Fraunces,serif;font-size:17px;line-height:1.2">${esc(fmt.person(sp.name))}</span>
-          <span style="font-size:12px;color:#4a4239">${esc(speakerRole(sp))}</span>
-          ${logo}
-          <span data-act="vb" data-id="${esc(sp.id)}" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;margin-top:auto;cursor:pointer;white-space:nowrap">${COPY.stage.viewBio}</span>
-        </div>
-      </div>`;
+  <section class="mx-sec" data-block="facts">
+    <ul class="mx-facts">
+      ${fact({ ic: 'calendar', v: esc(long), s: esc(COPY.facts.firstSession(D.conf.startTime)) })}
+      ${fact({ ic: 'pin', v: esc(D.conf.venue), s: esc(D.conf.address ? D.conf.address : D.conf.city), go: `<a class="mx-fact-go" href="${esc(mapUrl(D.conf.address || where))}" target="_blank" rel="noopener">${COPY.facts.map}</a>` })}
+      ${fact({ ic: 'ticket', v: COPY.facts.free, s: esc(D.conf.cap ? COPY.facts.cap(fmt.num(D.conf.cap)) : COPY.facts.noCap) })}
+      ${fact({ ic: 'plus', v: COPY.facts.calendar, s: COPY.facts.calendarSub, act: 'dlIcs', go: chev() })}
+      ${followFact('Get updates from Plexus')}
+    </ul>
+  </section>`;
 }
-// ---- PLEXUS WEEK: the four blocks of one edition (design/MEETUPS-SPEC.md §1) ----------------
-// No artboard — the card idiom is Med&X Home.dc.html › "01 · OUR PROJECTS" (status micro-label over
-// a Fraunces title, one detail line, the CTA on the bottom rule), scaled to four.
-const WEEK_ACCENT = { open: '#9b1b22', soon: '#6e5626', full: '#6e5626', closed: '#4a4239' };
-// Two verbs, everywhere (facts.js › CTA): the conference registers, the Gala reserves — whatever
-// wording the server's block carries. Every other block keeps the label the server gave it.
+// ---- PLEXUS WEEK: the four blocks of one edition (design/MEETUPS-SPEC.md §1), as a timeline ----------------
+// Each row opens that event's own page. Where the old card's action opened the registration form, that same link
+// (same href) is the small button in the row; nothing else about it changed.
 function weekCta(b) {
   if (b.key === 'conference') return D.next.registered ? 'MY TICKET' : CTA.register;   // registered: never asked again
   if (b.key === 'gala' && D.next.has_gala) return 'YOUR SEAT';
@@ -560,198 +526,148 @@ function weekCta(b) {
   }
   return fmt.upper(b.cta_label || 'Open');
 }
-function weekCard(b) {
-  const accent = WEEK_ACCENT[b.status_kind] || '#4a4239';
+const WEEK_PAGE = { conference: '/app/plexus/program', gala: '/app/gala', bridges: '/app/bridges', meetups: '/app/plexus/meetups' };
+function weekRow(b) {
   // an open sign-up goes straight to the form with that event ticked — the server's targets were the
   // program page (conference: nothing to register there) and /app/bridges (Zagreb isn't listed there)
   const to = b.key === 'conference' && D.next.registered ? '/app/plexus/mine'
     : (b.status_kind === 'open' && (b.key === 'conference' || b.key === 'bridges')) ? formUrl(b.key) : routeFor(b.cta_target || 'plexus', '/app/plexus');
-  // one wording per fact: the conference's status is the one the hero and Home print (the status feed's
-  // PRE-REGISTRATION OPEN, not the week block's own); a venue "To be announced" says nothing, so the Zagreb
-  // evening reads "During Plexus Week" as Home and Building Bridges do; the venue's raw semicolon goes
+  const page = WEEK_PAGE[b.key] || routeFor(b.cta_target || 'plexus', '/app/plexus');
   const status = b.key === 'conference' && D.statusLabel ? D.statusLabel : b.status;
-  const venue = String(b.venue || '').replace(/\s*;\s*/g, ', ').replace(/^to be announced\s*(·\s*)?/i, '').trim();
-  const date = b.date_label || (b.key === 'bridges' ? 'During Plexus Week' : '');
-  const detail = [date, venue, b.price_label].filter(Boolean).join(' · ');
+  const when = b.starts_on ? dayMon(b.starts_on) : (b.key === 'bridges' ? 'Dec' : '');
+  const range = String(b.date_label || '').match(/^(\d{1,2})\s*[–-]\s*(\d{1,2})\s+([A-Za-z]{3})/);
+  const time = range ? `${range[1]}–${range[2]} ${range[3]}` : when;
+  const sub = [fmt.detail(status || ''), b.key === 'gala' ? '' : fmt.detail(b.price_label || '')].filter(Boolean).join(' · ');
+  const act = !D.week.archived && to !== page && (to.startsWith(FORM) || to === '/app/plexus/mine')
+    ? `<a href="${esc(to)}" class="btn-ghost btn-sm mx-px-weekbtn">${esc(weekCta(b))} →</a>` : '';
+  if (D.week.archived) return `<li class="mx-tl-row"><time class="mx-tl-time">${esc(time)}</time><div class="mx-tl-body"><span class="mx-tl-title">${esc(b.title || '')}</span><span class="mx-tl-sub">${COPY.week.past}</span></div></li>`;
   return `
-      <div${D.week.archived ? '' : ' class="mx-card-link mx-week-card"'} style="border:1px solid rgba(25,21,18,.16);border-top:2px solid ${accent};background:#fdfaf3;display:flex;flex-direction:column;gap:8px;padding:16px;box-sizing:border-box">
-        <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:${accent}">${esc(fmt.upper(fmt.detail(status || '')))}</span>
-        <span style="font-family:Fraunces,serif;font-size:19px;line-height:1.15">${esc(b.title || '')}</span>
-        <span style="font-size:12px;color:#4a4239;line-height:1.5">${esc(fmt.detail(detail))}</span>
-        ${D.week.archived
-          ? `<span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#9b8f80;margin-top:auto;white-space:nowrap">${COPY.week.past}</span>`
-          : `<a href="${esc(to)}" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;margin-top:auto;white-space:nowrap">${esc(weekCta(b))} →</a>`}
-      </div>`;
+      <li class="mx-tl-row mx-px-weekrow"><time class="mx-tl-time">${esc(time)}</time>
+        <div class="mx-tl-body"><a class="mx-tl-title mx-px-weeklink" href="${esc(page)}">${esc(b.title || '')}</a><span class="mx-tl-sub">${esc(sub)}</span>${act}</div>
+        ${chev()}
+      </li>`;
 }
 function ovWeek() {
   const w = D.week;
   const blocks = w && Array.isArray(w.blocks) ? w.blocks : [];
   if (!w || !blocks.length) return '';
   const year = (w.edition && w.edition.year) || FACTS.year;
-  const line = [w.title, w.date_label].filter(Boolean).join(' · ');
   return `
-    <!-- v2: Plexus Week — the four blocks of one edition (design/MEETUPS-SPEC.md §1) -->
-    <div data-block="week" data-v2="plexus-week band, no artboard counterpart">
-      <div class="mx-wrap-row" style="display:flex;align-items:baseline;gap:14px;padding:24px 0 6px">
-        <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.week.n}</span>
-        <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.week.title}</span>
-        <span style="font-size:12.5px;color:#4a4239">${esc(fmt.detail(line))}</span>
-        <div style="flex:1"></div>
-        <span data-act="editions" aria-haspopup="dialog" style="padding:5px 10px;border:1px solid rgba(25,21,18,.22);font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#191512;cursor:pointer;white-space:nowrap" data-hover="border-color:#191512">${esc(COPY.week.edition(year))}</span>
-      </div>
-      <div style="font-size:13px;color:#4a4239;max-width:640px;line-height:1.55">${esc(COPY.week.sub)}</div>
-      ${w.archived ? `<div style="display:flex;align-items:center;gap:10px;border-left:3px solid #c9a962;background:#fdfaf3;padding:10px 14px;margin-top:12px"><span style="width:6px;height:6px;background:#c9a962;flex:none"></span><span style="font-size:12.5px;color:#4a4239">${esc(COPY.week.archived)}</span></div>` : ''}
-      <div class="mx-grid-4 mx-week-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;padding:16px 0 26px">
-        ${blocks.map(weekCard).join('')}
-      </div>
-    </div>`;
+  <!-- v2: Plexus Week — the four blocks of one edition (design/MEETUPS-SPEC.md §1) -->
+  <section class="mx-sec" data-block="week" data-v2="plexus-week band, no artboard counterpart">
+    ${sectionHead('', COPY.week.title, `<span data-act="editions" aria-haspopup="dialog" class="mx-sh-ctl mx-px-year" role="button">${esc(COPY.week.edition(year))} ${icon('chevron-down', 14)}</span>`)}
+    <p class="mx-sh-sub">${esc(fmt.detail(w.date_label || ''))}${w.city ? ` · ${esc(w.city)}` : ''}${w.archived ? ` · ${COPY.week.archived}` : ''}</p>
+    <ol class="mx-timeline mx-timeline--wide mx-px-week">${blocks.map(weekRow).join('')}</ol>
+  </section>`;
 }
-
-// UX audit 2026-09-02 › item 9: the same four portraits stood here and again one click away on
-// Program & speakers, which is the tab that can also open a bio and add a session. That tab is the
-// canonical roster now; the overview names the room and points at it.
 function ovStage() {
-  const n = D.speakers.length;
   return `
-    <!-- dc: Plexus Conference.dc.html › "01 · ON THE PLEXUS STAGE" -->
-    <div class="mx-wrap-row" style="display:flex;align-items:baseline;gap:14px;padding:24px 0 4px">
-      <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.stage.n}</span>
-      <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.stage.title}</span>
-      <a href="/app/plexus/program" style="font:600 10.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;margin-left:10px;white-space:nowrap">${COPY.stage.all}</a>
-    </div>
-    <div style="font-size:13px;color:#4a4239;max-width:640px;line-height:1.55">${esc(COPY.stage.sub)}</div>
-    ${n ? `
-    <a href="/app/plexus/program" class="mx-px-teaser mx-card-link" style="display:flex;align-items:center;gap:18px;border:1px solid rgba(25,21,18,.16);border-left:3px solid #c9a962;background:#fdfaf3;padding:16px 20px;margin:16px 0 24px;color:#191512;text-decoration:none" data-hover="background:#f7efdf">
-      <span class="mx-px-faces" aria-hidden="true">${D.speakers.slice(0, 6).map(sp => `<span class="mx-px-face">${sp.photo_url ? `<img src="${esc(sp.photo_url)}" alt="" loading="lazy">` : ui.monogram(sp.name, 17)}</span>`).join('')}</span>
-      <span style="flex:1;min-width:0"><span style="display:block;font-family:Fraunces,serif;font-size:17px;line-height:1.25">${esc(COPY.stage.teaser(n))}</span><span style="display:block;font-size:12px;color:#4a4239;margin-top:3px">${esc(COPY.stage.teaserWhy)}</span></span>
-      <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;white-space:nowrap;flex:none">${COPY.stage.all}</span>
-    </a>` : `
-    <div class="empty" style="padding:26px 0 24px">
-      <span class="rule-gold" style="margin-bottom:6px"></span>
-      <span class="empty-line">${esc(COPY.stage.emptyLine)}</span>
-      <span class="empty-why">${esc(COPY.stage.emptyWhy)}</span>
-    </div>`}
-    <!-- /dc -->`;
+  <!-- dc: Plexus Conference.dc.html › "01 · ON THE PLEXUS STAGE" -->
+  <section class="mx-sec" data-block="stage">
+    ${sectionHead(COPY.stage.n, COPY.stage.title, `<a class="mx-sh-a" href="/app/plexus/program">${COPY.stage.all}</a>`)}
+    ${D.speakers.length
+      ? `<div class="mx-grid2 mx-px-stage">${D.speakers.map(sp => speakerCard(sp)).join('')}</div>`
+      : `<div class="empty"><span class="empty-line">${esc(COPY.stage.emptyLine)}</span><span class="empty-why">${esc(COPY.stage.emptyWhy)}</span></div>`}
+  </section>
+  <!-- /dc -->`;
 }
 function ovThreads() {
   return `
-    <!-- dc: Plexus Conference.dc.html › "02 · THIS YEAR'S THREADS" -->
-    <div style="border-top:1px solid rgba(25,21,18,.16)">
-      <div class="mx-wrap-row" style="display:flex;align-items:baseline;gap:14px;padding:24px 0 12px">
-        <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.threads.n}</span>
-        <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.threads.title}</span>
-        <span style="font-size:12px;color:#4a4239">${COPY.threads.sub}</span>
-      </div>
-      <div class="mx-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding-bottom:26px">
-        ${COPY.threads.items.map(t => `
-        <div style="border:1px solid rgba(25,21,18,.16);border-top:2px solid ${t.accent};background:#fdfaf3;padding:20px 22px;display:flex;flex-direction:column;gap:8px">
-          <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:${t.color}">${t.n}</span>
-          <span style="font-family:Fraunces,serif;font-size:21px;line-height:1.2">${t.title}</span>
-          <span style="font-size:12.5px;color:#4a4239;line-height:1.6">${t.body}</span>
-        </div>`).join('')}
-      </div>
+  <!-- dc: Plexus Conference.dc.html › "02 · THIS YEAR'S THREADS" -->
+  <section class="mx-sec" data-block="threads">
+    ${sectionHead(COPY.threads.n, COPY.threads.title)}
+    <div class="mx-px-threads">
+      ${COPY.threads.items.map(t => `
+      <div class="mx-px-thread"><span class="mx-px-thread-n">${t.n}</span><span class="mx-px-thread-t">${t.title}</span><span class="mx-px-thread-b">${t.body}</span></div>`).join('')}
     </div>
-    <!-- /dc -->`;
+  </section>
+  <!-- /dc -->`;
 }
 function glanceRows() {
   const rows = [];
   const days = eachDay(D.conf.start, D.conf.end);
   days.forEach((d, i) => {
     const sess = D.sessions.filter(s => Number(s.day || 1) === i + 1);
-    const label = i === 0 ? d3(d) : `${WD3[d.getDay()]}, ${MON3[d.getMonth()]} ${d.getDate()}`;
+    let sub = COPY.glance.inPrep;
     if (sess.length) {
       const first = hhmm(sess[0].start_time), last = hhmm(sess[sess.length - 1].end_time || sess[sess.length - 1].start_time);
-      rows.push({ left: label, title: COPY.glance.dayTitles[i] || COPY.glance.dayGeneric(i + 1), right: first && last && first !== last ? `${first} – ${last}` : (first ? COPY.glance.from(first) : COPY.glance.inPrep) });
-    } else {
-      rows.push({ left: label, title: COPY.glance.dayTitles[i] || COPY.glance.dayGeneric(i + 1), right: COPY.glance.inPrep });
+      sub = first && last && first !== last ? `${first} – ${last}` : (first ? COPY.glance.from(first) : COPY.glance.inPrep);
     }
+    rows.push({ time: `${WD3[d.getDay()]} ${d.getDate()}`, title: COPY.glance.dayTitles[i] || COPY.glance.dayGeneric(i + 1), sub });
   });
   const rec = D.sessions.find(s => /reception|networking|social/i.test(`${s.session_type} ${s.title}`));
-  if (rec) rows.splice(1, 0, { left: `${WD3[(fmt.toDate(D.conf.start) || new Date()).getDay()]}, ${hhmm(rec.start_time) || '18:00'}`, title: esc(rec.title || COPY.glance.reception), right: COPY.glance.free });
+  if (rec) { const d = fmt.toDate(D.conf.start) || new Date(); rows.splice(1, 0, { time: `${WD3[d.getDay()]} ${d.getDate()}`, title: esc(rec.title || COPY.glance.reception), sub: `${hhmm(rec.start_time) || '18:00'} · ${COPY.glance.free}` }); }
   const gd = fmt.toDate(D.gala.date);
-  rows.push({ left: `${gd ? WD3[gd.getDay()] : 'SAT'}, ${D.gala.time}`, title: COPY.glance.galaTitle, right: fmt.upper(D.gala.venueShort), gala: true });
+  rows.push({ time: gd ? `${WD3[gd.getDay()]} ${gd.getDate()}` : 'Sat', title: COPY.glance.galaTitle, sub: `${D.gala.time} · ${D.gala.venueShort}`, gold: true });
   return rows;
 }
-function ovProgramInk() {
-  const rows = glanceRows();
-  const when = `${(fmt.toDate(D.gala.date) ? ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][fmt.toDate(D.gala.date).getDay()] : 'Saturday')}, ${fmt.longRange(D.gala.date, D.gala.date).replace(/, \d{4}$/, '')}, ${D.gala.time}`;
+function ovProgram() {
   return `
-  <!-- dc: Plexus Conference.dc.html › "03 · THE PROGRAM" (+ Gala + "04 · CONNECT WITH PARTICIPANTS") -->
-  <div class="mx-pad-ink mx-ink" style="background:#191512;color:#f7f1e6;padding:32px 36px 34px">
-    <div class="mx-grid-side" style="display:grid;grid-template-columns:1fr 1.1fr;gap:48px">
-      <div>
-        <div class="mx-wrap-row" style="display:flex;align-items:baseline;gap:14px;padding-bottom:12px">
-          <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#c9a962">${COPY.glance.n}</span>
-          <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.glance.title}</span>
-          <a href="/app/plexus/program" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#c9a962;margin-left:10px;text-decoration:none;white-space:nowrap">${COPY.glance.full}</a>
-        </div>
-        ${rows.map((r, i) => `
-        <div class="mx-glance-row" style="display:flex;gap:16px;align-items:baseline;padding:11px 0;${i < rows.length - 1 ? 'border-bottom:1px solid rgba(247,241,230,.14)' : ''}">
-          <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#c9a962;width:88px;flex:none">${esc(fmt.upper(r.left))}</span>
-          <span style="font-family:Fraunces,serif;font-size:16px;flex:1">${r.title}</span>
-          <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.55);white-space:nowrap">${esc(r.right)}</span>
-        </div>`).join('')}
+  <!-- dc: Plexus Conference.dc.html › "03 · THE PROGRAM" -->
+  <section class="mx-sec" data-block="program">
+    ${sectionHead(COPY.glance.n, COPY.glance.title, `<a class="mx-sh-a" href="/app/plexus/program">${COPY.glance.full}</a>`)}
+    <ol class="mx-timeline mx-timeline--wide">${glanceRows().map(r => `<li class="mx-tl-row${r.gold ? ' is-gold' : ''}"><time class="mx-tl-time">${esc(r.time)}</time><div class="mx-tl-body"><span class="mx-tl-title">${r.title}</span><span class="mx-tl-sub">${esc(r.sub)}</span></div></li>`).join('')}</ol>
+  </section>
+  <!-- /dc -->`;
+}
+// the Gala as one compact card; its reserve link keeps the form href
+function ovGala() {
+  const gd = fmt.toDate(D.gala.date);
+  const when = gd ? `${WD3[gd.getDay()]} ${gd.getDate()} ${MON3[gd.getMonth()]}` : '';
+  const tag = D.gala.ebActive ? `${fmt.eur(D.gala.price)} until ${dayMon(D.gala.ebDeadline)}` : fmt.eur(D.gala.price);
+  return `
+  <!-- dc: Plexus Conference.dc.html › "Gala Evening & Awards Ceremony" -->
+  <section class="mx-sec" data-block="gala">
+    <article class="mx-pcard mx-px-gala">
+      <div class="mx-media r-16x9"><img src="/assets/photo-gala.jpg" alt="" loading="lazy" style="object-position:50% 35%"><div class="mx-scrim"></div><span class="mx-tag mx-tag--gold">${esc(tag)}</span>
+        <h3 class="mx-pcard-title"><a class="mx-pcard-main" href="/app/gala">${COPY.galaBlock.title}</a></h3></div>
+      <div class="mx-pcard-body">
+        <div class="mx-pcard-meta">${icon('calendar', 16)}<span>${esc(when)} · ${esc(D.gala.time)}</span><span class="mx-sep"></span>${icon('pin', 16)}<span>${esc(D.gala.venueShort)}</span></div>
+        <p class="mx-pcard-line">${COPY.galaBlock.line}</p>
+        <a class="mx-pcard-cta" href="${formUrl('gala')}">${COPY.galaBlock.reserve(fmt.eur(D.gala.price))}</a>
       </div>
-      <div class="mx-grid-photo" style="display:grid;grid-template-columns:200px 1fr;gap:20px;align-items:center">
-        <div style="position:relative;min-height:210px;border:1px solid rgba(201,169,98,.5);box-sizing:border-box;overflow:hidden"><img src="/assets/photo-gala.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top"></div>
-        <div style="display:flex;flex-direction:column;gap:10px">
-          <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.2em;color:#c9a962">${COPY.galaBlock.eyebrow}</span>
-          <span style="font-family:Fraunces,serif;font-size:23px;line-height:1.15">${COPY.galaBlock.title}</span>
-          <span style="font-size:12px;color:rgba(247,241,230,.7);line-height:1.55">${esc(COPY.galaBlock.body(when, D.gala.venueFull))}</span>
-          <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
-            <a href="${formUrl('gala')}" style="padding:10px 16px;background:#c9a962;color:#191512;font:600 9.5px Inter,sans-serif;letter-spacing:.15em;text-decoration:none;white-space:nowrap" data-hover="background:#b8994f;color:#191512">${COPY.galaBlock.reserve(fmt.eur(D.gala.price))}</a>
-            <span style="font-size:11px;color:rgba(247,241,230,.55)">${COPY.galaBlock.note}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="mx-wrap-row" style="display:flex;align-items:center;gap:26px;margin-top:26px;border:1px solid rgba(201,169,98,.45);padding:18px 22px;flex-wrap:wrap">
-      <span class="mx-min-420" style="display:flex;flex-direction:column;gap:5px;flex:1;min-width:300px">
-        <span style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
-          <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#c9a962">${COPY.connect.n}</span>
-          <span style="font:600 12px Inter,sans-serif;letter-spacing:.16em">${COPY.connect.title}</span>
-        </span>
-        <span style="font-family:Fraunces,serif;font-style:italic;font-size:17px">${COPY.connect.line}</span>
-        <span style="font-size:12px;color:rgba(247,241,230,.65);line-height:1.5">${COPY.connect.body}</span>
-      </span>
-      <a href="/app/network" style="padding:13px 20px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.15em;flex:none;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.connect.cta}</a>
-    </div>
-  </div>
+    </article>
+  </section>
+  <!-- /dc -->`;
+}
+function ovConnect() {
+  return `
+  <!-- dc: Plexus Conference.dc.html › "04 · CONNECT WITH PARTICIPANTS" -->
+  <section class="mx-sec mx-sec--tight" data-block="connect">
+    <a href="/app/network" class="mx-linkcard">${icon('users')}<span class="mx-row-l">${COPY.connect.title}<span class="mx-row-s">${COPY.connect.sub}</span></span>${chev()}</a>
+  </section>
   <!-- /dc -->`;
 }
 function ovPhotos() {
-  const n = D.impact && D.impact.registrations;
+  const pics = [0, 1, 2, 3];
   return `
-    <!-- dc: Plexus Conference.dc.html › "MOMENTS FROM PAST CONFERENCES" -->
-    <div class="mx-grid-4 mx-photo-strip" style="display:grid;grid-template-columns:repeat(4,1fr);grid-auto-rows:150px;gap:12px;padding:34px 0 24px">
-      <span class="mx-ph" data-act="gallery" data-i="0" tabindex="-1" aria-hidden="true"><img src="/assets/photo-hall.jpg" alt="" style="width:100%;height:100%;object-fit:cover;display:block"></span>
-      <span class="mx-ph" data-act="gallery" data-i="1" tabindex="-1" aria-hidden="true"><img src="/assets/photo-ballroom.jpg" alt="" style="width:100%;height:100%;object-fit:cover;display:block"></span>
-      <span class="mx-ph" data-act="gallery" data-i="2" tabindex="-1" aria-hidden="true"><img src="/assets/photo-candlelit.jpg" alt="" style="width:100%;height:100%;object-fit:cover;display:block"></span>
-      <div style="background:#efe7d8;color:#191512;padding:18px 20px;display:flex;flex-direction:column;justify-content:center;gap:8px">
-        <span style="font:600 9px Inter,sans-serif;letter-spacing:.2em;color:#9b1b22">${COPY.photos.label}</span>
-        <span style="font-family:Fraunces,serif;font-style:italic;font-size:16px;line-height:1.35">${esc(COPY.photos.line(n))}</span>
-        <span data-act="gallery" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;cursor:pointer;white-space:nowrap">${COPY.photos.all}</span>
-      </div>
+  <!-- dc: Plexus Conference.dc.html › "MOMENTS FROM PAST CONFERENCES" -->
+  <section class="mx-sec" data-block="photos">
+    ${sectionHead('', COPY.photos.title, `<span class="mx-sh-a" data-act="gallery" data-i="0">${COPY.photos.all}</span>`)}
+    <div class="mx-shelf mx-px-shelf" style="--w:240px">
+      ${pics.map(i => `<div class="mx-shelf-item"><div class="mx-media r-4x3 mx-ph" data-act="gallery" data-i="${i}" role="button" aria-label="Open photo ${i + 1}"><img src="/assets/${EXPORT_PHOTOS[i]}" alt="${esc(MOMENT_ALTS[i])}" loading="lazy"></div></div>`).join('')}
     </div>
-    <!-- /dc -->`;
+  </section>
+  <!-- /dc -->`;
 }
 function overviewTpl() {
   return `
-<div data-screen-label="Plexus Week" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
+<div data-screen-label="Plexus Week" class="mx-px">
   ${crumb([{ label: COPY.crumb.projects, to: '/app/projects' }, { label: COPY.crumb.plexus, current: true }])}
   <div data-block="hero">${ovHero()}</div>
-  ${ovBand()}
-  ${tabStrip()}
-  <div class="mx-gutter" style="padding:0 36px">
+  ${ovCountdown()}
+  <div class="mx-p">
+    ${tabStrip()}
+    ${ovFacts()}
     ${ovWeek()}
-    <div data-block="stage">${ovStage()}</div>
+    ${ovStage()}
     ${ovThreads()}
-  </div>
-  ${ovProgramInk()}
-  <div class="mx-gutter" style="padding:0 36px">
+    ${ovProgram()}
+    ${ovGala()}
+    ${ovConnect()}
     ${ovPhotos()}
+    ${blockHelp(COPY.help.overview)}
   </div>
-  ${blockHelp(COPY.help.overview, COPY.help.sub, true)}
   <div data-block="bio">${blockBio()}</div>
 </div>`;
 }
@@ -768,162 +684,123 @@ function progDays() {
     const last = sess.length ? hhmm(sess[sess.length - 1].end_time || sess[sess.length - 1].start_time) : '';
     const right = sess.length ? (first && last && first !== last ? `${first} – ${last}` : (first ? COPY.glance.from(first) : COPY.glance.inPrep)) : COPY.glance.inPrep;
     parts.push(`
-        <div ${sess.length ? `data-act="tgDay" data-day="${i}"` : ''} class="mx-day-row" style="display:flex;gap:16px;align-items:baseline;padding:12px 0;border-bottom:1px solid rgba(25,21,18,.12);${sess.length ? 'cursor:pointer' : ''}">
-          <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;width:100px;flex:none">${esc(fmt.upper(d3(d)))}</span>
-          <span style="font-family:Fraunces,serif;font-size:16px;flex:1">${COPY.glance.dayTitles[i] || COPY.glance.dayGeneric(i + 1)}</span>
-          <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239;white-space:nowrap">${esc(right)}</span>
-          ${sess.length ? `<span style="font-size:11px;color:#9b1b22;white-space:nowrap">${open ? COPY.prog.collapse : COPY.prog.expand}</span>` : ''}
-        </div>`);
+        <li ${sess.length ? `data-act="tgDay" data-day="${i}" aria-expanded="${open}"` : ''} class="mx-tl-row mx-day-row">
+          <time class="mx-tl-time">${esc(`${WD3[d.getDay()]} ${d.getDate()}`)}</time>
+          <div class="mx-tl-body"><span class="mx-tl-title">${COPY.glance.dayTitles[i] || COPY.glance.dayGeneric(i + 1)}</span><span class="mx-tl-sub">${esc(sess.length ? `${right} · ${COPY.prog.sessions(sess.length)}` : right)}</span></div>
+          ${sess.length ? icon(open ? 'chevron-down' : 'chevron-right', 18) : ''}
+        </li>`);
     if (sess.length && open) parts.push(`
-        <div class="mx-session-indent" style="padding:8px 0 14px 116px;display:flex;flex-direction:column;gap:7px;border-bottom:1px solid rgba(25,21,18,.12)">
+        <li class="mx-px-sessions">
+          <ol class="mx-timeline">
           ${sess.map(s => `
-          <span style="display:flex;gap:14px;align-items:baseline;font-size:12.5px;color:#4a4239"><span style="font:600 10px Inter,sans-serif;color:#9b1b22;width:44px;flex:none">${esc(hhmm(s.start_time))}</span><span style="flex:1">${esc(s.title || 'Session')}${s.room ? ` <span style="color:#9b8f80">· ${esc(s.room)}</span>` : ''}</span><span data-act="tgSession" data-id="${esc(s.id)}" data-v2="add-to-my-schedule" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:${D.mySched.has(s.id) ? '#6e5626' : '#9b1b22'};cursor:pointer;white-space:nowrap">${D.mySched.has(s.id) ? COPY.prog.added : COPY.prog.add}</span></span>`).join('')}
-          <span style="font-size:11px;color:#4a4239;font-style:italic">${COPY.prog.timesNote}</span>
-        </div>`);
+            <li class="mx-tl-row"><time class="mx-tl-time">${esc(hhmm(s.start_time))}</time><div class="mx-tl-body"><span class="mx-tl-title">${esc(s.title || 'Session')}</span>${s.room ? `<span class="mx-tl-sub">${esc(s.room)}</span>` : ''}
+              <span data-act="tgSession" data-id="${esc(s.id)}" data-v2="add-to-my-schedule" class="mx-px-add${D.mySched.has(s.id) ? ' is-on' : ''}">${D.mySched.has(s.id) ? COPY.prog.added : COPY.prog.add}</span></div></li>`).join('')}
+          </ol>
+          <p class="mx-px-note">${COPY.prog.timesNote}</p>
+        </li>`);
     // Welcome-reception interstitial row after day 1 — only from a published session
     if (i === 0) {
       const rec = D.sessions.find(s => /reception|networking|social/i.test(`${s.session_type} ${s.title}`));
       if (rec) parts.push(`
-        <div class="mx-day-row" style="display:flex;gap:16px;align-items:baseline;padding:12px 0;border-bottom:1px solid rgba(25,21,18,.12)">
-          <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;width:100px;flex:none">${esc(fmt.upper(`${WD3[d.getDay()]}, ${hhmm(rec.start_time) || '18:00'}`))}</span>
-          <span style="font-family:Fraunces,serif;font-size:16px;flex:1">${esc(rec.title)}</span>
-          <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">${COPY.glance.free}</span>
-        </div>`);
+        <li class="mx-tl-row"><time class="mx-tl-time">${esc(`${WD3[d.getDay()]} ${d.getDate()}`)}</time><div class="mx-tl-body"><span class="mx-tl-title">${esc(rec.title)}</span><span class="mx-tl-sub">${esc(`${hhmm(rec.start_time) || '18:00'} · ${COPY.glance.free}`)}</span></div></li>`);
     }
   });
   const gd = fmt.toDate(D.gala.date);
   parts.push(`
-        <div class="mx-day-row" style="display:flex;gap:16px;align-items:baseline;padding:12px 0">
-          <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#6e5626;width:100px;flex:none">${esc(fmt.upper(`${gd ? WD3[gd.getDay()] : 'SAT'}, ${D.gala.time}`))}</span>
-          <span style="font-family:Fraunces,serif;font-size:16px;flex:1">${COPY.glance.galaTitle.replace('#c9a962', '#9b1b22')}</span>
-          <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#6e5626;white-space:nowrap">${esc(fmt.upper(D.gala.venueShort))}</span>
-        </div>`);
+        <li class="mx-tl-row is-gold"><time class="mx-tl-time">${esc(gd ? `${WD3[gd.getDay()]} ${gd.getDate()}` : 'Sat')}</time><div class="mx-tl-body"><span class="mx-tl-title">${COPY.glance.galaTitle}</span><span class="mx-tl-sub">${esc(`${D.gala.time} · ${D.gala.venueShort}`)}</span></div></li>`);
   return { html: parts.join(''), anySessions };
 }
+function daysBlock() {
+  const { html, anySessions } = progDays();
+  return `<div data-block="days"><ol class="mx-timeline mx-timeline--wide mx-px-days">${html}</ol>${anySessions ? '' : `<p class="mx-px-note">${COPY.prog.prepLine}</p>`}</div>`;
+}
 function progSpeakers() {
-  const list = D.speakers;
-  return list.length ? `
-    <div class="mx-grid-4" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px;padding-bottom:24px">
-      ${list.map(sp => speakerCard(sp, { program: true })).join('')}
-    </div>` : `
-    <div class="empty" style="padding:20px 0 14px">
-      <span class="rule-gold" style="margin-bottom:6px"></span>
-      <span class="empty-line">${esc(COPY.prog.spEmpty)}</span>
-      <span class="empty-why">${esc(COPY.prog.spEmptyWhy)}</span>
-    </div>`;
+  return D.speakers.length
+    ? `<div class="mx-person-rows">${D.speakers.map(sp => {
+        const name = fmt.person(sp.name);
+        return `<div class="mx-person-row" data-act="vb" data-id="${esc(sp.id)}" aria-label="${esc(name)}, biography">${ui.portrait({ name, src: portraitSrc(sp), size: 64, alt: '' })}<span class="mx-person-text"><span class="mx-person-name">${esc(name)}</span><span class="mx-person-role">${esc(speakerRole(sp))}</span></span>${chev()}</div>`;
+      }).join('')}</div>`
+    : `<div class="empty"><span class="empty-line">${esc(COPY.prog.spEmpty)}</span><span class="empty-why">${esc(COPY.prog.spEmptyWhy)}</span></div>`;
 }
 function programTpl() {
-  const { html: dayHtml, anySessions } = progDays();
   return `
-<div data-screen-label="Plexus Program" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
+<div data-screen-label="Plexus Program" class="mx-px">
   ${crumb([{ label: COPY.crumb.projects, to: '/app/projects' }, { label: COPY.crumb.plexus, to: '/app/plexus' }, { label: COPY.crumb.program }])}
-  ${tabStrip()}
-  <div class="mx-gutter" style="padding:0 36px">
+  <div class="mx-p">
+    ${tabStrip()}
+    <section class="mx-sec mx-sec--tight">
+      <h1 class="mx-lt">${COPY.prog.title}</h1>
+      <p class="mx-lede">${esc(COPY.prog.lede(shortRange(D.conf.start, D.conf.end)))}</p>
+    </section>
     <!-- dc: Plexus Program.dc.html › "01 · THE PROGRAM" -->
-    <div class="mx-prog-head" style="display:flex;align-items:baseline;gap:14px;padding:26px 0 12px">
-      <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.prog.n}</span>
-      <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.prog.title}</span>
-      <span data-act="dlIcs" style="font:600 10.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;cursor:pointer;margin-left:10px;white-space:nowrap">${COPY.prog.ics}</span>
-      <span data-act="pdf" style="padding:8px 14px;border:1px solid rgba(25,21,18,.3);font:600 9.5px Inter,sans-serif;letter-spacing:.15em;cursor:pointer;margin-left:6px;white-space:nowrap" data-hover="border-color:#191512">${COPY.prog.pdf}</span>
-      <span class="mx-hint" style="font-size:11.5px;color:#4a4239;margin-left:auto">${anySessions ? COPY.prog.hint : ''}</span>
-    </div>
-    <div data-block="days" style="display:grid;grid-template-columns:1fr;gap:0;padding-bottom:6px;max-width:960px">
-      <div>${dayHtml}</div>
-    </div>
-    <div style="display:flex;align-items:baseline;gap:12px;padding:10px 0 24px;flex-wrap:wrap">
-      ${anySessions ? '' : `<span style="font-size:12px;font-style:italic;color:#4a4239">${COPY.prog.prepLine}</span>`}
-      ${D.next.registered
-        ? `<a href="/app/plexus/mine" style="font:600 9.5px Inter,sans-serif;letter-spacing:.15em;white-space:nowrap">${COPY.prog.mine}</a>`
-        : `<a href="${formUrl('conference')}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.15em;white-space:nowrap">${COPY.prog.register}</a>`}
-    </div>
+    <section class="mx-sec" data-block="program">
+      ${sectionHead(COPY.prog.n, COPY.prog.daysTitle)}
+      ${daysBlock()}
+      <div class="mx-list mx-px-actions">
+        ${listRow({ act: 'dlIcs', ic: 'calendar', l: COPY.prog.ics, s: COPY.prog.icsSub })}
+        ${listRow({ act: 'pdf', ic: 'download', l: COPY.prog.pdf, s: COPY.prog.pdfSub })}
+        ${D.next.registered
+          ? listRow({ href: '/app/plexus/mine', ic: 'ticket', l: COPY.prog.mine, s: COPY.prog.mineSub })
+          : listRow({ href: formUrl('conference'), ic: 'ticket', l: COPY.prog.register, s: COPY.prog.registerSub })}
+      </div>
+    </section>
     <!-- /dc -->
     <!-- dc: Plexus Program.dc.html › "02 · SPEAKERS" -->
-    <div class="mx-speakers-head" style="display:flex;align-items:baseline;gap:14px;border-top:1px solid rgba(25,21,18,.16);padding:24px 0 12px">
-      <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.prog.spN}</span>
-      <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.prog.spTitle}</span>
-    </div>
-    <div data-block="speakers">${progSpeakers()}</div>
+    <section class="mx-sec" data-block="speakers">
+      ${sectionHead(COPY.prog.spN, COPY.prog.spTitle)}
+      ${progSpeakers()}
+    </section>
     <!-- /dc -->
+    ${blockHelp(COPY.help.program)}
   </div>
-  ${blockHelp(COPY.help.program, COPY.help.subShort, true)}
   <div data-block="bio">${blockBio()}</div>
 </div>`;
 }
 
 // ---------------------------------------------------------------- ZAGREB (Plexus Zagreb.dc.html)
-// UX audit 2026-09-02 › item 7 (text collapse): neither frontend-v2/assets/ nor the medx.hr mirror
-// holds a single Zagreb-landmark or food photograph, and stripe placeholders read as unfinished art.
-// Text-only reads finished — the six stops are numbered rows in the house vocabulary, the taste
-// cards keep their name+note, and the hero is a flat ink surface under its scrim gradient.
-// When real Zagreb/advent photography arrives: recompress ≤300 KB into frontend-v2/assets/ as
-// zg-<stop>.jpg and restore the photo tiles by putting an <img …object-fit:cover> inside each card
-// exactly as accelerator.js does its cohort blocks (stripe underlay kept as the degrade state).
+// No Zagreb landmark or food photography exists in frontend-v2/assets/ or the medx.hr mirror (UX audit
+// 2026-09-02 › item 7), so this tab is type and rows only: an ink hero, numbered stops, taste tiles, getting around.
 function zagrebTpl() {
   const Z = COPY.zagreb;
-  const stopRow = (s) => `
-      <div class="mx-zagreb-row mx-wrap-row" style="display:flex;gap:16px;align-items:baseline;padding:12px 0;border-bottom:1px solid rgba(25,21,18,.12);flex-wrap:wrap">
-        <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#c9a962;width:34px;flex:none">${s.n}</span>
-        <span style="font-family:Fraunces,serif;font-size:17px;flex:none">${esc(s.name)}</span>
-        <span style="font-size:12.5px;color:#4a4239;line-height:1.5;flex:1;min-width:220px">${esc(s.note)}</span>
-      </div>`;
   return `
-<div data-screen-label="Explore Zagreb" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
+<div data-screen-label="Explore Zagreb" class="mx-px">
   ${crumb([{ label: COPY.crumb.projects, to: '/app/projects' }, { label: COPY.crumb.plexus, to: '/app/plexus' }, { label: COPY.crumb.zagreb }])}
-  ${tabStrip()}
-  <!-- dc: Plexus Zagreb.dc.html › "Hero" -->
-  <div style="position:relative;overflow:hidden;background:#191512">
-    <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(25,21,18,.5) 0%,rgba(25,21,18,.68) 100%)"></div>
-    <div class="mx-pad-hero-z" style="position:relative;padding:84px 36px 72px;display:flex;flex-direction:column;align-items:center;text-align:center">
-      <span style="padding:6px 12px;border:1px solid rgba(201,169,98,.7);color:#c9a962;font:600 10px Inter,sans-serif;letter-spacing:.18em">${esc(Z.eyebrow)}</span>
-      <div class="mx-display-54" style="font-family:Fraunces,serif;font-style:italic;font-size:54px;line-height:1.05;color:#f7f1e6;margin-top:20px">${esc(Z.title)}</div>
-      <div style="font-size:15px;color:rgba(247,241,230,.85);margin-top:12px;max-width:560px;line-height:1.6">${esc(Z.line)}</div>
-      <div style="display:flex;gap:13px;margin-top:26px;flex-wrap:wrap;justify-content:center">
-        <span data-act="guide" style="padding:13px 22px;background:#c9a962;color:#191512;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="background:#b8994f">${Z.guide}</span>
-        <a href="/app/plexus/mine" style="padding:13px 22px;border:1px solid rgba(247,241,230,.45);color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;text-decoration:none;white-space:nowrap" data-hover="border-color:#f7f1e6;color:#f7f1e6">${Z.myPlexus}</a>
-      </div>
-    </div>
+  <div class="mx-p">
+    ${tabStrip()}
   </div>
+  <!-- dc: Plexus Zagreb.dc.html › "Hero" -->
+  <section class="mx-hero mx-hero--ink mx-ink mx-px-zghero">
+    <div class="mx-hero-body">
+      <span class="mx-hero-eyebrow">${Z.eyebrow}</span>
+      <h1 class="mx-hero-title">${Z.title}</h1>
+      <p class="mx-hero-date">${esc(Z.line)}</p>
+      <div class="mx-hero-cta"><span data-act="guide" role="button" class="btn-gold btn-block">${Z.guide}</span></div>
+    </div>
+  </section>
   <!-- /dc -->
-  <div class="mx-gutter" style="padding:0 36px">
+  <div class="mx-p">
     <!-- dc: Plexus Zagreb.dc.html › "01 · SIX STOPS BEFORE DINNER" -->
-    <div class="mx-wrap-row" style="display:flex;align-items:baseline;gap:14px;padding:26px 0 14px">
-      <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${Z.stopsN}</span>
-      <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${Z.stopsTitle}</span>
-      <span style="font-size:12.5px;color:#4a4239">${esc(Z.stopsSub)}</span>
-    </div>
-    <div style="max-width:960px">
-      ${Z.stops.map(stopRow).join('')}
-      <div style="background:#191512;color:#f7f1e6;padding:20px 22px;display:flex;flex-direction:column;justify-content:center;gap:8px;margin:18px 0 26px">
-        <span style="font-family:Fraunces,serif;font-weight:600;font-size:15px;color:#c9a962">+</span>
-        <span style="font-family:Fraunces,serif;font-style:italic;font-size:18px;line-height:1.3">${esc(Z.bonus.title)}</span>
-        <span style="font-size:11.5px;color:rgba(247,241,230,.7);line-height:1.5">${esc(Z.bonus.note)}</span>
-      </div>
-    </div>
+    <section class="mx-sec" data-block="stops">
+      ${sectionHead(Z.stopsN, Z.stopsTitle)}
+      <p class="mx-sh-sub">${esc(Z.stopsSub)}</p>
+      <ol class="mx-timeline mx-px-stops">${Z.stops.map(s => `<li class="mx-tl-row"><span class="mx-tl-time mx-px-stop-n">${s.n}</span><div class="mx-tl-body"><span class="mx-tl-title">${esc(s.name)}</span><span class="mx-tl-sub">${esc(s.note)}</span></div></li>`).join('')}</ol>
+      <ul class="mx-facts mx-px-advent">${fact({ ic: 'star', v: esc(Z.bonus.title), s: esc(Z.bonus.note) })}</ul>
+    </section>
     <!-- /dc -->
     <!-- dc: Plexus Zagreb.dc.html › "02 · TASTE ZAGREB" -->
-    <div class="mx-wrap-row" style="display:flex;align-items:baseline;gap:14px;border-top:1px solid rgba(25,21,18,.16);padding:24px 0 14px">
-      <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${Z.tasteN}</span>
-      <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${Z.tasteTitle}</span>
-      <span style="font-family:Fraunces,serif;font-style:italic;font-size:14px;color:#4a4239">${esc(Z.tasteSub)}</span>
-    </div>
-    <div class="mx-grid-4" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px;padding-bottom:26px">
-      ${Z.taste.map(t => `
-      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column">
-        <div style="padding:14px 16px;display:flex;flex-direction:column;gap:4px"><span style="font-family:Fraunces,serif;font-size:16px">${esc(t.name)}</span><span style="font-size:12px;color:#4a4239;line-height:1.5">${esc(t.note)}</span></div>
-      </div>`).join('')}
-    </div>
+    <section class="mx-sec" data-block="taste">
+      ${sectionHead(Z.tasteN, Z.tasteTitle)}
+      <div class="mx-px-taste">${Z.taste.map(t => `<div class="mx-px-tile"><span class="mx-px-tile-t">${esc(t.name)}</span><span class="mx-px-tile-b">${esc(t.note)}</span></div>`).join('')}</div>
+    </section>
     <!-- /dc -->
     <!-- dc: Plexus Zagreb.dc.html › "03 · GETTING AROUND" -->
-    <div class="mx-wrap-row mx-zg-around" style="background:#191512;color:#f7f1e6;padding:18px 24px;display:flex;align-items:center;gap:30px;flex-wrap:wrap;margin-bottom:24px">
-      <span style="font:600 10px Inter,sans-serif;letter-spacing:.18em;color:#c9a962">${Z.aroundTitle}</span>
-      ${Z.around.map(a => `<span style="display:flex;gap:9px;align-items:center;font-size:12.5px"><span style="width:6px;height:6px;background:#c9a962;flex:none"></span><strong>${a.b}</strong>${a.t}</span>`).join('\n      ')}
-    </div>
-    <div style="border-top:1px solid rgba(25,21,18,.16);padding:20px 0 8px;text-align:center">
-      <span style="font-family:Fraunces,serif;font-style:italic;font-size:19px;color:#4a4239">${esc(Z.closing)}</span>
-    </div>
+    <section class="mx-sec" data-block="around">
+      ${sectionHead(Z.aroundN, Z.aroundTitle)}
+      <ul class="mx-facts">${Z.around.map(a => fact({ ic: a.icon, v: a.b, s: a.t })).join('')}</ul>
+    </section>
     <!-- /dc -->
+    ${blockHelp(COPY.help.zagreb)}
   </div>
-  ${blockHelp(COPY.help.zagreb, COPY.help.subShort, false)}
 </div>`;
 }
 
@@ -936,174 +813,135 @@ function mineState() {
   if (g === 'pending') return 'galaPending';
   return reg ? 'registered' : 'none';
 }
+// title · one line · ONE action (the same hrefs and data-act as before) · the facts
 function mineHero() {
   const s = mineState();
-  const eyebrow = s === 'none' ? (D.conf.open ? COPY.mine.eyebrow.open : COPY.mine.eyebrow.closed)
-    : s === 'registered' ? COPY.mine.eyebrow.registered
-    : s === 'galaPending' ? COPY.mine.eyebrow.galaPending
-    : s === 'galaApproved' ? COPY.mine.eyebrow.galaApproved : COPY.mine.eyebrow.galaPaid;
-  const lead = COPY.mine.lead[s === 'registered' ? 'registered' : s === 'none' ? 'none' : s];
+  const lede = COPY.mine.lede[s];
   let cta, sub;
-  if (s === 'none') cta = `<a href="${formUrl('conference,gala')}" style="padding:15px 28px;background:#9b1b22;color:#f7f1e6;font:600 11px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap;text-decoration:none" data-hover="background:#7e151b">${COPY.mine.register}</a>`, sub = COPY.mine.ctaSub.none;
-  else if (s === 'registered') cta = `<a href="${formUrl('gala')}" style="padding:15px 28px;background:#9b1b22;color:#f7f1e6;font:600 11px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap;text-decoration:none" data-hover="background:#7e151b">${COPY.mine.addGala}</a>`, sub = COPY.mine.ctaSub.gala;
-  else if (s === 'galaApproved') cta = `<span data-act="payGala" style="padding:15px 28px;background:#c9a962;color:#191512;font:600 11px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="background:#d9bd7f">${COPY.mine.pay}</span>`, sub = COPY.mine.ctaSub.pay;
-  else cta = `<a href="/app/me" style="padding:15px 28px;background:#9b1b22;color:#f7f1e6;font:600 11px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap;text-decoration:none" data-hover="background:#7e151b">${COPY.mine.tickets}</a>`, sub = s === 'galaPending' ? esc(COPY.mine.payPending) : COPY.mine.ctaSub.done;
+  if (s === 'none') cta = `<a href="${formUrl('conference,gala')}" class="btn-primary btn-block">${COPY.mine.register}</a>`, sub = COPY.mine.ctaSub.none;
+  else if (s === 'registered') cta = `<a href="${formUrl('gala')}" class="btn-primary btn-block">${COPY.mine.addGala}</a>`, sub = COPY.mine.ctaSub.gala;
+  else if (s === 'galaApproved') cta = `<span data-act="payGala" role="button" class="btn-gold btn-block mx-px-pay">${COPY.mine.pay}</span>`, sub = COPY.mine.ctaSub.pay;
+  else cta = `<a href="/app/me" class="btn-primary btn-block">${COPY.mine.tickets}</a>`, sub = s === 'galaPending' ? esc(COPY.mine.payPending) : COPY.mine.ctaSub.done;
   return `
-  <!-- dc: My Plexus.dc.html › "MY PLEXUS · REGISTRATION" (hero) -->
-  <div class="mx-pad-mine" style="border-bottom:1px solid rgba(25,21,18,.16);padding:44px 36px 34px">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
-      <span style="width:28px;height:1px;background:#c9a962"></span>
-      <span style="font:600 11px Inter,sans-serif;letter-spacing:.18em;color:#9b1b22">${eyebrow}</span>
-    </div>
-    <div class="mx-wrap-row" style="display:flex;align-items:center;gap:44px;flex-wrap:wrap">
-      <div class="mx-min-420" style="flex:1;min-width:420px">
-        <div class="mx-display-42" style="font-family:Fraunces,serif;font-size:42px;line-height:1.1">${COPY.mine.title.replace('2026', String(D.conf.year))}</div>
-        <div style="font-size:14.5px;line-height:1.6;color:#4a4239;max-width:520px;margin-top:14px">${lead}</div>
-        <div style="display:flex;align-items:center;gap:14px;margin-top:22px;flex-wrap:wrap">
-          ${cta}
-          <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239">${sub}</span>
-        </div>
-      </div>
-      <div class="mx-mine-facts" style="display:grid;grid-template-columns:auto auto;gap:12px 18px;align-items:baseline;border-left:1px solid rgba(25,21,18,.16);padding-left:34px">
-        <span style="font-family:Fraunces,serif;font-size:15.5px">${COPY.mine.facts.conference}</span><span style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">${esc(shortRange(D.conf.start, D.conf.end))}</span>
-        <span style="font-family:Fraunces,serif;font-size:15.5px">${COPY.mine.facts.gala}</span><span style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">${esc(shortRange(D.gala.date, D.gala.date))}</span>
-        <span style="font-family:Fraunces,serif;font-size:15.5px">${COPY.mine.facts.eb}</span><span style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">${esc(COPY.mine.facts.until(fmt.upper(monthDay(D.gala.ebDeadline))))}</span>
-      </div>
-    </div>
-  </div>
+  <!-- dc: My Plexus.dc.html › "MY PLEXUS · REGISTRATION" -->
+  <section class="mx-sec mx-sec--tight" data-block="mine-hero">
+    <h1 class="mx-lt">${COPY.mine.title.replace('2026', String(D.conf.year))}</h1>
+    <p class="mx-lede">${lede}</p>
+    <div class="mx-px-minecta">${cta}<span class="mx-px-minesub">${sub}</span></div>
+    <ul class="mx-facts mx-px-minefacts">
+      ${fact({ ic: 'calendar', v: `${COPY.mine.facts.conference} · ${esc(shortRange(D.conf.start, D.conf.end))}`, s: COPY.mine.facts.confSub })}
+      ${fact({ ic: 'ticket', v: `${COPY.mine.facts.gala} · ${esc(shortRange(D.gala.date, D.gala.date))}`, s: esc(D.gala.ebActive ? COPY.mine.facts.galaSub(fmt.eur(D.gala.price), dayMon(D.gala.ebDeadline), fmt.eur(D.gala.priceRegular)) : fmt.eur(D.gala.price)) })}
+    </ul>
+  </section>
   <!-- /dc -->`;
 }
 function mineIncluded() {
-  const s = mineState();
   const g = galaState();
   const registered = !!D.myReg || !!D.next.registered;
-  const bullets = (items, dark) => items.map(t => `
-          <span style="display:flex;gap:10px;align-items:center"><span style="width:6px;height:6px;background:#c9a962;flex:none"></span>${t}</span>`).join('');
+  const checks = items => `<ul class="mx-checks">${items.map(t => `<li>${icon('check')}<span>${t}</span></li>`).join('')}</ul>`;
   const confDays = `${fmt.longRange(D.conf.start, D.conf.end).replace(/, \d{4}$/, '').replace('–', ' & ').replace(/^(\w+) /, '$1 ')}`;
   const confCta = registered
-    ? `<span style="margin-top:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span style="padding:6px 10px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${COPY.mine.confCard.tagDone}</span><a href="/app/me" style="padding:12px 20px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap;text-decoration:none" data-hover="background:#7e151b">${COPY.mine.confCard.ctaDone}</a></span>`
-    : `<a href="${formUrl('conference')}" style="margin-top:auto;align-self:flex-start;padding:12px 20px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap;text-decoration:none" data-hover="background:#7e151b">${COPY.mine.confCard.cta}</a>`;
+    ? `<a href="/app/me" class="btn-ghost btn-sm">${COPY.mine.confCard.ctaDone}</a>`
+    : `<a href="${formUrl('conference')}" class="btn-ghost btn-sm">${COPY.mine.confCard.cta}</a>`;
   const galaCta = g === 'paid'
-    ? `<span style="margin-top:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span style="padding:6px 10px;border:1px solid rgba(201,169,98,.65);color:#c9a962;font:600 8.5px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${COPY.mine.galaCard.tagPaid}</span><a href="/app/me" style="padding:12px 20px;background:#c9a962;color:#191512;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap;text-decoration:none" data-hover="background:#d9bd7f">${COPY.mine.galaCard.ctaPaid}</a></span>`
+    ? `<a href="/app/me" class="btn-ghost btn-sm">${COPY.mine.galaCard.ctaPaid}</a>`
     : g === 'approved'
-    ? `<span data-act="payGala" style="margin-top:auto;align-self:flex-start;padding:12px 20px;background:#c9a962;color:#191512;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="background:#d9bd7f">${COPY.mine.galaCard.ctaPay}</span>`
+    ? `<span data-act="payGala" role="button" class="btn-ghost btn-sm">${COPY.mine.galaCard.ctaPay}</span>`
     : g === 'pending'
-    ? `<span data-act="galaPendingInfo" style="margin-top:auto;align-self:flex-start;padding:12px 20px;border:1px solid rgba(201,169,98,.65);color:#c9a962;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap">${COPY.mine.galaCard.tagPending}</span>`
-    : `<a href="${formUrl('gala')}" style="margin-top:auto;align-self:flex-start;padding:12px 20px;background:#c9a962;color:#191512;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap;text-decoration:none" data-hover="background:#d9bd7f">${COPY.mine.galaCard.cta(fmt.eur(D.gala.price))}</a>`;
+    ? `<span data-act="galaPendingInfo" role="button" class="btn-ghost btn-sm">${COPY.mine.galaCard.tagPending}</span>`
+    : `<a href="${formUrl('gala')}" class="btn-ghost btn-sm">${COPY.mine.galaCard.cta(fmt.eur(D.gala.price))}</a>`;
+  const galaTag = g === 'paid' ? COPY.mine.galaCard.tagPaid : g === 'approved' ? COPY.mine.galaCard.tagApproved : esc(COPY.mine.galaCard.price(fmt.eur(D.gala.price)));
   return `
-    <!-- dc: My Plexus.dc.html › "01 · WHAT'S INCLUDED" -->
-    <div class="mx-wrap-row" style="display:flex;align-items:baseline;gap:14px;padding:24px 0 14px">
-      <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.mine.includedN}</span>
-      <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.mine.includedTitle}</span>
-    </div>
-    <div class="mx-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding-bottom:26px">
-      <div style="border:1px solid rgba(25,21,18,.16);border-top:2px solid #9b1b22;background:#fdfaf3;padding:24px;display:flex;flex-direction:column;gap:10px">
-        <div style="display:flex;align-items:baseline;gap:12px"><span style="font-family:Fraunces,serif;font-size:20px">${COPY.mine.confCard.title}</span><span style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;margin-left:auto;white-space:nowrap">${COPY.mine.confCard.tag}</span></div>
-        <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;color:#4a4239">${bullets(COPY.mine.confCard.items(esc(confDays), esc(fmt.longRange(D.conf.start, D.conf.start).replace(/, \d{4}$/, '')), esc(D.conf.startTime)))}
-        </div>
+  <!-- dc: My Plexus.dc.html › "01 · WHAT'S INCLUDED" -->
+  <section class="mx-sec" data-block="included">
+    ${sectionHead(COPY.mine.includedN, COPY.mine.includedTitle)}
+    <div class="mx-px-incl">
+      <div class="mx-px-inclcard">
+        <div class="mx-px-inclhead"><span class="mx-px-incltitle">${COPY.mine.confCard.title}</span><span class="mx-tag ${registered ? 'mx-tag--ink' : 'mx-tag--soft'}">${registered ? COPY.mine.confCard.tagDone : COPY.mine.confCard.tag}</span></div>
+        ${checks(COPY.mine.confCard.items(esc(confDays), esc(fmt.longRange(D.conf.start, D.conf.start).replace(/, \d{4}$/, '')), esc(D.conf.startTime)))}
         ${confCta}
       </div>
-      <div style="border:1px solid rgba(201,169,98,.55);background:#191512;color:#f7f1e6;padding:24px;display:flex;flex-direction:column;gap:10px">
-        <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap"><span style="font-family:Fraunces,serif;font-size:20px;white-space:nowrap">${COPY.mine.galaCard.title}</span><span style="font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#c9a962;margin-left:auto;white-space:nowrap">${esc(COPY.mine.galaCard.price(fmt.eur(D.gala.price)))}</span></div>
-        <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;color:rgba(247,241,230,.75)">${bullets(COPY.mine.galaCard.items)}
-        </div>
+      <div class="mx-px-inclcard">
+        <div class="mx-px-inclhead"><span class="mx-px-incltitle">${COPY.mine.galaCard.title}</span><span class="mx-tag ${g === 'paid' ? 'mx-tag--ink' : 'mx-tag--gold'}">${galaTag}</span></div>
+        ${checks(COPY.mine.galaCard.items)}
         ${galaCta}
       </div>
     </div>
-    <!-- /dc -->`;
+  </section>
+  <!-- /dc -->`;
 }
 function mineKnow() {
   const registered = !!D.myReg;
   const holdsSomething = registered || !!D.galaReg;
   return `
-    <!-- dc: My Plexus.dc.html › "02 · GOOD TO KNOW" -->
-    <div class="mx-wrap-row" style="display:flex;align-items:baseline;gap:14px;border-top:1px solid rgba(25,21,18,.16);padding:24px 0 14px">
-      <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.mine.knowN}</span>
-      <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.mine.knowTitle}</span>
-    </div>
-    <div class="mx-grid-3" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;padding-bottom:26px">
+  <!-- dc: My Plexus.dc.html › "02 · GOOD TO KNOW" -->
+  <section class="mx-sec" data-block="know">
+    ${sectionHead(COPY.mine.knowN, COPY.mine.knowTitle)}
+    <div class="mx-accs">
       ${COPY.mine.know.map(k => `
-      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:18px;display:flex;flex-direction:column;gap:6px">
-        <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">${k.tag}</span>
-        <span style="font-family:Fraunces,serif;font-size:16px">${k.title}</span>
-        <span style="font-size:12.5px;color:#4a4239;line-height:1.5">${esc(k.note(fmt.eur(D.gala.price), fmt.longRange(D.gala.ebDeadline, D.gala.ebDeadline).replace(/, \d{4}$/, ''), fmt.eur(D.gala.priceRegular), holdsSomething))}</span>
-        ${k.act === 'transfer' && holdsSomething ? `<span data-act="transfer" data-v2="${D.galaReg ? 'gala seat transfer (POST /api/v2/transfer/gala)' : 'transfer request (POST /api/plexus/registration/:id/transfer)'}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;cursor:pointer;margin-top:4px;white-space:nowrap">${D.galaReg ? k.actLabelSeat : k.actLabel}</span>` : ''}
-        ${k.href ? `<a href="${k.href}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;margin-top:4px;white-space:nowrap">${k.actLabel}</a>` : ''}
-      </div>`).join('')}
+      <details class="mx-acc"><summary>${k.title}</summary><div class="mx-acc-a">
+        ${esc(k.note(fmt.eur(D.gala.price), fmt.longRange(D.gala.ebDeadline, D.gala.ebDeadline).replace(/, \d{4}$/, ''), fmt.eur(D.gala.priceRegular), holdsSomething))}
+        ${k.act === 'transfer' && holdsSomething ? `<br><span data-act="transfer" role="button" class="mx-px-textbtn" data-v2="${D.galaReg ? 'gala seat transfer (POST /api/v2/transfer/gala)' : 'transfer request (POST /api/plexus/registration/:id/transfer)'}">${D.galaReg ? k.actLabelSeat : k.actLabel}</span>` : ''}
+      </div></details>`).join('')}
     </div>
-    <!-- /dc -->`;
+  </section>
+  <!-- /dc -->`;
 }
-function minePassAndWho() {
+function minePass() {
   const tickets = D.events.filter(ev => ev.ticket && ['plexus', 'gala'].includes(ev.evt));
   const pendingGala = galaState() === 'pending' || galaState() === 'approved';
-  const att = D.attendees;
-  const AV = [['#191512', '#f7f1e6'], ['#9b1b22', '#f7f1e6'], ['#c9a962', '#191512']];
   return `
-    <div class="mx-grid-side" style="display:grid;grid-template-columns:1fr 1fr;gap:44px;border-top:1px solid rgba(25,21,18,.16);padding-bottom:8px">
-      <div>
-        <!-- dc: My Plexus.dc.html › "03 · MY PASS" -->
-        <div style="display:flex;align-items:baseline;gap:14px;padding:24px 0 12px">
-          <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.mine.passN}</span>
-          <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.mine.passTitle}</span>
-        </div>
-        <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:26px;display:flex;flex-direction:column;align-items:center;gap:9px;text-align:center">
-          ${tickets.length ? `
-          <div style="display:flex;gap:22px;flex-wrap:wrap;justify-content:center">
-            ${tickets.map(ev => `
-            <span style="display:flex;flex-direction:column;align-items:center;gap:7px">
-              <img class="mx-qr" src="${esc(api.url(ev.ticket))}" alt="QR pass — ${esc(ev.title)}" loading="lazy">
-              <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#4a4239">${esc(fmt.upper(ev.evt === 'gala' ? 'GALA EVENING' : 'CONFERENCE'))}${ev.checked_in ? ' · ✓ CHECKED IN' : ''}</span>
-            </span>`).join('')}
-          </div>
-          <span style="font-size:12.5px;color:#4a4239;max-width:360px">${COPY.mine.passNote}</span>` : `
-          <div style="width:58px;height:58px;border:1px dashed rgba(25,21,18,.35);display:flex;align-items:center;justify-content:center;font:600 9px Inter,sans-serif;font-variant-numeric:tabular-nums;color:#4a4239;background:repeating-linear-gradient(90deg,rgba(25,21,18,.06) 0 3px,transparent 3px 6px)">QR</div>
-          <span style="font-family:Fraunces,serif;font-style:italic;font-size:16.5px;color:#4a4239">${pendingGala ? esc(COPY.mine.passPending) : esc(COPY.mine.passEmptyLine)}</span>
-          <span style="font-size:12.5px;color:#4a4239;max-width:360px">${COPY.mine.passEmptyWhy}</span>`}
-        </div>
-        <!-- /dc -->
-      </div>
-      <div>
-        <!-- dc: My Plexus.dc.html › "04 · WHO FROM YOUR NETWORK ATTENDS" -->
-        <div class="mx-wrap-row" style="display:flex;align-items:baseline;gap:14px;padding:24px 0 8px">
-          <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.mine.whoN}</span>
-          <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em;flex:1 1 0;min-width:0">${COPY.mine.whoTitle}</span>
-          ${att.length ? `<span style="padding:2px 6px;border:1px solid rgba(25,21,18,.22);font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#4a4239;white-space:nowrap">${esc(COPY.mine.attending(att.length))}</span>` : ''}
-        </div>
-        ${att.length ? att.slice(0, 5).map((a, i) => `
-        <div style="display:flex;gap:16px;align-items:center;padding:9px 0;${i < Math.min(att.length, 5) - 1 ? 'border-bottom:1px solid rgba(25,21,18,.12)' : ''}">
-          <span style="width:32px;height:32px;background:${AV[i % 3][0]};color:${AV[i % 3][1]};display:inline-flex;align-items:center;justify-content:center;font:600 11px Fraunces,serif;flex:none">${esc(fmt.initials(a.first_name, a.last_name))}</span>
-          <span style="flex:1;min-width:0"><span style="display:block;font-size:13px;font-weight:600">${esc([a.first_name, a.last_name].filter(Boolean).join(' '))}</span><span style="display:block;font-size:11.5px;color:#4a4239">${esc(a.institution || a.country || '')}</span></span>
-          <a href="/app/messages?to=${encodeURIComponent(a.id)}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;white-space:nowrap">${COPY.mine.message}</a>
-        </div>`).join('') : `
-        <div class="empty" style="padding:18px 0 8px;align-items:flex-start;text-align:left">
-          <span class="rule-gold" style="margin-bottom:4px"></span>
-          <span class="empty-line">${esc(COPY.mine.whoEmptyLine)}</span>
-          <span class="empty-why" style="max-width:380px">${esc(COPY.mine.whoEmptyWhy)}</span>
-        </div>`}
-        <a href="/app/network" style="display:block;font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;padding:10px 0 20px">${COPY.mine.findMore}</a>
-        <!-- /dc -->
-      </div>
-    </div>`;
+  <!-- dc: My Plexus.dc.html › "03 · MY PASS" -->
+  <section class="mx-sec" data-block="pass">
+    ${sectionHead(COPY.mine.passN, COPY.mine.passTitle)}
+    ${tickets.length ? `
+    <div class="mx-px-pass">
+      ${tickets.map(ev => `
+      <div class="mx-px-passitem">
+        <img class="mx-qr" src="${esc(api.url(ev.ticket))}" alt="QR pass — ${esc(ev.title)}" loading="lazy">
+        <span class="mx-px-passlabel">${ev.evt === 'gala' ? 'Gala Evening' : 'Conference'}${ev.checked_in ? ' · checked in' : ''}</span>
+      </div>`).join('')}
+    </div>
+    <p class="mx-px-note">${COPY.mine.passNote}</p>` : `
+    <div class="empty mx-px-passempty">${icon('ticket', 28)}<span class="empty-line">${pendingGala ? esc(COPY.mine.passPending) : esc(COPY.mine.passEmptyLine)}</span><span class="empty-why">${COPY.mine.passEmptyWhy}</span></div>`}
+  </section>
+  <!-- /dc -->`;
+}
+function mineWho() {
+  const att = D.attendees;
+  return `
+  <!-- dc: My Plexus.dc.html › "04 · WHO FROM YOUR NETWORK ATTENDS" -->
+  <section class="mx-sec" data-block="who">
+    ${sectionHead(COPY.mine.whoN, COPY.mine.whoTitle, att.length ? `<span class="mx-tag mx-tag--soft">${esc(COPY.mine.attending(att.length))}</span>` : '')}
+    ${att.length ? `<div class="mx-person-rows">${att.slice(0, 5).map(a => {
+      const name = [a.first_name, a.last_name].filter(Boolean).join(' ');
+      return `<div class="mx-person-row">${ui.portrait({ name, src: a.photo_url ? api.url(a.photo_url) : '', size: 64, alt: '' })}<span class="mx-person-text"><span class="mx-person-name">${esc(name)}</span><span class="mx-person-role">${esc(a.institution || a.country || '')}</span></span><span class="mx-person-act"><a href="/app/messages?to=${encodeURIComponent(a.id)}" class="btn-ghost btn-sm">${COPY.mine.message}</a></span></div>`;
+    }).join('')}</div>` : `
+    <div class="empty"><span class="empty-line">${esc(COPY.mine.whoEmptyLine)}</span><span class="empty-why">${esc(COPY.mine.whoEmptyWhy)}</span></div>`}
+    <div class="mx-list mx-px-find">${listRow({ href: '/app/network', ic: 'users', l: COPY.mine.findMore, s: COPY.mine.findMoreSub })}</div>
+  </section>
+  <!-- /dc -->`;
 }
 function mineTpl() {
   return `
-<div data-screen-label="My Plexus" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
+<div data-screen-label="My Plexus" class="mx-px">
   ${crumb([{ label: COPY.crumb.projects, to: '/app/projects' }, { label: COPY.crumb.plexus, to: '/app/plexus' }, { label: COPY.crumb.mine }])}
-  ${tabStrip()}
-  <div data-block="mine-hero">${mineHero()}</div>
-  <div class="mx-gutter" style="padding:0 36px">
+  <div class="mx-p">
+    ${tabStrip()}
+    ${mineHero()}
     ${mineIncluded()}
     ${mineKnow()}
-    ${minePassAndWho()}
+    ${minePass()}
+    ${mineWho()}
+    ${blockHelp(COPY.help.mine)}
   </div>
-  ${blockHelp(COPY.help.mine, COPY.help.sub, true)}
 </div>`;
 }
 
 // ---------------------------------------------------------------- behaviour
 function rerender(sel, html) { const el = rootEl && rootEl.querySelector(sel); if (el) el.outerHTML = html; }
 // the bio sheet closes like every modal (app.css › .mx-modal.is-leaving): the scrim and sheet fade out over
-// the exit timing, then the block is redrawn empty; focus returns to the card's VIEW BIO that opened it
+// the exit timing, then the block is redrawn empty; focus returns to the card that opened it
 function closeBio() {
   if (!st || !st.bio) return;
   const id = st.bio; st.bio = null;
@@ -1141,7 +979,7 @@ const handlers = {
     if (D) D.followed = on;
     ui.toast(on ? COPY.toasts.followed : COPY.toasts.unfollowed);
     chrome.refresh();
-  }, on => { const l = el.parentElement && el.parentElement.querySelector('[data-role="follow-label"]'); if (l) l.innerHTML = COPY.hero.follow(on); }),
+  }, on => { const l = el.parentElement && el.parentElement.querySelector('[data-role="follow-label"]'); if (l) l.innerHTML = COPY.facts.followSub(on); }),
   dlIcs: () => {
     const events = icsEvents();
     if (!events.length) return ui.toast(COPY.toasts.icsNone, { kind: 'error' });
@@ -1149,7 +987,7 @@ const handlers = {
     ui.toast(COPY.band.icsDone);
   },
   // Editions: "in general Plexus Week and then we can choose 2026, and once it passes we archive it"
-  // (design/MEETUPS-SPEC.md §1). The chip lists every edition; picking one re-reads this page with
+  // (design/MEETUPS-SPEC.md §1). The year control lists every edition; picking one re-reads this page with
   // ?edition=<id>, and an archived one comes back read-only.
   editions: () => {
     const w = D.week || {};
@@ -1158,13 +996,12 @@ const handlers = {
     const activeId = (list.find(e => e.status === 'active') || {}).id || null;
     const m = ui.modal({
       eyebrow: COPY.week.modalEyebrow, title: COPY.week.modalTitle,
-      body: `<p style="margin:0 0 14px">${esc(COPY.week.modalBody)}</p>` + (list.length ? list.map(e => `
-        <div data-act="pickEdition" data-id="${esc(e.id)}" data-active="${e.id === activeId}" style="display:flex;gap:12px;align-items:baseline;padding:11px 0;border-bottom:1px solid rgba(25,21,18,.1);cursor:pointer" data-hover="color:#9b1b22">
-          <span style="font-family:Fraunces,serif;font-size:16px;flex:1">${esc(e.label || String(e.year || ''))}</span>
-          <span style="font-size:11.5px;color:#4a4239;white-space:nowrap">${esc(fmt.longRange(e.starts_on, e.ends_on))}</span>
-          <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:${e.id === currentId ? '#9b1b22' : '#9b8f80'};white-space:nowrap">${esc(fmt.upper(e.status === 'active' ? COPY.week.current : e.status))}</span>
-        </div>`).join('') : `
-        <div class="empty" style="padding:10px 0 4px"><span class="rule-gold" style="margin-bottom:6px"></span><span class="empty-line">${esc(COPY.week.none)}</span><span class="empty-why">${esc(COPY.week.noneWhy)}</span></div>`),
+      body: `<p style="margin:0 0 14px">${esc(COPY.week.modalBody)}</p>` + (list.length ? `<div class="mx-list mx-list--plain">${list.map(e => `
+        <span class="mx-row" data-act="pickEdition" data-id="${esc(e.id)}" data-active="${e.id === activeId}" role="button">
+          <span class="mx-row-l">${esc(e.label || String(e.year || ''))}<span class="mx-row-s">${esc(fmt.longRange(e.starts_on, e.ends_on))}</span></span>
+          <span class="mx-row-v"${e.id === currentId ? ' style="color:#9b1b22"' : ''}>${esc(e.status === 'active' ? COPY.week.current : e.status)}</span>
+        </span>`).join('')}</div>` : `
+        <div class="empty"><span class="empty-line">${esc(COPY.week.none)}</span><span class="empty-why">${esc(COPY.week.noneWhy)}</span></div>`),
       actions: [{ label: COPY.week.close }]
     });
     ui.bind(m.el, { pickEdition: (el) => { m.close(); const id = el.dataset.id; router.navigate(el.dataset.active === 'true' ? '/app/plexus' : `/app/plexus?edition=${encodeURIComponent(id)}`); } });
@@ -1177,7 +1014,7 @@ const handlers = {
     const apiPhotos = D.photos || [];
     const list = apiPhotos.length
       ? apiPhotos.map(p => ({ src: api.url(p.file_path), alt: p.title || 'Plexus photo', caption: p.title || '' }))
-      : EXPORT_PHOTOS.map(p => ({ src: '/assets/' + p }));
+      : EXPORT_PHOTOS.map((p, i) => ({ src: '/assets/' + p, alt: MOMENT_ALTS[i] || '' }));
     ui.lightbox(list, { start: apiPhotos.length ? 0 : el && el.dataset.i, eyebrow: COPY.photos.modalEyebrow, title: COPY.photos.modalTitle, note: apiPhotos.length ? '' : esc(COPY.photos.pending) });
   },
   pdf: () => { window.open(api.url('/api/v2/plexus/program.pdf'), '_blank', 'noopener'); ui.toast(COPY.toasts.pdfOpen); },
@@ -1187,7 +1024,7 @@ const handlers = {
     window.open(api.url(url), '_blank', 'noopener');
     ui.toast(COPY.zagreb.guideDone);
   },
-  tgDay: (el) => { const i = Number(el.dataset.day); st.dayOpen[i] = !st.dayOpen[i]; rerender('[data-block="days"]', `<div data-block="days" style="display:grid;grid-template-columns:1fr;gap:0;padding-bottom:6px;max-width:960px"><div>${progDays().html}</div></div>`); },
+  tgDay: (el) => { const i = Number(el.dataset.day); st.dayOpen[i] = !st.dayOpen[i]; rerender('[data-block="days"]', daysBlock()); },
   tgSession: async (el) => {
     const id = el.dataset.id;
     const s = D.sessions.find(x => x.id === id);
@@ -1197,7 +1034,7 @@ const handlers = {
       if (had) { await api.del('/api/plexus/my-schedule/' + encodeURIComponent(id)); D.mySched.delete(id); }
       else { await api.post('/api/plexus/my-schedule/' + encodeURIComponent(id)); D.mySched.add(id); }
       const days = rootEl.querySelector('[data-block="days"]');
-      if (days) rerender('[data-block="days"]', `<div data-block="days" style="display:grid;grid-template-columns:1fr;gap:0;padding-bottom:6px;max-width:960px"><div>${progDays().html}</div></div>`);
+      if (days) rerender('[data-block="days"]', daysBlock());
       if (st.bio) { rerender('[data-block="bio"]', `<div data-block="bio">${blockBio()}</div>`); openBioFocus(); }
       ui.toast(had ? COPY.toasts.sessionRemoved((s && s.title) || 'session') : COPY.toasts.sessionAdded((s && s.title) || 'session'));
     } catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }

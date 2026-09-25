@@ -1,18 +1,20 @@
-// Source: Biomedical Forum.dc.html
-// Blocks (artboard order): "Breadcrumb" › "Hero" › "Facts band" › "01 · THE NETWORK" ›
-// "FROM THE FORUM" (featured + grid) › "02 · THE ANNUAL GATHERING" › "03 · GATHERING SPEAKERS" ›
-// "04 · YOUR MEMBERSHIP" (3-stage indicator · code entry / member / confirmed · v2 venue vote) › "Message us".
+// Source: Biomedical Forum.dc.html, redrawn to the phone calm rules (DESIGN-RULES.md 2026-09-25).
+// Blocks, top to bottom: "Breadcrumb" (desktop) › "Hero" (eyebrow · title · date · ONE action) › "Facts" (the
+// circle, the gathering, the venue vote, the membership — each said once) › "01 · The network" (three rows +
+// what membership includes) › "From the Forum" (posts as accordions) › "02 · The annual gathering" ›
+// "03 · Gathering speakers" › "04 · Your membership" (stages · code entry / member / confirmed · venue vote) ›
+// "Put a colleague forward" (the form folded into one row) › "Message us".
 // Data: GET /api/v2/forum/state (membership · gathering · registration · vote · schedule · speakers)
 // + GET /api/v2/forum/feed (the "From the Forum" store: v2 composer table ∪ legacy forum_news).
 // Actions: POST /api/v2/forum/redeem-code (UNLOCK REGISTRATION — distinct empty/unknown/expired/used/
 // member errors) · POST /api/v2/forum/register (COMPLETE REGISTRATION — annual terms required) ·
 // POST /api/v2/forum/vote (Split-or-Zagreb, one changeable vote per member) ·
-// POST /api/v2/forum/nominate ("PUT A COLLEAGUE FORWARD" — v2-added block between "04 · YOUR
-// MEMBERSHIP" and "Message us": medx.hr's "put forward by a member who can speak to a colleague's
-// standing and character" route; /app/forum is auth-gated by the router, so every viewer is signed in).
+// POST /api/v2/forum/nominate ("PUT A COLLEAGUE FORWARD" — medx.hr's "put forward by a member who can speak to a
+// colleague's standing and character" route; /app/forum is auth-gated by the router, so every viewer is signed in).
 // MESSAGE US → /app/messages.
 // The Auth "Invitation code" screen stores a guest-checked code in sessionStorage.medx_forum_code;
-// this view redeems it on arrival (see "Requested shared changes" in the build report).
+// this view redeems it on arrival.
+// FROZEN (DESIGN-RULES §8): the code card's controls, the registration and its paid hand-off are unchanged.
 import { api } from '../api.js';
 import { session } from '../state.js';
 import { ui, esc, fmt } from '../ui.js';
@@ -27,69 +29,65 @@ const NOMINATION_MIN = 120;                   // statement floor — mirrors the
 export const COPY = {
   crumb: { projects: 'PROJECTS', here: 'BIOMEDICAL FORUM' },
   hero: {
-    badge: 'AN INVITATION-ONLY NETWORK · GATHERS ONCE A YEAR',
-    headline: 'The Biomedical <i style="color:#c9a962">Forum</i>',
-    line: (label, where) => `Annual gathering · ${label} · ${where} — venue announced with your invitation`,
-    blurb: 'A standing network of leaders in medicine, science, and industry. Members stay connected in the portal all year — and meet in person once a year, over two days each May, closing with a dinner and the Forum\'s annual awards.',
+    eyebrow: 'By invitation',
+    headline: 'The Biomedical <i>Forum</i>',
+    date: (label, where) => `${label} · ${where}`,
     join: 'JOIN WITH YOUR CODE →', member: 'YOUR MEMBERSHIP →'
   },
-  band: ['SPLIT OR ZAGREB · MEMBERS VOTE ON THE VENUE', '150–200 SENIOR GUESTS', 'ANNUAL MEMBERSHIP · RENEWED EACH YEAR', 'MAY GATHERING · DINNER &amp; ANNUAL AWARDS'],
+  facts: {
+    cap: n => `Capped at ${n} members`, capSub: 'Leaders of Croatian and international biomedicine',
+    gather: 'Two days each May', gatherSub: 'Closing dinner and the annual awards',
+    vote: 'Members vote on the venue', annual: 'Annual membership', annualSub: 'Renewed each year with your invitation'
+  },
   network: {
-    n: '01', title: 'THE NETWORK',
-    intro: cap => `The Forum is a standing network of the leadership of Croatian and international biomedicine, limited to ${cap} members so every relationship stays personal. Membership is by invitation: your code arrives by email, and joining unlocks the member circle here in the portal along with registration for the annual gathering.`,
-    directory: 'Forum members appear alongside your connections in <a href="/app/network">the member network</a> — message and connect year-round.',
-    cards: cap => [
-      { tag: 'THE CIRCLE', title: `${cap} members, by invitation`, body: 'The leadership of Croatian and international biomedicine — heads of clinics, labs, and companies, reachable in the portal year-round.' },
-      { tag: 'THE GATHERING', title: 'Two days, once a year', body: 'Every May the Forum meets in person, closing with a dinner and the Forum\'s annual awards. Members register first.' },
-      { tag: 'THE MEMBERSHIP', title: 'Annual, renewable', body: `Membership runs for one year and renews annually — the full terms arrive with your registration. The cap stays at ${cap} so every relationship stays personal.` }
+    n: '01', title: 'The network',
+    rows: [
+      { icon: 'users', v: 'Members, by invitation', s: 'Heads of clinics, labs and companies' },
+      { icon: 'mail', v: 'Reachable year-round', s: 'Message members in the network', href: '/app/network' },
+      { icon: 'calendar', v: 'First call on the gathering', s: 'Members register first' }
     ],
-    // What a member actually gets — stated once, in plain terms, so nobody reads the Forum's
-    // dinner as a Plexus Gala ticket or expects a Gala seat with their membership (2026-09-17).
+    // What a member actually gets — stated once, so nobody reads the Forum's dinner as a Plexus Gala ticket
+    // or expects a Gala seat with their membership (2026-09-17).
     includes: {
-      title: 'WHAT MEMBERSHIP INCLUDES',
+      title: 'What membership includes',
       points: [
-        'The members\' network and directory here in the portal — message and connect year-round.',
-        'First call on seats at the Forum\'s annual May gathering.',
-        '<strong style="color:#191512">Plexus Gala Evening: Forum members always pay the early-bird price (€150), whatever the date.</strong>'
+        'The members’ network and directory, year-round',
+        'First call on seats at the annual May gathering',
+        'The Plexus Gala at the early-bird price (€150), whatever the date'
       ],
-      note: 'Membership does not include a free Gala seat; the Gala is a separate ticket.'
+      note: 'The Gala itself is a separate ticket.'
     }
   },
   feed: {
-    mark: '◆', title: 'FROM THE FORUM', sub: 'New highlights from the network — posted by the Med&amp;X team.',
-    by: 'from the Med&amp;X team',
-    emptyLine: 'Quiet week at the Forum.',
-    emptyWhy: 'Highlights from the network — member spotlights, Forum news, things worth reading — appear here as the Med&amp;X team posts them.',
-    emptyCta: 'MEET THE NETWORK →'
+    title: 'From the Forum', by: 'from the Med&amp;X team',
+    empty: 'Highlights from the network appear here as the Med&amp;X team posts them.'
   },
   gathering: {
-    n: '02', title: 'THE ANNUAL GATHERING',
-    sub: 'Two days each May · the full program follows with your invitation.',
-    // The run-of-show rows (18:00 reception … 23:00 entertainment) read as a gala ticket and were
-    // never the gathering's real program. A description stands here now: gathering.description
-    // from GET /api/v2/forum/state when the admin has written one, else this text (2026-09-17).
+    n: '02', title: 'The annual gathering',
+    sub: 'The full program follows with your invitation.',
+    more: 'About the gathering',
+    // gathering.description from GET /api/v2/forum/state when the admin has written one, else this text (2026-09-17)
     fallback: 'Once a year the Forum leaves the portal and meets in person — two days each May, for the members and guests who lead Croatian and international biomedicine. The days are built for conversation rather than lectures: closed sessions on where medicine and science are heading, time with colleagues you would otherwise only read about, and a closing evening of dinner and the Forum\'s annual awards. Members register first. The venue and the full program follow with your invitation.'
   },
   speakers: {
-    n: '03', title: 'GATHERING SPEAKERS', sub: 'Announced with the program — Forum members hear first.',
-    emptyLine: y => `Speakers for the ${y} gathering are announced with the program.`,
-    emptyWhy: 'Watch this page — and your inbox — as May approaches.'
+    n: '03', title: 'Gathering speakers',
+    emptyLine: y => `Speakers for ${y} are announced with the program.`
   },
   membership: {
-    n: '04', title: 'YOUR MEMBERSHIP',
-    stages: ['JOIN THE NETWORK', 'GATHERING REGISTRATION', 'CONFIRMED'],
-    inviteLine: 'Received an invitation? Enter your code to join the Forum network.',
+    n: '04', title: 'Your membership',
+    stages: ['Join', 'Register', 'Confirmed'],
+    inviteLine: 'Received an invitation? Enter your code to join.',
     codePlaceholder: 'FORUM CODE', unlock: 'UNLOCK REGISTRATION →', checking: 'CHECKING…',
-    note: cap => `Annual membership, renewed each year · capped at ${cap} members. No code yet? Message us below.`,
+    note: cap => `Annual membership · capped at ${cap} members. No code yet? Message us below.`,
     emptyCode: 'Enter the code from your invitation email.',
     memberTag: 'FORUM MEMBER',
     welcome: first => `Welcome to the Forum${first ? ', ' + first : ''}.`,
-    memberBody: 'You\'re in the network — register for the annual gathering to confirm your seat. Your QR pass will appear in My Med&amp;X once confirmed.',
+    memberBody: 'Register for the annual gathering to confirm your seat. Your QR pass appears in My Med&amp;X.',
     complete: 'COMPLETE REGISTRATION →',
     renews: d => `Annual membership · renews ${d}`, renewsOpen: 'Annual membership · renewed each year',
     lapsed: 'Your membership has lapsed — enter this year\'s code to renew it.',
     confirmedHead: first => `Your seat is confirmed${first ? ', ' + first : ''}.`,
-    confirmedBody: ref => `Reference <span style="font:600 12px Inter,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:.08em;color:#f7f1e6">${ref}</span> · your QR pass is in My Med&amp;X. The full program follows with your invitation.`,
+    confirmedBody: ref => `Reference <span class="mx-fo-ref">${ref}</span> · your QR pass is in My Med&amp;X.`,
     myMedx: 'MY MED&amp;X →', addCal: 'ADD TO CALENDAR', icsFile: 'medx-forum-gathering.ics',
     icsDone: 'Calendar file downloaded — open it to add the gathering.',
     noEvent: 'Registration for the next gathering opens here — Forum members hear first.'
@@ -108,20 +106,19 @@ export const COPY = {
     done: 'Your seat at the gathering is confirmed.'
   },
   vote: {
-    eyebrow: 'SPLIT OR ZAGREB · MEMBERS VOTE ON THE VENUE',
+    eyebrow: 'Members vote on the venue',
     line: 'Where shall the Forum meet in 2027?',
-    note: 'One vote per member — you can change it any time before the venue is announced.',
+    note: 'One vote per member; change it any time before the venue is announced.',
     labels: { split: 'SPLIT', zagreb: 'ZAGREB' },
     counted: 'Vote counted.', updated: 'Vote updated.'
   },
   nominate: {
-    eyebrow: 'MEMBERS PUT MEMBERS FORWARD',
-    title: 'Put a colleague <i style="color:#9b1b22">forward</i>.',
-    intro: 'Members join the Forum invited by the Office of the Forum — or put forward by a member who can speak to a colleague\'s standing and character. If someone belongs in this room, tell us who they are and speak for them.',
+    row: 'Put a colleague forward', rowSub: 'Members put members forward',
+    intro: 'If someone belongs in this room, tell us who they are and speak for their standing and character.',
     name: 'COLLEAGUE\'S NAME', email: 'COLLEAGUE\'S EMAIL', institution: 'INSTITUTION',
-    statement: 'THEIR STANDING AND CHARACTER — IN YOUR WORDS',
+    statement: 'THEIR STANDING AND CHARACTER',
     statementPh: 'What they have built, how they carry themselves, why the Forum is better with them in it…',
-    statementWhy: min => `At least ${min} characters — this statement is the part the Office of the Forum reads first, so give it two or three real sentences.`,
+    statementWhy: min => `At least ${min} characters · the Office of the Forum reads this first.`,
     counter: (n, min) => n >= min ? `${n} characters — thank you for the detail` : `${n} / ${min} characters minimum`,
     submit: 'PUT THEM FORWARD →', busy: 'SENDING…',
     needName: 'Tell us your colleague\'s name.',
@@ -134,13 +131,9 @@ export const COPY = {
     another: 'PUT ANOTHER COLLEAGUE FORWARD →'
   },
   contact: {
-    line: 'Questions about your invitation, the program, or sponsorship?',
-    sub: 'Message us · replies land right here in your portal inbox.',
-    cta: 'MESSAGE US →',
-    // medx.hr has no #sponsorship anchor (checked 2026-08-30: the support band's heading id is
-    // home-support-h), so this deliberately links the homepage rather than a dead fragment.
-    sponsorLead: 'Sponsoring the Forum or the gathering starts on our site.',
-    sponsorCta: 'SPONSORSHIP — MEDX.HR ↗',
+    ask: 'Message us', sub: 'Invitation, program, sponsorship',
+    // medx.hr has no #sponsorship anchor (checked 2026-08-30), so this links the homepage rather than a dead fragment
+    sponsor: 'Sponsorship', sponsorSub: 'Starts on medx.hr',
     sponsorUrl: 'https://medx.hr'
   }
 };
@@ -172,12 +165,16 @@ async function load() {
   const r = await api.settle({ state: api.get('/api/v2/forum/state'), feed: api.get('/api/v2/forum/feed?limit=12') });
   const state = r.state || { stage: 1, cap: FACTS.forum.cap, membership: { is_member: false }, gathering: null, registration: null, vote: null, schedule: [], speakers: [], user: {} };
   const g = state.gathering;
+  const d1 = g && fmt.toDate(g.start_date), d2 = g && fmt.toDate(g.end_date);
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   return {
     state,
     stage: state.stage || 1,
     cap: state.cap || FACTS.forum.cap,
     feed: (r.feed && r.feed.items) || [],
     gatherLabel: g && g.start_date ? fmt.longRange(g.start_date, g.end_date) : FACTS.forum.gathering.label,
+    // '28–29 May 2027' for the hero and the facts
+    gatherShort: d1 ? `${d1.getDate()}${d2 && d2.getTime() !== d1.getTime() ? '–' + d2.getDate() : ''} ${MON[d1.getMonth()]} ${d1.getFullYear()}` : FACTS.forum.gathering.label,
     gatherWhere: (g && g.location_name && g.location_name.split('—')[0].trim()) || FACTS.forum.gathering.where,
     gatherYear: String((g && g.start_date) || FACTS.forum.gathering.start).slice(0, 4),
     gatherAbout: (g && g.description && String(g.description).trim()) || COPY.gathering.fallback,
@@ -186,185 +183,122 @@ async function load() {
 }
 const mkFeed = p => ({ tag: p.tag || '', when: ago(p.published_at), body: p.body || '', headline: p.name || p.title || '', sub: p.role || '', init: p.init || '', isSpot: p.kind === 'spotlight' });
 
+// ---------------------------------------------------------------- kit helpers
+const icon = (n, s) => ui.icon(n, s || 20);
+const chev = () => ui.icon('chevron-right', 18);
+function sectionHead(n, title, right) {
+  return `<div class="mx-sh">${n ? `<span class="mx-sh-n">${n}</span>` : ''}<h2 class="mx-sh-t">${title}</h2>${right || ''}</div>`;
+}
+function fact({ ic, v, s, href }) {
+  const inner = `${icon(ic)}<div class="mx-fact-body"><span class="mx-fact-v">${v}</span>${s ? `<span class="mx-fact-s">${s}</span>` : ''}</div>`;
+  return href ? `<li><a class="mx-fact" href="${href}">${inner}${chev()}</a></li>` : `<li class="mx-fact">${inner}</li>`;
+}
+
 // ---------------------------------------------------------------- blocks
 function blockCrumb() { return `
-  <!-- dc: Biomedical Forum.dc.html › "Breadcrumb" -->
+  <!-- dc: Biomedical Forum.dc.html › "Breadcrumb" (desktop; phones carry back in the top bar) -->
   <div class="mx-crumbs mx-gutter" style="display:flex;align-items:center;gap:13px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16)">
-    <a href="/app/projects" data-dir="back" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239" data-hover="color:#191512">${COPY.crumb.projects}</a>
-    <span style="color:rgba(25,21,18,.35);font-size:10px">→</span>
-    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#191512">${COPY.crumb.here}</span>
+    <a href="/app/projects" data-dir="back" style="font:600 12px Inter,sans-serif;letter-spacing:.12em;color:#4a4239" data-hover="color:#191512">${COPY.crumb.projects}</a>
+    <span style="color:rgba(25,21,18,.35);font-size:12px">→</span>
+    <span style="font:600 12px Inter,sans-serif;letter-spacing:.12em;color:#191512">${COPY.crumb.here}</span>
   </div>
   <!-- /dc -->`; }
 
+// §6: eyebrow · title · one date line · ONE action (the same #forum-invitation link and join act as before)
 function blockHero() {
   const isMember = D.stage >= 2;
   return `
   <!-- dc: Biomedical Forum.dc.html › "Hero" -->
-  <div class="mx-ink" style="position:relative;overflow:hidden">
-    <img class="mx-hero-photo" src="/assets/photo-forum.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 35%">
-    <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(25,21,18,.74) 0%,rgba(25,21,18,.58) 55%,rgba(25,21,18,.86) 100%)"></div>
-    <div class="mx-pad-hero" style="position:relative;padding:56px 36px 46px;display:flex;flex-direction:column;align-items:center;text-align:center">
-      <span style="padding:6px 12px;border:1px solid rgba(201,169,98,.7);color:#c9a962;font:600 10px Inter,sans-serif;letter-spacing:.18em;text-align:center">${COPY.hero.badge}</span>
-      <div class="mx-display-52" style="font-family:Fraunces,serif;font-size:52px;line-height:1.08;color:#f7f1e6;margin-top:20px">${COPY.hero.headline}</div>
-      <div style="font-family:Fraunces,serif;font-style:italic;font-size:21px;color:#c9a962;margin-top:14px">${esc(COPY.hero.line(D.gatherLabel, D.gatherWhere))}</div>
-      <div style="font-size:15px;color:rgba(247,241,230,.85);margin-top:10px;max-width:620px">${COPY.hero.blurb}</div>
-      <div style="display:flex;gap:13px;margin-top:26px;justify-content:center;flex-wrap:wrap">
-        <a href="#forum-invitation" data-act="join" style="padding:13px 22px;background:#c9a962;color:#191512;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap" data-hover="background:#d9bd7f">${isMember ? COPY.hero.member : COPY.hero.join}</a>
-      </div>
+  <section class="mx-hero mx-ink mx-fo-hero">
+    <img class="mx-hero-photo" src="/assets/photo-forum.jpg" alt="" style="object-position:55% 40%">
+    <div class="mx-scrim"></div>
+    <div class="mx-hero-body">
+      <span class="mx-hero-eyebrow">${COPY.hero.eyebrow}</span>
+      <h1 class="mx-hero-title">${COPY.hero.headline}</h1>
+      <p class="mx-hero-date">${esc(COPY.hero.date(D.gatherShort, D.gatherWhere))}</p>
+      <div class="mx-hero-cta"><a href="#forum-invitation" data-act="join" class="btn-gold btn-block">${isMember ? COPY.hero.member : COPY.hero.join}</a></div>
     </div>
-  </div>
+  </section>
   <!-- /dc -->`;
 }
 
-function blockBand() {
-  const sep = '<span style="width:1px;height:18px;background:rgba(247,241,230,.25)"></span>';
-  const item = (t, gold) => `<span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:${gold ? '#c9a962' : 'rgba(247,241,230,.9)'};text-align:center">${t}</span>`;
+// the facts the hero, the band and three paragraphs used to repeat — once each
+function blockFacts() {
   return `
   <!-- dc: Biomedical Forum.dc.html › "Facts band" -->
-  <div class="mx-wrap-center mx-pad-band mx-fo-band" style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;background:#191512;color:#f7f1e6;flex-wrap:wrap">
-    ${item(COPY.band[0])}${sep}${item(COPY.band[1])}${sep}${item(COPY.band[2])}${sep}${item(COPY.band[3], true)}
-  </div>
+  <section class="mx-sec mx-sec--tight" data-block="facts">
+    <ul class="mx-facts">
+      ${fact({ ic: 'users', v: esc(COPY.facts.cap(D.cap)), s: COPY.facts.capSub })}
+      ${fact({ ic: 'calendar', v: COPY.facts.gather, s: COPY.facts.gatherSub })}
+      ${fact({ ic: 'pin', v: esc(D.gatherWhere), s: COPY.facts.vote })}
+      ${fact({ ic: 'card', v: COPY.facts.annual, s: COPY.facts.annualSub })}
+    </ul>
+  </section>
   <!-- /dc -->`;
 }
 
 function blockNetwork() {
-  const card = c => `
-      <div style="border:1px solid rgba(25,21,18,.16);border-top:2px solid #c9a962;background:#fdfaf3;padding:16px 18px;display:flex;flex-direction:column;gap:6px">
-        <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#6e5626">${c.tag}</span>
-        <span style="font-family:Fraunces,serif;font-size:15.5px;line-height:1.25">${c.title}</span>
-        <span style="font-size:12px;color:#4a4239;line-height:1.55">${c.body}</span>
-      </div>`;
   return `
-    <!-- dc: Biomedical Forum.dc.html › "01 · THE NETWORK" -->
-    <div style="display:flex;align-items:baseline;gap:14px;padding:26px 0 10px">
-      <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.network.n}</span>
-      <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.network.title}</span>
-    </div>
-    <div style="font-size:13.5px;color:#4a4239;line-height:1.65;max-width:68ch">${COPY.network.intro(D.cap)}</div>
-    <div style="display:flex;gap:14px;align-items:baseline;padding:10px 0 0">
-      <span style="font-size:12px;color:#4a4239">${COPY.network.directory}</span>
-    </div>
-    <div class="mx-grid-3" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;padding:18px 0 8px;box-sizing:border-box">
-      ${COPY.network.cards(D.cap).map(card).join('')}
-    </div>
+  <!-- dc: Biomedical Forum.dc.html › "01 · THE NETWORK" -->
+  <section class="mx-sec" data-block="network">
+    ${sectionHead(COPY.network.n, COPY.network.title)}
+    <ul class="mx-facts">${COPY.network.rows.map(r => fact({ ic: r.icon, v: r.v, s: r.s, href: r.href })).join('')}</ul>
     <!-- v2: what membership includes — the three benefits and the one thing it is not (2026-09-17) -->
-    <div data-block="includes" style="border:1px solid rgba(25,21,18,.16);border-left:3px solid #9b1b22;background:#fdfaf3;padding:18px 22px;margin-top:8px;box-sizing:border-box;display:flex;flex-direction:column;gap:10px">
-      <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22">${COPY.network.includes.title}</span>
-      ${COPY.network.includes.points.map(t => `<span style="display:flex;gap:10px;align-items:baseline;font-size:13px;color:#4a4239;line-height:1.55"><span style="width:6px;height:6px;background:#c9a962;flex:none;align-self:center"></span><span>${t}</span></span>`).join('')}
-      <span style="font-size:12px;color:#6d6459;font-style:italic;border-top:1px solid rgba(25,21,18,.1);padding-top:9px">${COPY.network.includes.note}</span>
+    <div data-block="includes" class="mx-fo-includes">
+      <h3 class="mx-fo-h3">${COPY.network.includes.title}</h3>
+      <ul class="mx-checks">${COPY.network.includes.points.map(t => `<li>${icon('check')}<span>${t}</span></li>`).join('')}</ul>
+      <p class="mx-fo-note">${COPY.network.includes.note}</p>
     </div>
-    <!-- /dc -->`;
+  </section>
+  <!-- /dc -->`;
 }
 
+// posts as accordions: the headline and when; the body opens under it (the newest one open)
 function blockFeed() {
   const feed = D.feed.map(mkFeed);
-  const featured = feed[0] || null;
-  const rest = feed.slice(1);
-  const head = `
-    <div class="mx-wrap-row" style="display:flex;align-items:baseline;gap:14px;padding:30px 0 10px;flex-wrap:wrap">
-      <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.feed.mark}</span>
-      <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.feed.title}</span>
-      <span style="font-size:12.5px;color:#4a4239">${COPY.feed.sub}</span>
-    </div>`;
-  if (!featured) return `
-    <!-- dc: Biomedical Forum.dc.html › "FROM THE FORUM" -->${head}
-    <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;box-sizing:border-box">
-      <div class="empty">
-        <span style="width:28px;height:1px;background:#c9a962;margin-bottom:6px"></span>
-        <span style="font-family:Fraunces,serif;font-style:italic;font-size:17px">${COPY.feed.emptyLine}</span>
-        <span style="font-size:12.5px;color:#4a4239;max-width:400px;line-height:1.55">${COPY.feed.emptyWhy}</span>
-        <span data-nav="/app/network" style="margin-top:8px;padding:11px 20px;border:1px solid rgba(25,21,18,.3);font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;color:#191512;white-space:nowrap" data-hover="border-color:#191512">${COPY.feed.emptyCta}</span>
-      </div>
-    </div>
-    <!-- /dc -->`;
   return `
-    <!-- dc: Biomedical Forum.dc.html › "FROM THE FORUM" -->${head}
-    <div style="border:1px solid rgba(25,21,18,.16);border-top:2px solid #c9a962;background:#fdfaf3;padding:22px 24px;box-sizing:border-box">
-      <span style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22">${esc(featured.tag)}</span>
-      <div style="display:flex;gap:16px;align-items:center;margin-top:14px">
-        ${featured.isSpot && featured.init ? `<span style="width:52px;height:52px;flex:none;background:#191512;color:#c9a962;display:inline-flex;align-items:center;justify-content:center;font:600 18px Fraunces,serif">${esc(featured.init)}</span>` : ''}
-        <span style="min-width:0"><span style="display:block;font-family:Fraunces,serif;font-size:22px;line-height:1.15">${esc(featured.headline)}</span>${featured.sub ? `<span style="display:block;font-size:12.5px;color:#4a4239;margin-top:3px">${esc(featured.sub)}</span>` : ''}</span>
-      </div>
-      <div style="font-size:14px;color:#191512;line-height:1.65;margin-top:14px;max-width:720px;text-wrap:pretty">${esc(featured.body)}</div>
-      <div style="font-size:11px;color:#6d6459;margin-top:13px;letter-spacing:.02em">${esc(featured.when)} · ${COPY.feed.by}</div>
-    </div>
-    ${rest.length ? `
-    <div class="mx-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;box-sizing:border-box;margin-top:16px;padding-bottom:6px">
-      ${rest.map(f => `
-        <div style="border:1px solid rgba(25,21,18,.14);background:#fdfaf3;padding:16px 18px;display:flex;flex-direction:column;gap:9px">
-          <span style="font:600 8.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22">${esc(f.tag)}</span>
-          <div style="display:flex;gap:11px;align-items:center">
-            ${f.isSpot && f.init ? `<span style="width:34px;height:34px;flex:none;background:#191512;color:#c9a962;display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif">${esc(f.init)}</span>` : ''}
-            <span style="font-family:Fraunces,serif;font-size:15.5px;line-height:1.2;min-width:0">${esc(f.headline)}</span>
-          </div>
-          <span style="font-size:12.5px;color:#4a4239;line-height:1.55;text-wrap:pretty">${esc(f.body)}</span>
-          <span style="font-size:10.5px;color:#6d6459;letter-spacing:.02em">${esc(f.when)}</span>
-        </div>`).join('')}
-    </div>` : ''}
-    <!-- /dc -->`;
+  <!-- dc: Biomedical Forum.dc.html › "FROM THE FORUM" -->
+  <section class="mx-sec" data-block="feed">
+    ${sectionHead('', COPY.feed.title)}
+    ${feed.length ? `<div class="mx-accs">${feed.map((f, i) => `
+      <details class="mx-acc mx-fo-post"${i === 0 ? ' open' : ''}>
+        <summary>${f.isSpot && f.init ? ui.portrait({ name: f.headline, size: 44, alt: '' }) : ''}<span class="mx-fo-post-h"><span class="mx-fo-post-t">${esc(f.headline)}</span><span class="mx-fo-post-s">${esc([f.tag, f.when].filter(Boolean).join(' · '))}</span></span></summary>
+        <div class="mx-acc-a">${f.sub ? `<p class="mx-fo-post-role">${esc(f.sub)}</p>` : ''}<p>${esc(f.body)}</p><p class="mx-fo-note">${COPY.feed.by}</p></div>
+      </details>`).join('')}</div>`
+      : `<p class="mx-sh-sub">${COPY.feed.empty}</p>`}
+  </section>
+  <!-- /dc -->`;
 }
 
 function blockSchedule() {
   return `
-    <!-- dc: Biomedical Forum.dc.html › "02 · THE ANNUAL GATHERING" -->
-    <div id="forum-schedule" class="mx-wrap-row" style="display:flex;align-items:baseline;gap:14px;padding:26px 0 6px">
-      <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.gathering.n}</span>
-      <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.gathering.title}</span>
-      <span style="font-size:12.5px;color:#4a4239">${COPY.gathering.sub}</span>
-    </div>
-    <div style="border:1px solid rgba(25,21,18,.16);border-left:3px solid #c9a962;background:#fdfaf3;padding:20px 24px;box-sizing:border-box">
-      <div style="font-family:Fraunces,serif;font-size:16.5px;line-height:1.6;color:#191512;text-wrap:pretty">${esc(D.gatherAbout)}</div>
-    </div>
-    <!-- /dc -->`;
+  <!-- dc: Biomedical Forum.dc.html › "02 · THE ANNUAL GATHERING" -->
+  <section class="mx-sec" id="forum-schedule" data-block="gathering">
+    ${sectionHead(COPY.gathering.n, COPY.gathering.title)}
+    <p class="mx-sh-sub">${esc(D.gatherShort)} · ${COPY.gathering.sub}</p>
+    <div class="mx-accs"><details class="mx-acc"><summary>${COPY.gathering.more}</summary><div class="mx-acc-a">${esc(D.gatherAbout)}</div></details></div>
+  </section>
+  <!-- /dc -->`;
 }
 
 function blockSpeakers() {
   const sp = (D.state.speakers || []);
-  const filled = sp.length ? `
-    <!-- v2: speakers grid (the artboard ships the empty state; cards appear when the admin confirms speakers) -->
-    <div class="mx-grid-3" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;box-sizing:border-box;margin-bottom:26px">
-      ${sp.map(s => `
-      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:16px 18px;display:flex;gap:13px;align-items:center">
-        ${s.photo_url ? `<img src="${esc(s.photo_url)}" alt="" style="width:44px;height:44px;object-fit:cover;flex:none">` : `<span style="width:44px;height:44px;flex:none;background:#191512;color:#c9a962;display:inline-flex;align-items:center;justify-content:center;font:600 15px Fraunces,serif">${esc((s.name || '·').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase())}</span>`}
-        <span style="min-width:0;display:flex;flex-direction:column;gap:2px">
-          <span style="font-family:Fraunces,serif;font-size:15.5px;line-height:1.2">${esc(s.name)}</span>
-          <span style="font-size:11.5px;color:#4a4239">${esc([s.title, s.institution].filter(Boolean).join(' · '))}</span>
-          ${s.talk_title ? `<span style="font-size:11px;color:#6e5626;font-style:italic">${esc(s.talk_title)}</span>` : ''}
-        </span>
-      </div>`).join('')}
-    </div>` : `
-    <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:24px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;box-sizing:border-box;margin-bottom:26px">
-      <span style="width:28px;height:1px;background:#c9a962"></span>
-      <span style="font-family:Fraunces,serif;font-style:italic;font-size:16px;color:#4a4239">${esc(COPY.speakers.emptyLine(D.gatherYear))}</span>
-      <span style="font-size:12px;color:#4a4239">${COPY.speakers.emptyWhy}</span>
-    </div>`;
   return `
-    <!-- dc: Biomedical Forum.dc.html › "03 · GATHERING SPEAKERS" -->
-    <div class="mx-wrap-row" style="display:flex;align-items:baseline;gap:14px;padding:26px 0 12px">
-      <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.speakers.n}</span>
-      <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.speakers.title}</span>
-      <span style="font-size:12.5px;color:#4a4239">${COPY.speakers.sub}</span>
-    </div>
-    ${filled}
-    <!-- /dc -->`;
+  <!-- dc: Biomedical Forum.dc.html › "03 · GATHERING SPEAKERS" -->
+  <section class="mx-sec" data-block="speakers">
+    ${sectionHead(COPY.speakers.n, COPY.speakers.title)}
+    ${sp.length ? `<div class="mx-person-rows">${sp.map(s => `
+      <div class="mx-person-row">${ui.portrait({ name: s.name, src: s.photo_url ? api.url(s.photo_url) : '', size: 64, alt: '' })}<span class="mx-person-text"><span class="mx-person-name">${esc(s.name)}</span><span class="mx-person-role">${esc([s.title, s.institution].filter(Boolean).join(' · '))}</span>${s.talk_title ? `<span class="mx-person-tag">${esc(s.talk_title)}</span>` : ''}</span></div>`).join('')}</div>`
+      : `<p class="mx-sh-sub">${esc(COPY.speakers.emptyLine(D.gatherYear))}</p>`}
+  </section>
+  <!-- /dc -->`;
 }
 
 function stageIndicator() {
   const stage = D.stage;
   return COPY.membership.stages.map((label, i) => {
     const n = i + 1, cur = n === stage, done = n < stage;
-    const bg = cur ? '#c9a962' : done ? 'rgba(201,169,98,.25)' : 'transparent';
-    const fg = cur ? '#191512' : done ? '#c9a962' : 'rgba(247,241,230,.6)';
-    const bd = cur || done ? '#c9a962' : 'rgba(247,241,230,.3)';
-    const lc = cur ? '#c9a962' : done ? 'rgba(201,169,98,.8)' : 'rgba(247,241,230,.55)';
-    return `
-        <div style="display:flex;align-items:center">
-          <div style="display:flex;flex-direction:column;align-items:center;gap:7px;padding:0 22px">
-            <span style="width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif;background:${bg};color:${fg};border:1px solid ${bd}">${done ? '✓' : n}</span>
-            <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:${lc};white-space:nowrap">${label}</span>
-          </div>
-          ${i < 2 ? `<span class="mx-forum-stageline" style="width:56px;height:1px;background:rgba(247,241,230,.25);margin-bottom:16px"></span>` : ''}
-        </div>`;
+    return `<div class="mx-fo-stage${cur ? ' is-cur' : done ? ' is-done' : ''}"><span class="mx-fo-stage-n">${done ? '✓' : n}</span><span class="mx-fo-stage-l">${label}</span></div>`;
   }).join('');
 }
 
@@ -372,44 +306,44 @@ function stageBody() {
   const m = D.state.membership || {};
   if (D.stage === 1) {
     return `
-      <div style="display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center">
-        <span style="font-family:Fraunces,serif;font-style:italic;font-size:17px;color:rgba(247,241,230,.85)">${COPY.membership.inviteLine}</span>
-        ${m.expired ? `<span style="font-size:12px;color:#c9a962">${COPY.membership.lapsed}</span>` : ''}
+      <div class="mx-fo-body">
+        <span class="mx-fo-line">${COPY.membership.inviteLine}</span>
+        ${m.expired ? `<span class="mx-fo-gold">${COPY.membership.lapsed}</span>` : ''}
         <form data-form="code" style="display:contents">
-          <div class="mx-forum-coderow" style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
-            <input data-role="code" name="code" value="${esc(st.prefill || '')}" placeholder="${COPY.membership.codePlaceholder}" aria-label="Forum invitation code" autocomplete="off" spellcheck="false" style="border:1px solid rgba(247,241,230,.3);background:transparent;color:#f7f1e6;padding:11px 14px;font:600 11px Inter,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:.12em;width:180px">
-            <span data-act="unlock" style="padding:11px 18px;background:#c9a962;color:#191512;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="background:#d9bd7f">${COPY.membership.unlock}</span>
+          <div class="mx-forum-coderow">
+            <input data-role="code" name="code" value="${esc(st.prefill || '')}" placeholder="${COPY.membership.codePlaceholder}" aria-label="Forum invitation code" autocomplete="off" spellcheck="false" class="mx-fo-code">
+            <span data-act="unlock" role="button" class="btn-gold btn-block">${COPY.membership.unlock}</span>
           </div>
         </form>
-        <div data-role="codeError" role="alert" style="display:none;font-size:12.5px;line-height:1.5;color:#e0a9ad;max-width:420px"></div>
-        <span style="font-size:11.5px;color:rgba(247,241,230,.6)">${COPY.membership.note(D.cap)}</span>
+        <div data-role="codeError" role="alert" class="mx-fo-err" style="display:none"></div>
+        <span class="mx-fo-small">${COPY.membership.note(D.cap)}</span>
       </div>`;
   }
   const renewLine = m.valid_until ? COPY.membership.renews(fmt.longRange(m.valid_until, m.valid_until)) : COPY.membership.renewsOpen;
   if (D.stage === 2) {
     const g = D.state.gathering;
     return `
-      <div style="display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center">
-        <span style="padding:4px 10px;border:1px solid rgba(201,169,98,.65);color:#c9a962;font:600 9px Inter,sans-serif;letter-spacing:.16em">${COPY.membership.memberTag}</span>
-        <span style="font-family:Fraunces,serif;font-size:22px">${esc(COPY.membership.welcome(D.first))}</span>
-        <span style="font-size:12.5px;color:rgba(247,241,230,.7);max-width:480px">${COPY.membership.memberBody}</span>
-        ${g ? `<span data-act="register" style="margin-top:4px;padding:12px 20px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${COPY.membership.complete}</span>`
-            : `<span style="font-size:12px;color:rgba(247,241,230,.6)">${COPY.membership.noEvent}</span>`}
-        <span style="font-size:11.5px;color:rgba(247,241,230,.55)">${esc(renewLine)}</span>
+      <div class="mx-fo-body">
+        <span class="mx-tag mx-tag--line">${COPY.membership.memberTag}</span>
+        <span class="mx-fo-head">${esc(COPY.membership.welcome(D.first))}</span>
+        <span class="mx-fo-line">${COPY.membership.memberBody}</span>
+        ${g ? `<span data-act="register" role="button" class="btn-gold btn-block">${COPY.membership.complete}</span>`
+            : `<span class="mx-fo-small">${COPY.membership.noEvent}</span>`}
+        <span class="mx-fo-small">${esc(renewLine)}</span>
       </div>`;
   }
   const reg = D.state.registration || {};
   return `
-      <!-- v2: stage 3 — confirmed state (no artboard counterpart; voice from the member block) -->
-      <div style="display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center">
-        <span style="padding:4px 10px;border:1px solid rgba(201,169,98,.65);color:#c9a962;font:600 9px Inter,sans-serif;letter-spacing:.16em">${COPY.membership.memberTag}</span>
-        <span style="font-family:Fraunces,serif;font-size:22px">${esc(COPY.membership.confirmedHead(D.first))}</span>
-        <span style="font-size:12.5px;color:rgba(247,241,230,.7);max-width:480px">${COPY.membership.confirmedBody(esc(reg.qr_code || ''))}</span>
-        <div style="display:flex;gap:12px;margin-top:4px;flex-wrap:wrap;justify-content:center">
-          <a href="/app/me" style="padding:12px 20px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.membership.myMedx}</a>
-          <span data-act="addCal" style="padding:12px 20px;border:1px solid rgba(247,241,230,.35);color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="border-color:#f7f1e6">${COPY.membership.addCal}</span>
+      <!-- v2: stage 3 — confirmed state -->
+      <div class="mx-fo-body">
+        <span class="mx-tag mx-tag--line">${COPY.membership.memberTag}</span>
+        <span class="mx-fo-head">${esc(COPY.membership.confirmedHead(D.first))}</span>
+        <span class="mx-fo-line">${COPY.membership.confirmedBody(esc(reg.qr_code || ''))}</span>
+        <div class="mx-fo-acts">
+          <a href="/app/me" class="btn-gold btn-sm">${COPY.membership.myMedx}</a>
+          <span data-act="addCal" role="button" class="btn-ghost-ink btn-sm">${COPY.membership.addCal}</span>
         </div>
-        <span style="font-size:11.5px;color:rgba(247,241,230,.55)">${esc(renewLine)}</span>
+        <span class="mx-fo-small">${esc(renewLine)}</span>
       </div>`;
 }
 
@@ -418,105 +352,92 @@ function blockVote() {
   const v = D.state.vote;
   const btn = key => {
     const mine = v.mine === key;
-    return `<span data-act="vote" data-choice="${key}" role="radio" aria-checked="${mine}" style="display:inline-flex;align-items:baseline;gap:9px;padding:11px 18px;border:1px solid ${mine ? '#c9a962' : 'rgba(247,241,230,.35)'};background:${mine ? '#c9a962' : 'transparent'};color:${mine ? '#191512' : '#f7f1e6'};font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="border-color:#c9a962">${COPY.vote.labels[key]}<span style="font-family:Fraunces,serif;font-size:13px;color:${mine ? '#191512' : '#c9a962'}">${v.counts[key] || 0}</span></span>`;
+    return `<span data-act="vote" data-choice="${key}" role="radio" aria-checked="${mine}" class="mx-fo-vote${mine ? ' is-on' : ''}">${COPY.vote.labels[key]}<b>${v.counts[key] || 0}</b></span>`;
   };
   return `
-    <!-- v2: venue vote — makes the band's "MEMBERS VOTE ON THE VENUE" real (POST /api/v2/forum/vote) -->
-    <div data-block="vote" style="margin-top:26px;padding-top:22px;border-top:1px solid rgba(247,241,230,.14);display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center">
-      <span style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">${COPY.vote.eyebrow}</span>
-      <span style="font-family:Fraunces,serif;font-style:italic;font-size:17px;color:rgba(247,241,230,.85)">${COPY.vote.line}</span>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">${btn('split')}${btn('zagreb')}</div>
-      <span style="font-size:11.5px;color:rgba(247,241,230,.55)">${COPY.vote.note}</span>
+    <!-- v2: venue vote — makes "members vote on the venue" real (POST /api/v2/forum/vote) -->
+    <div data-block="vote" class="mx-fo-voteblock">
+      <span class="mx-fo-gold">${COPY.vote.eyebrow}</span>
+      <span class="mx-fo-head">${COPY.vote.line}</span>
+      <div class="mx-fo-votes" role="radiogroup">${btn('split')}${btn('zagreb')}</div>
+      <span class="mx-fo-small">${COPY.vote.note}</span>
     </div>`;
 }
 
 function blockMembership() {
   return `
   <!-- dc: Biomedical Forum.dc.html › "04 · YOUR MEMBERSHIP" -->
-  <div id="forum-invitation" data-block="membership" class="mx-pad-36 mx-ink" style="background:#191512;color:#f7f1e6;padding:34px 36px 38px">
-    <div style="display:flex;align-items:baseline;gap:14px;padding-bottom:14px">
-      <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#c9a962">${COPY.membership.n}</span>
-      <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.membership.title}</span>
+  <section class="mx-sec" id="forum-invitation" data-block="membership-sec">
+    ${sectionHead(COPY.membership.n, COPY.membership.title)}
+    <div data-block="membership" class="mx-ink mx-fo-card">
+      <div class="mx-forum-stages">${stageIndicator()}</div>
+      ${stageBody()}
+      ${blockVote()}
     </div>
-    <div class="mx-forum-stages" style="display:flex;justify-content:center;gap:0;padding-bottom:22px;flex-wrap:wrap">
-      ${stageIndicator()}
-    </div>
-    ${stageBody()}
-    ${blockVote()}
-  </div>
+  </section>
   <!-- /dc -->`;
 }
 
+// the nomination form lives folded in one row; sent, the row opens on the confirmation
 function blockNominate() {
   const c = COPY.nominate;
-  const IN = 'border:1px solid rgba(25,21,18,.25);background:#fdfaf3;padding:11px 12px;font-size:13px;color:#191512;width:100%;box-sizing:border-box';
-  const LB = 'font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239';
   const inner = st.nomSent ? `
-    <div style="border:1px solid rgba(25,21,18,.16);border-top:2px solid #c9a962;background:#fdfaf3;padding:28px 24px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;gap:9px;text-align:center">
-      <span style="padding:4px 10px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 9px Inter,sans-serif;letter-spacing:.16em">${c.sentTag}</span>
-      <span style="font-family:Fraunces,serif;font-size:21px">${c.sentHead}</span>
-      <span style="font-size:12.5px;color:#4a4239;max-width:480px;line-height:1.6">${c.sentBody}</span>
-      <span data-act="nomAgain" style="margin-top:6px;font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer" data-hover="color:#191512">${c.another}</span>
-    </div>` : `
-    <div style="border:1px solid rgba(25,21,18,.16);border-top:2px solid #9b1b22;background:#fdfaf3;padding:22px 24px;box-sizing:border-box">
-      <span style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22">${c.eyebrow}</span>
-      <div style="font-family:Fraunces,serif;font-size:22px;margin-top:8px">${c.title}</div>
-      <div style="font-size:13px;color:#4a4239;line-height:1.6;margin-top:8px;max-width:720px;text-wrap:pretty">${c.intro}</div>
-      <form data-form="nominate" style="display:flex;flex-direction:column;gap:12px;margin-top:16px">
-        <div class="mx-grid-3" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
-          <span style="display:flex;flex-direction:column;gap:6px"><span style="${LB}">${c.name}</span><input data-role="nomName" aria-label="Colleague's name" autocomplete="off" style="${IN}"></span>
-          <span style="display:flex;flex-direction:column;gap:6px"><span style="${LB}">${c.email}</span><input data-role="nomEmail" type="email" aria-label="Colleague's email" autocomplete="off" style="${IN}"></span>
-          <span style="display:flex;flex-direction:column;gap:6px"><span style="${LB}">${c.institution}</span><input data-role="nomInst" aria-label="Colleague's institution" autocomplete="off" style="${IN}"></span>
-        </div>
-        <span style="display:flex;flex-direction:column;gap:6px">
-          <span style="${LB}">${c.statement}</span>
-          <textarea data-role="nomStatement" aria-label="Their standing and character, in your words" placeholder="${esc(c.statementPh)}" style="${IN};min-height:96px;resize:vertical;font-family:Inter,sans-serif;line-height:1.55"></textarea>
-          <span style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap"><span style="font-size:11.5px;color:#4a4239;line-height:1.5;max-width:560px">${esc(c.statementWhy(NOMINATION_MIN))}</span><span style="flex:1"></span><span data-role="nomCount" style="font:600 10px Inter,sans-serif;letter-spacing:.06em;color:#6d6459;white-space:nowrap">${esc(c.counter(0, NOMINATION_MIN))}</span></span>
-        </span>
-        <div data-role="nomError" role="alert" style="display:none;font-size:12.5px;color:#9b1b22;line-height:1.5"></div>
-        <span data-act="nominate" style="align-self:flex-start;padding:12px 20px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${c.submit}</span>
-      </form>
-    </div>`;
+      <div class="mx-fo-sent">
+        <span class="mx-tag mx-tag--gold">${c.sentTag}</span>
+        <span class="mx-fo-sent-h">${c.sentHead}</span>
+        <span class="mx-fo-line">${c.sentBody}</span>
+        <span data-act="nomAgain" role="button" class="mx-fo-textbtn">${c.another}</span>
+      </div>` : `
+      <p class="mx-fo-line">${c.intro}</p>
+      <form data-form="nominate" class="mx-fo-form">
+        <label class="mx-fo-field"><span class="label">${c.name}</span><input class="input" data-role="nomName" aria-label="Colleague's name" autocomplete="off"></label>
+        <label class="mx-fo-field"><span class="label">${c.email}</span><input class="input" data-role="nomEmail" type="email" aria-label="Colleague's email" autocomplete="off"></label>
+        <label class="mx-fo-field"><span class="label">${c.institution}</span><input class="input" data-role="nomInst" aria-label="Colleague's institution" autocomplete="off"></label>
+        <label class="mx-fo-field mx-fo-wide">
+          <span class="label">${c.statement}</span>
+          <textarea class="input" data-role="nomStatement" aria-label="Their standing and character, in your words" placeholder="${esc(c.statementPh)}"></textarea>
+          <span class="mx-fo-count"><span>${esc(c.statementWhy(NOMINATION_MIN))}</span><span data-role="nomCount">${esc(c.counter(0, NOMINATION_MIN))}</span></span>
+        </label>
+        <div data-role="nomError" role="alert" class="mx-fo-err mx-fo-wide" style="display:none"></div>
+        <span data-act="nominate" role="button" class="btn-primary btn-block mx-fo-wide">${c.submit}</span>
+      </form>`;
   return `
   <!-- dc: Biomedical Forum.dc.html › "PUT A COLLEAGUE FORWARD" -->
-  <div data-block="nominate" class="mx-gutter" style="padding:26px 36px 4px">
-    ${inner}
-  </div>
+  <section class="mx-sec mx-sec--tight" data-block="nominate">
+    <div class="mx-list"><details class="mx-acc mx-fo-nom"${st.nomSent || st.nomOpen ? ' open' : ''}><summary>${icon('user')}<span class="mx-row-l">${c.row}<span class="mx-row-s">${c.rowSub}</span></span></summary>
+      <div class="mx-acc-a">${inner}</div>
+    </details></div>
+  </section>
   <!-- /dc -->`;
 }
 
 function blockContact() {
   return `
-  <!-- dc: Biomedical Forum.dc.html › "Message us" -->
-  <div class="mx-wrap-row mx-gutter" style="display:flex;align-items:center;gap:20px;padding:18px 36px 30px;flex-wrap:wrap">
-    <span style="font-family:Fraunces,serif;font-style:italic;font-size:16px;color:#4a4239">${COPY.contact.line}</span>
-    <span style="font-size:12px;color:#4a4239">${COPY.contact.sub}</span>
-    <div style="flex:1"></div>
-    <a href="/app/messages?about=forum" style="padding:10px 16px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.contact.cta}</a>
-  </div>
-  <!-- /dc -->
-  <!-- v2: sponsorship pointer (Laura) — the line above invites sponsorship questions; this links the medx.hr support band (no #sponsorship anchor exists there, so it goes to the homepage) -->
-  <div class="mx-gutter" style="display:flex;align-items:baseline;gap:12px;padding:0 36px 30px;margin-top:-16px;flex-wrap:wrap">
-    <span style="font-size:12px;color:#4a4239">${COPY.contact.sponsorLead}</span>
-    <a href="${COPY.contact.sponsorUrl}" target="_blank" rel="noopener" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;white-space:nowrap" data-hover="color:#191512">${COPY.contact.sponsorCta}</a>
-  </div>`;
+  <!-- dc: Biomedical Forum.dc.html › "Message us" + sponsorship -->
+  <section class="mx-sec">
+    <div class="mx-list">
+      <a class="mx-row" href="/app/messages?about=forum">${icon('mail')}<span class="mx-row-l">${COPY.contact.ask}<span class="mx-row-s">${COPY.contact.sub}</span></span>${chev()}</a>
+      <a class="mx-row" href="${COPY.contact.sponsorUrl}" target="_blank" rel="noopener">${icon('heart')}<span class="mx-row-l">${COPY.contact.sponsor}<span class="mx-row-s">${COPY.contact.sponsorSub}</span></span>${icon('external', 18)}</a>
+    </div>
+  </section>
+  <!-- /dc -->`;
 }
 
 function template() {
   return `
-<div data-screen-label="Biomedical Forum" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
+<div data-screen-label="Biomedical Forum" class="mx-fo">
   ${blockCrumb()}
   ${blockHero()}
-  ${blockBand()}
-  <div class="mx-gutter" style="padding:0 36px">
+  <div class="mx-p">
+    ${blockFacts()}
     ${blockNetwork()}
     ${blockFeed()}
     ${blockSchedule()}
     ${blockSpeakers()}
+    ${blockMembership()}
+    ${blockNominate()}
+    ${blockContact()}
   </div>
-  ${blockMembership()}
-  ${blockNominate()}
-  ${blockContact()}
 </div>`;
 }
 
@@ -573,23 +494,23 @@ function openRegistration() {
   if (!g) return ui.toast(COPY.membership.noEvent, { kind: 'error' });
   const u = D.state.user || {};
   const name = [u.first_name, u.last_name].filter(Boolean).join(' ');
-  const IN = 'border:1px solid rgba(25,21,18,.25);background:#fdfaf3;padding:11px 12px;font-size:13px;color:#191512;width:100%;box-sizing:border-box';
-  const LB = 'font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239';
+  const IN = 'border:1px solid rgba(25,21,18,.25);background:#fdfaf3;padding:13px 14px;min-height:52px;font-size:16px;color:#191512;width:100%;box-sizing:border-box';
+  const LB = 'font:600 12px Inter,sans-serif;letter-spacing:.12em;color:#4a4239';
   const m = ui.modal({
     eyebrow: COPY.reg.eyebrow,
     title: esc(COPY.reg.title),
     body: `
-      <div style="font-size:12.5px;color:#4a4239;line-height:1.55;margin-bottom:14px">${esc(COPY.reg.intro(D.gatherLabel, D.gatherWhere))}</div>
+      <div style="font-size:14px;color:#4a4239;line-height:1.5;margin-bottom:14px">${esc(COPY.reg.intro(D.gatherLabel, D.gatherWhere))}</div>
       <div style="display:flex;flex-direction:column;gap:12px">
         <span style="display:flex;flex-direction:column;gap:6px"><span style="${LB}">${COPY.reg.name}</span><input data-role="regName" value="${esc(name)}" aria-label="Name" style="${IN}"></span>
         <span style="display:flex;flex-direction:column;gap:6px"><span style="${LB}">${COPY.reg.institution}</span><input data-role="regInst" value="${esc(u.institution || '')}" aria-label="Institution" style="${IN}"></span>
         <span style="display:flex;flex-direction:column;gap:6px"><span style="${LB}">${COPY.reg.dietary}</span><input data-role="regDiet" placeholder="${esc(COPY.reg.dietaryPh)}" aria-label="Dietary notes" style="${IN}"></span>
         <div style="border:1px solid rgba(201,169,98,.65);background:#fdfaf3;padding:13px 15px;display:flex;flex-direction:column;gap:7px">
-          <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#6e5626">${COPY.reg.termsTitle}</span>
-          <span style="font-size:12px;color:#4a4239;line-height:1.55">${esc(COPY.reg.termsBody(D.cap))}</span>
-          <label style="display:flex;gap:9px;align-items:flex-start;cursor:pointer;font-size:12.5px;color:#191512;line-height:1.5"><input data-role="regTerms" type="checkbox" style="margin-top:2px;accent-color:#9b1b22">${esc(COPY.reg.termsAccept)}</label>
+          <span style="font:600 12px Inter,sans-serif;letter-spacing:.12em;color:#6e5626">${COPY.reg.termsTitle}</span>
+          <span style="font-size:14px;color:#4a4239;line-height:1.5">${esc(COPY.reg.termsBody(D.cap))}</span>
+          <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer;font-size:16px;color:#191512;line-height:1.5;min-height:44px"><input data-role="regTerms" type="checkbox" style="margin-top:3px;width:20px;height:20px;accent-color:#9b1b22">${esc(COPY.reg.termsAccept)}</label>
         </div>
-        <div data-role="regError" role="alert" style="display:none;font-size:12.5px;color:#9b1b22;line-height:1.5"></div>
+        <div data-role="regError" role="alert" style="display:none;font-size:14px;color:#9b1b22;line-height:1.5"></div>
       </div>`,
     actions: [
       { label: COPY.reg.cancel },
@@ -660,7 +581,7 @@ const handlers = {
     }
   },
   nomAgain: () => {
-    st.nomSent = false;
+    st.nomSent = false; st.nomOpen = true;
     const block = rootEl && rootEl.querySelector('[data-block="nominate"]');
     if (block) { block.outerHTML = blockNominate(); wireForms(); }
   },

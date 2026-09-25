@@ -28,12 +28,12 @@
 .lv-swap { animation: lv-fade var(--lv-slow) var(--lv-ease) backwards; }   /* the side sections on an event switch (js paintAll) */
 
 /* ---- micro vocabulary ---- */
-.lv-eyebrow { font: 600 10px var(--font-ui); letter-spacing: .2em; text-transform: uppercase; color: var(--gold); white-space: nowrap; }
+.lv-eyebrow { font: 600 12px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--gold); white-space: nowrap; }
 .lv-eyebrow.ink { color: var(--gold-dark); }
 .lv-soft { color: var(--soft); font-size: 14px; }
 .lv-rule { display: block; width: 28px; height: 1px; background: var(--gold); }
 .lv-tag { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border: 1px solid rgba(25,21,18,.22); color: var(--ink);
-          font: 600 9px var(--font-ui); letter-spacing: .14em; text-transform: uppercase; white-space: nowrap; }
+          font: 600 12px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; }
 .lv-tag.gold { border-color: rgba(201,169,98,.75); color: var(--gold-dark); }
 .lv-tag.red { border-color: var(--crimson); color: var(--crimson); }
 .lv-tag.soft { border-color: transparent; color: var(--soft); padding: 0; }
@@ -53,8 +53,8 @@
 .lv-head-top.rise > .lv-meta { animation-delay: 80ms; }
 .lv-who.lv-in { animation: lv-fade var(--lv-slow) var(--lv-ease) backwards; }
 .lv-head-row { display: flex; align-items: center; gap: 12px; min-height: 24px; }
-.lv-who { font: 600 10px var(--font-ui); letter-spacing: .16em; text-transform: uppercase; color: rgba(247,241,230,.7); margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.lv .lv-back { font: 600 10px var(--font-ui); letter-spacing: .16em; color: rgba(247,241,230,.7); white-space: nowrap; padding: 0 0 0 8px; transition: color var(--lv-fast) var(--lv-ease), opacity var(--lv-fast) var(--lv-ease);
+.lv-who { font: 600 12px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; color: rgba(247,241,230,.7); margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lv .lv-back { font: 600 12px var(--font-ui); letter-spacing: .12em; color: rgba(247,241,230,.7); white-space: nowrap; padding: 0 0 0 8px; transition: color var(--lv-fast) var(--lv-ease), opacity var(--lv-fast) var(--lv-ease);
                  display: inline-flex; align-items: center; min-height: 44px; margin: -10px 0; }   /* a 44 px target inside the 24 px row */
 .lv-title { font: 500 32px/1.1 var(--font-display); letter-spacing: -.01em; margin: 14px 0 0; color: var(--cream); }
 .lv-meta { font-size: 14px; color: rgba(247,241,230,.78); margin-top: 8px; line-height: 1.5; }
@@ -67,14 +67,14 @@
 .lv-switch:empty { display: none; }
 .lv-switch::-webkit-scrollbar { display: none; }
 .lv-chip { flex: none; display: inline-flex; align-items: center; min-height: 36px; padding: 0 12px; border: 1px solid rgba(247,241,230,.35); color: rgba(247,241,230,.85);
-           font: 600 10px var(--font-ui); letter-spacing: .14em; text-transform: uppercase; white-space: nowrap; cursor: pointer;
+           font: 600 12px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; cursor: pointer;
            transition: background-color var(--lv-fast) var(--lv-ease), color var(--lv-fast) var(--lv-ease), border-color var(--lv-fast) var(--lv-ease), transform var(--lv-fast) var(--lv-ease);
            animation: lv-fade var(--lv-slow) var(--lv-ease) backwards; }
 .lv-chip:nth-child(2) { animation-delay: 30ms; } .lv-chip:nth-child(3) { animation-delay: 60ms; } .lv-chip:nth-child(4) { animation-delay: 90ms; } .lv-chip:nth-child(n+5) { animation-delay: 120ms; }
 .lv-chip:active { transform: translateY(1px); }
 .lv-chip.on { background: var(--cream); color: var(--ink); border-color: var(--cream); }
-.lv-chip.ro { border-style: dashed; color: rgba(247,241,230,.6); }
-.lv-chip.on.ro { color: var(--ink); border-style: dashed; border-color: var(--cream); }   /* a read-only event, selected: still legible */
+.lv-chip.ro { border-color: rgba(247,241,230,.18); color: rgba(247,241,230,.6); }   /* not on your ticket: muted, solid — a dashed chip read as broken */
+.lv-chip.on.ro { color: var(--ink); border-color: var(--cream); }   /* a read-only event, selected: still legible */
 .lv-chip.ghost { border-color: transparent; color: var(--gold); padding-left: 4px; }
 /* the catalogue on its way: chip-shaped placeholders hold the row so the band never grows when it lands */
 .lv-chip.sk { width: 76px; border-color: rgba(247,241,230,.14); background: rgba(247,241,230,.04); cursor: default; animation: lv-breathe 1.6s var(--lv-ease) infinite; }
@@ -96,11 +96,11 @@
 .lv-now-item + .lv-now-item { border-left: 1px solid var(--hair-soft); }
 .lv-now-item:only-child, .lv-now-line { grid-column: 1 / -1; cursor: default; }
 .lv-now-item.live { background: linear-gradient(90deg, rgba(155,27,34,.06), transparent); }
-.lv-now-label { font: 600 9.5px var(--font-ui); letter-spacing: .18em; text-transform: uppercase; color: var(--crimson); }
+.lv-now-label { font: 600 12px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--crimson); }
 .lv-now-item:not(.live) .lv-now-label, .lv-now-line .lv-now-label { color: var(--gold-dark); }
 .lv-now-title { font: 500 17px/1.25 var(--font-display); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .lv-now-title em { font-style: italic; color: var(--gold-dark); }
-.lv-now-sub { font-size: 13px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lv-now-sub { font-size: 14px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* the one-line statements (starts at · ended · tbd) wrap — only a live item's venue line keeps the ellipsis
    ("That was the last session — thank you for co…" in the 340 px side column) */
 .lv-now-line .lv-now-sub { white-space: normal; }
@@ -111,18 +111,18 @@
 .lv-slots { border-bottom: 1px solid var(--hair); background: var(--cream); padding: 0 20px 6px; }
 .lv-slots:empty { display: none; }
 .lv-slots-head { display: flex; align-items: baseline; gap: 12px; padding: 16px 0 6px; }
-.lv-slots-sub { font-size: 13px; color: var(--soft); }
+.lv-slots-sub { font-size: 14px; color: var(--soft); }
 .lv-slot { display: grid; grid-template-columns: 58px 1fr auto; gap: 12px; align-items: center; min-height: 56px; padding: 8px 0; border-top: 1px solid var(--hair-soft); cursor: pointer;
            transition: opacity var(--lv-fast) var(--lv-ease); }
 .lv-slot-time { font: 600 16px var(--font-ui); color: var(--crimson); }
 .lv-slot-body { display: flex; flex-direction: column; min-width: 0; }
 .lv-slot-title { font: 500 17px/1.25 var(--font-display); }
-.lv-slot-sub { font-size: 13px; color: var(--soft); }
+.lv-slot-sub { font-size: 14px; color: var(--soft); }
 
 /* ---- tabs (sticky) — one crimson ink bar slides between them (js placeInk; the tab's own border is the no-JS fallback) ---- */
 .lv-tabs { position: sticky; top: 0; z-index: 12; display: grid; grid-template-columns: repeat(4, 1fr); background: var(--cream); border-bottom: 1px solid var(--hair); }
 .lv-tab { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 48px; padding: 0 6px; border-bottom: 2px solid transparent; color: var(--soft);
-          font: 600 10px var(--font-ui); letter-spacing: .14em; text-transform: uppercase; white-space: nowrap; cursor: pointer; transition: color var(--lv-fast) var(--lv-ease); }
+          font: 600 12px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; cursor: pointer; transition: color var(--lv-fast) var(--lv-ease); }
 .lv-tab.on { color: var(--ink); border-bottom-color: var(--crimson); }
 /* an inactive tab under the pointer draws a crimson hairline in from the left (the portals' tab hover) */
 .lv-tab { position: relative; }
@@ -133,24 +133,24 @@
 .lv-tab-ink { position: absolute; left: 0; bottom: 0; width: 1px; height: 2px; background: var(--crimson); transform-origin: 0 0; pointer-events: none;
               opacity: 0; transition: transform var(--lv-slow) var(--lv-ease); }
 .lv-tabs.inked .lv-tab-ink { opacity: 1; }
-.lv-count { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; background: var(--crimson); color: var(--cream); font: 600 9.5px var(--font-ui); letter-spacing: 0; }
+.lv-count { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; background: var(--crimson); color: var(--cream); font: 600 12px var(--font-ui); letter-spacing: 0; }
 .lv-count.bump { animation: lv-bump var(--lv-slow) var(--lv-ease) backwards; }
 @keyframes lv-bump { from { opacity: 0; transform: scale(.55); } to { opacity: 1; transform: none; } }
-@media (max-width: 360px) { .lv-tab { font-size: 9px; letter-spacing: .1em; } }
+@media (max-width: 360px) { .lv-tab { font-size: 12px; letter-spacing: .1em; } }
 
 /* ---- panels ---- */
 .lv-panels { padding: 0 0 24px; min-height: 60vh; }
 /* flow-root: a panel's first margin (the program's note) stays inside it, never moving the panel down when the
    skeleton gives way to the program (a hidden panel keeps display: none) */
 .lv-panel:not([hidden]) { display: flow-root; }
-.lv-note { margin: 14px 20px 0; padding: 12px 14px; border: 1px solid rgba(201,169,98,.55); background: var(--banner); font-size: 13.5px; color: var(--soft); line-height: 1.5; }
+.lv-note { margin: 14px 20px 0; padding: 12px 14px; border: 1px solid rgba(201,169,98,.55); background: var(--banner); font-size: 14px; color: var(--soft); line-height: 1.5; }
 .lv-note.warn { border-color: rgba(155,27,34,.4); }
-.lv-note.soft { border-color: rgba(25,21,18,.12); background: transparent; font-size: 12.5px; }
+.lv-note.soft { border-color: rgba(25,21,18,.12); background: transparent; font-size: 14px; }
 
 /* day header — sticky under the tabs */
 .lv-day { position: sticky; top: 48px; z-index: 11; display: flex; align-items: baseline; gap: 4px 12px; flex-wrap: wrap; padding: 14px 20px 8px; background: var(--cream); border-bottom: 1px solid var(--hair-soft); }
 .lv-day-n { font: 500 30px/1 var(--font-display); color: var(--crimson); }
-.lv-day-t { font: 600 10.5px var(--font-ui); letter-spacing: .18em; text-transform: uppercase; color: var(--soft); white-space: nowrap; }
+.lv-day-t { font: 600 12px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--soft); white-space: nowrap; }
 .lv-day .lv-ics { margin-left: auto; }   /* drops to its own right-aligned row on a narrow phone */
 /* frosted sticky bars: the program slides under the tabs and the day line instead of being cut off */
 @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
@@ -170,31 +170,31 @@
 .lv-card.going { border-left-color: var(--crimson); }
 .lv-card.mine { border-left-color: var(--gold); }
 .lv-card.light { background: transparent; border-left-width: 1px; border-left-color: var(--hair); }
-.lv-card.tbd { border-style: dashed; background: transparent; }
+.lv-card.tbd { border-style: dashed; background: transparent; border-color: rgba(25,21,18,.16); }   /* a placeholder: the faintest hairline */
 .lv-card.tbd:not(.going):not(.mine) { border-left-width: 1px; border-left-color: rgba(25,21,18,.35); }
 .lv-list .lv-card.lv-leaving { opacity: 0; transform: scale(.98); pointer-events: none; }   /* tapped out of MY SCHEDULE */
 .lv-card-body { padding: 14px 16px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 8px; }
 .lv-card-body:focus-visible { outline-offset: -3px; }
 .lv-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-.lv-when { font: 500 13px var(--font-ui); color: var(--soft); white-space: nowrap; padding-top: 3px; }
-.lv-card-ev { font: 600 9.5px var(--font-ui); letter-spacing: .16em; text-transform: uppercase; color: var(--gold-dark); }
-.lv-card-title { margin: 0; font: 500 20px/1.2 var(--font-display); color: var(--ink); }
+.lv-when { font: 500 14px var(--font-ui); color: var(--soft); white-space: nowrap; padding-top: 3px; }
+.lv-card-ev { font: 600 12px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--gold-dark); }
+.lv-card-title { margin: 0; font: 400 18px/24px var(--font-display); color: var(--ink); font-style: normal; }
 /* the tappable titles (cards, your slots, the speaker's sessions) draw a crimson hairline under them on hover */
 .lv-card-title, .lv-slot-title, .lv-mini-body b, .lv-now-item .lv-now-title {
   text-decoration: underline 1px transparent; text-underline-offset: 4px; transition: text-decoration-color var(--lv-fast) var(--lv-ease), color var(--lv-fast) var(--lv-ease); }
 .lv-card.light .lv-card-title { font-size: 17px; color: var(--soft); }
-.lv-card.tbd .lv-card-title { color: var(--soft); font-style: italic; }
+.lv-card.tbd .lv-card-title { color: var(--ink); }
 .lv-spk { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .lv-avs { display: inline-flex; flex: none; }
 .lv-avs:empty { display: none; }   /* names without photos sit flush with the title, not 10 px in */
-.lv-av { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; object-position: top; display: inline-flex; align-items: center; justify-content: center; background: var(--ink); color: var(--cream); font: 600 10px var(--font-ui); letter-spacing: .04em; border: 2px solid var(--card); flex: none; }
+.lv-av { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; object-position: top; display: inline-flex; align-items: center; justify-content: center; background: var(--ink); color: var(--cream); font: 600 12px var(--font-ui); letter-spacing: .04em; border: 2px solid var(--card); flex: none; }
 .lv-avs .lv-av + .lv-av { margin-left: -8px; }
 .lv-av.lg { width: 40px; height: 40px; font-size: 12px; }
 .lv-av.xl { width: 72px; height: 72px; font-size: 20px; }
 .lv-spk-names { font-size: 14px; color: var(--soft); line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .lv-spk-names b { color: var(--crimson); font-weight: 600; }
 .lv-spk-more { flex: none; font-size: 14px; color: var(--crimson); font-weight: 600; white-space: nowrap; }
-.lv-where { display: flex; align-items: center; gap: 6px; font-size: 13.5px; color: var(--soft); }
+.lv-where { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--soft); }
 .lv-where svg { flex: none; color: var(--gold-dark); }
 .lv-card-foot { display: flex; align-items: center; gap: 12px; padding: 0 16px 14px; }
 /* phones: two or three tags drop under the time instead of one tag floating alone beside the title */
@@ -203,7 +203,7 @@
 
 /* THE toggle — one big ATTENDING switch, crimson when on */
 .lv-att { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 46px; padding: 0 18px; border: 1px solid rgba(25,21,18,.35); background: transparent; color: var(--ink);
-          font: 600 11px var(--font-ui); letter-spacing: .18em; text-transform: uppercase; white-space: nowrap; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent;
+          font: 600 12px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent;
           transition: background-color var(--lv-fast) var(--lv-ease), color var(--lv-fast) var(--lv-ease), border-color var(--lv-fast) var(--lv-ease), box-shadow var(--lv-fast) var(--lv-ease), transform var(--lv-fast) var(--lv-ease), opacity var(--lv-fast) var(--lv-ease); }
 .lv-att:active { transform: translateY(1px); }
 /* ON = in my schedule. Everything a guest registered for starts ON, so ON is the calm state: a crimson
@@ -213,18 +213,18 @@
   transform: translateY(-2px) rotate(-45deg); flex: none; }
 .lv-att.on.just::before { animation: lv-check var(--lv-slow) var(--lv-ease) backwards; }   /* only the one just tapped draws its check */
 @keyframes lv-check { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
-.lv-att.ro { flex: none; min-height: 34px; padding: 0 12px; font-size: 9.5px; border-style: dashed; color: var(--soft); cursor: default; }   /* read-only: a quiet chip, never a full-width primary button */
+.lv-att.ro { flex: none; min-height: 34px; padding: 0 12px; font-size: 12px; border-style: dashed; color: var(--soft); cursor: default; }   /* read-only: a quiet chip, never a full-width primary button */
 .lv-att.speak { border-color: rgba(201,169,98,.75); color: var(--gold-dark); cursor: default; }
 .lv-att.speak:active { transform: none; }
-.lv-att.compact { flex: none; min-height: 40px; padding: 0 12px; font-size: 10px; }
+.lv-att.compact { flex: none; min-height: 40px; padding: 0 12px; font-size: 12px; }
 .lv-att[aria-busy="true"] { opacity: .7; }
 .lv-att.wait { color: transparent; border-color: rgba(25,21,18,.14); cursor: progress; animation: lv-breathe 1.6s var(--lv-ease) infinite; }   /* the ticket is being read (first visit): a placeholder, not a guess */
 .lv-att.wait:active { transform: none; }
-.lv-card.light .lv-att { min-height: 40px; font-size: 10px; }
+.lv-card.light .lv-att { min-height: 40px; font-size: 12px; }
 .lv-retry { margin-top: 10px; }
 /* the quiet links (ADD TO CALENDAR · maps · REFRESH): a hairline draws in from the left on hover */
-.lv-ics { flex: none; display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; font: 600 10px var(--font-ui); letter-spacing: .16em; text-transform: uppercase; color: var(--crimson); white-space: nowrap; }
-.lv-ics.day { min-height: 32px; font-size: 9.5px; }
+.lv-ics { flex: none; display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; font: 600 12px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--crimson); white-space: nowrap; }
+.lv-ics.day { min-height: 32px; font-size: 12px; }
 .lv-ics, .lv-links a, .lv-glance-map, .lv-refresh { position: relative; transition: color var(--lv-fast) var(--lv-ease), opacity var(--lv-fast) var(--lv-ease); }
 .lv-ics::after, .lv-links a::after, .lv-glance-map::after, .lv-refresh::after {
   content: ''; position: absolute; left: 0; right: 0; top: calc(50% + 8px); height: 1px; background: currentColor; opacity: .6;
@@ -258,9 +258,9 @@
 .lv-empty-why { font-size: 14px; color: var(--soft); max-width: 380px; line-height: 1.55; }
 
 /* speakers grid */
-.lv-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 16px 20px 0; }
-@media (min-width: 560px) { .lv-grid { grid-template-columns: repeat(4, 1fr); } }
-.lv-person { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding: 14px 8px 12px; background: var(--card); border: 1px solid var(--hair); cursor: pointer; min-height: 150px;
+.lv-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 16px 20px 0; }
+@media (min-width: 560px) { .lv-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.lv-person { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding: 14px 8px 12px; background: var(--card); border: 1px solid var(--hair); cursor: pointer; min-height: 0;
              transition: border-color var(--lv-fast) var(--lv-ease), box-shadow var(--lv-fast) var(--lv-ease), transform var(--lv-fast) var(--lv-ease), opacity var(--lv-fast) var(--lv-ease); }
 .lv-person:focus-visible { outline-offset: 2px; }
 .lv-portrait { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; object-position: top; display: inline-flex; align-items: center; justify-content: center; background: var(--ink); color: var(--cream); font: 600 18px var(--font-ui); letter-spacing: .04em;
@@ -268,19 +268,19 @@
 /* a photo portrait also carries the shared image fade (app.css › img.mx-img-in), whose transition list would
    otherwise replace this one and snap the gold ring */
 .lv img.lv-portrait { transition: opacity var(--t-reveal) var(--ease), box-shadow var(--lv-fast) var(--lv-ease); }
-.lv-person-name { font: 500 14px/1.2 var(--font-display); margin-top: 4px; transition: color var(--lv-fast) var(--lv-ease); }
-.lv-person-sub { font-size: 11px; color: var(--soft); line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.lv-person-name { font: 400 18px/24px var(--font-display); margin-top: 8px; transition: color var(--lv-fast) var(--lv-ease); }
+.lv-person-sub { font-size: 14px; color: var(--soft); line-height: 20px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 
 /* info */
 .lv-info-row { display: grid; grid-template-columns: 96px 1fr; gap: 14px; padding: 18px 20px; border-bottom: 1px solid var(--hair-soft); }
-.lv-info-label { font: 600 9.5px var(--font-ui); letter-spacing: .18em; text-transform: uppercase; color: var(--gold-dark); padding-top: 4px; }
+.lv-info-label { font: 600 12px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--gold-dark); padding-top: 4px; }
 .lv-info-body { font-size: 15px; line-height: 1.55; color: var(--soft); }
 .lv-info-body b { color: var(--ink); font-weight: 600; }
 .lv-links { display: flex; gap: 18px; margin-top: 8px; }
-.lv-links a { display: inline-flex; align-items: center; min-height: 40px; font: 600 10px var(--font-ui); letter-spacing: .16em; text-transform: uppercase; }
+.lv-links a { display: inline-flex; align-items: center; min-height: 40px; white-space: nowrap; font: 600 12px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; }
 
 /* footer */
-.lv-foot { display: flex; align-items: center; gap: 14px; padding: 18px 20px calc(24px + env(safe-area-inset-bottom)); border-top: 1px solid var(--hair); font: 600 9.5px var(--font-ui); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+.lv-foot { display: flex; align-items: center; gap: 14px; padding: 18px 20px calc(24px + env(safe-area-inset-bottom)); border-top: 1px solid var(--hair); font: 600 12px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 .lv-refresh { margin-left: auto; color: var(--crimson); cursor: pointer; min-height: 44px; display: inline-flex; align-items: center; }
 .lv-refresh.busy { opacity: .45; pointer-events: none; }
 .lv-foot .off { color: var(--crimson); }   /* offline: the program on screen is the last one loaded */
@@ -408,9 +408,9 @@
              border-left: 1px solid var(--hair); border-bottom: 1px solid var(--hair); background: var(--card); max-height: 100vh; overflow-y: auto; }
   .lv-glance { display: block; padding: 20px 24px 24px; }
   .lv-glance-list { margin: 12px 0 0; display: grid; grid-template-columns: 1fr; gap: 4px; font-size: 14px; line-height: 1.5; }
-  .lv-glance-list dt { font: 600 9.5px var(--font-ui); letter-spacing: .18em; text-transform: uppercase; color: var(--gold-dark); margin-top: 12px; }
+  .lv-glance-list dt { font: 600 12px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--gold-dark); margin-top: 12px; }
   .lv-glance-list dd { margin: 0; color: var(--ink); }
-  .lv-glance-list .lv-glance-map { display: inline-block; margin-top: 6px; font: 600 10px var(--font-ui); letter-spacing: .14em; text-transform: uppercase; }
+  .lv-glance-list .lv-glance-map { display: inline-block; margin-top: 6px; font: 600 12px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; }
   .lv-side .lv-now { grid-template-columns: 1fr; border-bottom: 1px solid var(--hair); }
   .lv-side .lv-now-item + .lv-now-item { border-left: 0; border-top: 1px solid var(--hair-soft); }
   .lv-side .lv-now-item, .lv-side .lv-now-line { padding: 20px 24px; }
@@ -427,3 +427,14 @@
   .lv *, .lv *::before, .lv *::after, .lv-sheet-wrap, .lv-sheet-wrap *, .lv-sheet-wrap *::before, .lv-sheet-wrap *::after { animation: none !important; transition: none !important; }
   .lv-card, .lv-person, .lv-att:active, .lv-chip:active { transform: none !important; }
 }
+
+/* ---- phone calm pass (2026-09-25): a session still waiting for its speaker says so quietly; every person is one circle
+   (ui.portrait) — 32 in a card's speaker row, 44 in a session sheet, 96 on the speakers tab and a speaker's sheet ---- */
+.lv-tbd { font: 400 14px/20px var(--font-ui); color: var(--soft); }
+.lv-where .mx-ic { flex: none; color: var(--gold-dark); }
+.lv-avs .mx-pic + .mx-pic { margin-left: -8px; box-shadow: 0 0 0 2px var(--card); }
+.lv-avs .mx-pic { margin-right: 0; }
+.lv-avs { gap: 0; margin-right: 8px; }
+.lv-person { padding: 18px 10px 16px; }
+.lv-person .mx-pic { margin-bottom: 4px; }
+.lv-pp .mx-pic { flex: none; }

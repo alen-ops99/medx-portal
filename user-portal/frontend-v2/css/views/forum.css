@@ -1,48 +1,72 @@
-/* css/views/forum.css — Biomedical Forum screen (injected by js/views/forum.js).
-   Source: Biomedical Forum.dc.html. The copied artboard markup keeps its inline styles;
-   rules here only add responsive behaviour (mx-* hooks carry no look — ARCHITECTURE §4). */
+/* css/views/forum.css — the Biomedical Forum (js/views/forum.js; injected by the view).
+   Composed from the PHONE CALM KIT (app.css); only what is particular to this screen lives here. */
 
-/* hero display type: 52px on desktop (inline) → tighter on small screens */
-@media (max-width: 900px) {
-  .mx-display-52 { font-size: 42px !important; }
-}
-@media (max-width: 500px) {
-  .mx-display-52 { font-size: 30px !important; }
-}
+.mx-fo { background: #f7f1e6; color: #191512; }
 
-/* gathering schedule rows: the fixed 210px title column stacks below 700px */
-@media (max-width: 700px) {
-  .mx-forum-schedrow { flex-wrap: wrap; gap: 6px 20px !important; }
-  .mx-forum-schedtitle { min-width: 0 !important; flex: 1 1 auto !important; }
-  .mx-forum-schedrow > span:last-child { flex-basis: 100%; padding-left: 68px; }
-}
+/* the network: what membership includes, then the one thing it is not */
+.mx-fo-includes { margin-top: 28px; max-width: 640px; }
+.mx-fo-h3 { margin: 0 0 14px; font: 600 12px/16px Inter, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: #6e5626; }
+.mx-fo-note { margin: 12px 0 0; font: 400 14px/20px Inter, sans-serif; color: #4a4239; }
+[data-screen-label="Biomedical Forum"] .mx-facts li > a.mx-fact { border-top: 0; }
+[data-screen-label="Biomedical Forum"] .mx-facts > li:not(.mx-fact) { border-top: 1px solid var(--hair-soft); }
+[data-screen-label="Biomedical Forum"] .mx-facts > li:not(.mx-fact):last-child { border-bottom: 1px solid var(--hair-soft); }
+[data-screen-label="Biomedical Forum"] .mx-facts > li:not(.mx-fact) > .mx-fact:last-child { border-bottom: 0; }
+[data-screen-label="Biomedical Forum"] a.mx-fact > .mx-ic:last-child { align-self: center; margin-top: 0; color: rgba(25,21,18,.32); }
 
-/* stage indicator: hide the 56px connector lines once the stages wrap — and on a phone the three stages
-   share one row as equal columns (the third used to drop alone onto a second line) */
-@media (max-width: 600px) {
-  .mx-forum-stageline { display: none !important; }
-  .mx-forum-stages { display: grid !important; grid-template-columns: repeat(3, 1fr); align-items: start; }
-  .mx-forum-stages > div { justify-content: center; }
-  .mx-forum-stages > div > div { padding: 0 4px !important; }
-  .mx-forum-stages > div > div > span:last-child { white-space: normal !important; text-align: center; line-height: 1.45; }
-}
+/* from the forum: a post is a row that opens */
+.mx-fo-post > summary { align-items: center; }
+.mx-fo-post-h { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mx-fo-post-t { font: 400 18px/24px Fraunces, serif; color: #191512; }
+.mx-fo-post-s { font: 400 14px/20px Inter, sans-serif; color: #4a4239; }
+.mx-fo-post-role { margin: 0 0 8px; font: 500 14px/20px Inter, sans-serif; color: #6e5626; }
+.mx-fo-post .mx-acc-a p { margin: 0 0 8px; }
 
-/* invitation-code row: input takes the full line at phone width */
-@media (max-width: 500px) {
-  .mx-forum-coderow { width: 100%; }
-  .mx-forum-coderow input[data-role="code"] { flex: 1 1 100%; width: 100% !important; }
-  .mx-forum-coderow [data-act="unlock"] { flex: 1 1 auto; text-align: center; }
-}
+/* 04 · your membership: one ink card — stages, the code field, the action, the venue vote */
+.mx-fo-card { background: #191512; color: #f7f1e6; padding: 24px 20px; max-width: 720px; box-sizing: border-box; }
+@media (min-width: 501px) { .mx-fo-card { padding: 28px; } }
+.mx-forum-stages { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 24px; }
+.mx-fo-stage { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 2px solid rgba(247,241,230,.18); }
+.mx-fo-stage.is-done { border-top-color: rgba(201,169,98,.55); }
+.mx-fo-stage.is-cur { border-top-color: #c9a962; }
+.mx-fo-stage-n { font: 400 18px/1 Fraunces, serif; color: rgba(247,241,230,.55); }
+.mx-fo-stage.is-cur .mx-fo-stage-n, .mx-fo-stage.is-done .mx-fo-stage-n { color: #c9a962; }
+.mx-fo-stage-l { font: 600 12px/16px Inter, sans-serif; letter-spacing: .1em; text-transform: uppercase; color: rgba(247,241,230,.62); }
+.mx-fo-stage.is-cur .mx-fo-stage-l { color: #f7f1e6; }
+.mx-fo-body { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.mx-fo-line { font: 400 16px/24px Inter, sans-serif; color: rgba(247,241,230,.85); }
+.mx-fo-head { font: 400 22px/28px Fraunces, serif; color: #f7f1e6; }
+.mx-fo-small { font: 400 14px/20px Inter, sans-serif; color: rgba(247,241,230,.62); }
+.mx-fo-gold { font: 600 12px/16px Inter, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: #c9a962; }
+.mx-fo-ref { font: 600 14px Inter, sans-serif; font-variant-numeric: tabular-nums; letter-spacing: .06em; color: #f7f1e6; }
+.mx-forum-coderow { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+@media (min-width: 501px) { .mx-forum-coderow { flex-direction: row; } .mx-forum-coderow > .btn-block { width: auto; flex: none; } }
+.mx-fo-code { flex: 1 1 auto; min-height: 52px; box-sizing: border-box; padding: 0 14px; border: 1px solid rgba(247,241,230,.35); background: transparent; color: #f7f1e6;
+  font: 600 16px Inter, sans-serif; letter-spacing: .1em; font-variant-numeric: tabular-nums; border-radius: 0; }
+.mx-fo-code::placeholder { color: rgba(247,241,230,.45); }
+.mx-fo-code:focus { outline: 1px solid #c9a962; outline-offset: -1px; }
+.mx-fo-err { font: 400 14px/20px Inter, sans-serif; color: #e0a9ad; }
+.mx-fo-acts { display: flex; flex-wrap: wrap; gap: 10px; }
+.mx-fo-voteblock { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin-top: 24px; padding-top: 20px; border-top: 1px solid rgba(247,241,230,.14); }
+.mx-fo-votes { display: flex; gap: 10px; flex-wrap: wrap; }
+.mx-fo-vote { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 16px; border: 1px solid rgba(247,241,230,.35); color: #f7f1e6;
+  font: 600 13px Inter, sans-serif; letter-spacing: .12em; cursor: pointer; transition: background-color var(--t-quick) var(--ease), border-color var(--t-quick) var(--ease); }
+.mx-fo-vote b { font: 400 16px/1 Fraunces, serif; color: #c9a962; letter-spacing: 0; }
+.mx-fo-vote.is-on { background: #c9a962; border-color: #c9a962; color: #191512; }
+.mx-fo-vote.is-on b { color: #191512; }
+@media (hover: hover) { .mx-fo-vote:not(.is-on):hover { border-color: #c9a962; } }
 
-/* facts band: one row needs 1,236 px. Narrower (iPad portrait and landscape, a laptop window) the four facts
-   sit two by two without rules — they used to wrap three plus one, with a rule dangling after the third */
-@media (max-width: 1250px) {
-  .mx-fo-band { display: grid !important; grid-template-columns: auto auto; justify-content: center; justify-items: center; gap: 10px 44px !important; }
-  .mx-fo-band > span[style*="width:1px"] { display: none !important; }
-}
-/* facts band on a phone: one centred fact per line — the vertical rules only read side by side */
-@media (max-width: 700px) {
-  .mx-fo-band { grid-template-columns: 1fr; gap: 9px 20px !important; padding-top: 16px !important; padding-bottom: 16px !important; }
-  .mx-fo-band > span[style*="width:1px"] { display: none !important; }
-  .mx-fo-band > * { flex-basis: 100%; text-align: center; }
-}
+/* put a colleague forward: the form folded in one row */
+.mx-fo-nom > summary { padding-left: 16px; padding-right: 16px; }
+.mx-fo-nom > summary > .mx-ic { color: #6e5626; }
+.mx-fo-nom > .mx-acc-a { padding: 0 16px 20px; }
+.mx-fo-nom .mx-fo-line { color: #4a4239; }
+.mx-fo-form { display: grid; grid-template-columns: 1fr; gap: 14px; margin-top: 12px; }
+@media (min-width: 701px) { .mx-fo-form { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.mx-fo-wide { grid-column: 1 / -1; }
+.mx-fo-field { display: flex; flex-direction: column; gap: 6px; }
+.mx-fo-field textarea { min-height: 120px; resize: vertical; line-height: 1.5; font-family: Inter, sans-serif; }
+.mx-fo-count { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font: 400 12px/16px Inter, sans-serif; color: #6d6459; }
+.mx-fo-count [data-role="nomCount"] { font-weight: 600; white-space: nowrap; }
+.mx-fo-sent { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.mx-fo-sent-h { font: 400 20px/26px Fraunces, serif; color: #191512; }
+.mx-fo-textbtn { display: inline-flex; align-items: center; min-height: 44px; font: 500 14px/20px Inter, sans-serif; color: #9b1b22; cursor: pointer; }

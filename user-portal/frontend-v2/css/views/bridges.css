@@ -1,23 +1,35 @@
-/* css/views/bridges.css — Building Bridges screen (js/views/bridges.js; injected by the view).
-   Responsive overrides ONLY — the look lives inline in the copied artboard markup
-   (ARCHITECTURE.md §4: mx-* hooks never carry look). */
+/* css/views/bridges.css — Building Bridges (js/views/bridges.js; injected by the view).
+   Composed from the PHONE CALM KIT (app.css); only what is particular to this screen lives here. */
 
-@media (max-width: 900px) {
-  /* next-event card: photo · body · countdown → stacked */
-  .mx-bb-next { grid-template-columns: 1fr !important; }
-  .mx-bb-next > div:first-child { min-height: 150px; }
-  /* past-city cards: 3 columns → 2 */
-  .mx-bb-cities { grid-template-columns: 1fr 1fr !important; }
-}
-@media (max-width: 700px) {
-  .mx-bb-cities { grid-template-columns: 1fr !important; }
-}
+.mx-bb { background: #f7f1e6; color: #191512; }
 
-/* stats band on a phone: two by two, each figure over its label, centred — without the vertical rules
-   that dangled at the line ends */
-@media (max-width: 700px) {
-  .mx-bb-band { display: grid !important; grid-template-columns: 1fr 1fr; justify-items: center; gap: 16px 10px !important; padding-top: 18px !important; padding-bottom: 18px !important; }
-  .mx-bb-band > span[style*="width:1px"] { display: none !important; }
-  .mx-bb-band > span { flex-direction: column; align-items: center !important; gap: 4px !important; text-align: center; }
-  .mx-bb-band > span > span:first-child { white-space: nowrap; line-height: 1.05; }
+/* the mission: one Fraunces statement, the italic its only accent */
+.mx-bb-statement { margin: 0 0 8px; max-width: 640px; font: 400 22px/28px Fraunces, serif; color: #191512; text-wrap: balance; }
+.mx-bb-statement i { color: #9b1b22; }
+@media (min-width: 901px) { .mx-bb-statement { font-size: 28px; line-height: 36px; } }
+
+/* stats: numerals in gold on the last tile (the evening's size is the promise) */
+[data-screen-label="Building Bridges"] .mx-tile:last-child .mx-tile-n { color: #6e5626; }
+
+/* next event: one card; its facts sit tight under the photo, the register button is the card's one action */
+.mx-bb-card { max-width: 720px; }
+.mx-bb-card .mx-pcard-body { gap: 14px; padding: 8px 16px 20px; }
+.mx-bb-cardfacts { max-width: none; }
+.mx-bb-cardfacts .mx-fact { min-height: 48px; padding: 10px 0; }
+.mx-bb-cardfacts .mx-fact:first-child { border-top: 0; }
+.mx-bb-card .mx-pcard-line { font-size: 16px; line-height: 24px; color: #4a4239; }
+.mx-bb-cd .mx-cd-label { color: #6e5626; }
+.mx-bb-how { font: 400 14px/20px Inter, sans-serif; color: #4a4239; text-align: center; }
+.mx-bb-card .btn-block { width: 100%; min-height: 48px; display: inline-flex; align-items: center; justify-content: center; }
+.mx-bb-rows { margin-top: 16px; }
+
+/* where we've been: photo cards in a shelf; every card opens its gallery */
+.mx-bb-edition { cursor: pointer; }
+.mx-bb-ed-label { font: 500 14px/20px Inter, sans-serif; color: #6e5626; }
+.mx-bb-edition .mx-shelf-sub { margin-top: -8px; }
+.mx-bb-edition .mx-shelf-title { margin-top: -4px; }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .mx-bb-edition .mx-media > img:not(.mx-media-mark) { transition: transform var(--t-drift) var(--ease); }
+  .mx-bb-edition:hover .mx-media > img:not(.mx-media-mark) { transform: scale(1.04); }
 }
+.mx-bb-edition:active .mx-media { opacity: .86; }

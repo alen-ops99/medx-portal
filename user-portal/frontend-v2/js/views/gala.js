@@ -1,102 +1,103 @@
-// Source: Gala Evening.dc.html
-// Blocks (artboard order): "Breadcrumb" › "Hero" › "THE EVENING BEGINS IN" (ink band) ›
-// "01 · ON STAGE THAT NIGHT" › "FEATURED PERFORMERS" › "02 · WHY WE GATHER" ›
-// "MOMENTS FROM PREVIOUS GALAS" › "03 · THE EVENING AT A GLANCE" › "Questions".
+// Source: Gala Evening.dc.html, redrawn to the phone calm rules (DESIGN-RULES.md 2026-09-25).
+// Blocks, top to bottom: "Breadcrumb" (desktop) › "Hero" (eyebrow · title · date · ONE action) ›
+// "Begins in" (the countdown alone) › "Facts" (date · venue · dress · seat · your seat · calendar · updates,
+// each said once) › "01 · On stage that night" (one card, one circle) › "02 · The evening" (a statement,
+// two facts, the long copy folded away) › "Moments" (a shelf) › "03 · The evening at a glance" (timeline) ›
+// "Good to know" (accordions + one message row).
 // Data: gala_settings via GET /api/gala/settings (admin-edited in the admin portal),
 // performers flag + effective price via GET /api/v2/gala/meta (backend/v2/gala.js),
 // my seat state via GET /api/gala/my-status + /api/gala/my-seat, follow via /api/notify-topics.
 // The price NEVER comes from this file's clock — server price block first, FACTS as last fallback.
+// FROZEN (DESIGN-RULES §8): the gold CTA and the reserve URL builder keep every href, data-act and handler; only their look moved
+// to the house button classes.
 import { api } from '../api.js';
 import { session } from '../state.js';
 import { ui, esc, fmt } from '../ui.js';
 import { FACTS, galaPriceNow, CTA, setLiveGalaPrice } from '../facts.js';
 import { chrome } from '../chrome.js';
+import { portraitSrc } from './_portraits.js';
 
 export const SOURCE = 'Gala Evening.dc.html';
+
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 // ---- COPY: every string that may change in a revision (dates/prices/venues via FACTS/API) ----
 export const COPY = {
   crumb: { left: 'PROJECTS', right: 'MED&amp;X GALA EVENING' },
   hero: {
-    eyebrow: 'MED&amp;X ANNUAL AWARDS · BLACK TIE · SEATS LIMITED',
-    title: 'Med&amp;X Gala <i style="color:#c9a962">Evening</i>',
-    tagline: 'Where Croatian medicine and science meet the world',
-    // one verb for this action, priced (UX audit 2026-09-02 › item 6) — "RESERVE YOUR SEAT" and
-    // "RSVP · €150" were the same button in two coats, on the two blocks of one page
-    reserve: price => `${CTA.reserve(price)} →`, calendar: 'ADD TO CALENDAR',
-    note: 'One form covers the conference and the Gala — pick either, or both.',
-    closedNote: 'Seat reservations are paused right now — message us and we will help.',
-    follow: on => `GET UPDATES FROM THE GALA · ${on ? 'ON' : 'OFF'}`,
-    followSub: 'Email + portal alerts · manage topics in Profile &amp; settings'
+    eyebrow: 'Med&amp;X Annual Awards',
+    title: 'Gala <i>Evening</i>',
+    // one verb for this action, priced (UX audit 2026-09-02 › item 6)
+    reserve: price => `${CTA.reserve(price)} →`,
+    closedNote: 'Seat reservations are paused right now — message us and we will help.'
   },
   status: {
-    pending: 'Seat request received — our team reviews it and replies by email.',
-    pay: 'Your seat is approved — complete the payment to confirm it.',
-    paid: 'Your seat is confirmed — the ticket is in My Med&amp;X.',
+    pending: 'Seat requested', pendingSub: 'Our team reviews it and replies by email.',
+    pay: 'Seat approved', paySub: 'Complete the payment to confirm it.',
+    paid: 'Seat confirmed', paidSub: 'Your ticket is in My Med&amp;X.',
     table: label => ` · ${label}`,
     ctaPending: 'MY PLEXUS →', ctaPay: 'PAY FOR YOUR SEAT →', ctaPaid: 'MY TICKET →',
     redirect: 'Taking you to the secure payment page…',
     payFail: 'The payment page could not be opened — please try again.',
     none: 'No seat request found — reserve a seat first.'
   },
-  band: {
-    begins: 'THE EVENING BEGINS IN', units: ['DAYS', 'HOURS', 'MINUTES'],
-    when: (month, day, time, venue) => `${month} ${day}, ${time} · ${venue}`,
-    priceEarly: (cur, flip, next) => `SEATS LIMITED · ${cur} UNTIL ${flip} · ${next} AFTER`,
-    priceRegular: cur => `SEATS LIMITED · ${cur}`
+  countdown: { label: 'Begins in', units: ['days', 'hours', 'min'] },
+  facts: {
+    when: t => `${t} to midnight`,
+    venueSub: 'Emerald Ballroom, Zagreb', map: 'Map',
+    dress: 'Black tie', dressSub: 'Formal evening attire',
+    priceEarly: (cur, flip, next) => `${cur} until ${flip}, ${next} after`,
+    priceRegular: cur => `${cur} per seat`,
+    priceSub: 'One form covers the conference and the Gala',
+    calendar: 'Add to calendar', calendarSub: 'Timed for the evening, with the venue',
+    follow: 'Gala updates', followSub: on => on ? 'On · email and portal alerts' : 'Off · email and portal alerts'
   },
   stage: {
-    n: '01', title: 'ON STAGE THAT NIGHT', all: 'ALL SPEAKERS →',
-    sub: "The heads of the world's foremost hospitals and universities, in Zagreb, in person, for one evening.",
-    portrait: name => `PORTRAIT · ${name.toUpperCase()}`,
+    n: '01', title: 'On stage that night', all: 'All →',
+    bioEyebrow: 'ON STAGE THAT NIGHT', bioPending: 'Bio to follow.',
     emptyLine: 'Speakers are being confirmed.',
-    emptyWhy: 'The evening hosts the heads of the world’s foremost hospitals and universities — names appear here the moment they are confirmed.'
+    emptyWhy: 'Names appear here the moment they are confirmed.'
   },
   performers: {
-    label: 'FEATURED PERFORMERS',
-    badgeNamed: 'ICONIC CROATIAN MUSICIANS',
-    // UX audit 2026-09-02 › item 11: a chip plus two placeholder cards said "we won't tell you"
-    // three times. Until the names are entered in the admin portal, one italic line under the
-    // evening's schedule says it once — nothing in this house style stands in for content.
-    tbaLine: 'Two performers confirmed — names announced this autumn.'
+    title: 'Live music',
+    // until the names are entered in the admin portal, the music row of the schedule says it once
+    tbaLine: 'Two performers confirmed · names announced this autumn'
   },
   why: {
-    eyebrow: '02 · WHY WE GATHER',
-    line: 'Accelerating Croatian medicine and science through <i style="color:#c9a962">international collaboration</i>.',
-    body: 'This is the night Croatian medicine and science meet the world. Over dinner and a shared table, the evening turns to the challenges and opportunities of international biomedical collaboration, with panels on high-performance leadership. Every seat is placed to build a bridge.',
-    chips: ['SEATING LIMITED BY DESIGN', 'HIGH-PERFORMANCE LEADERSHIP PANELS']
+    n: '02', title: 'The evening',
+    line: 'Accelerating Croatian medicine and science through <i>international collaboration</i>.',
+    facts: [
+      { icon: 'users', v: 'Seating limited by design', s: 'Every seat is placed to build a bridge' },
+      { icon: 'mic', v: 'Leadership panels', s: 'On high-performance leadership' }
+    ],
+    more: 'About the evening',
+    body: 'This is the night Croatian medicine and science meet the world. Over dinner and a shared table, the evening turns to the challenges and opportunities of international biomedical collaboration, with panels on high-performance leadership. The Awards honour those who did the most to internationalise Croatian medicine and science this year. The detailed program follows soon.'
   },
   moments: {
-    label: 'MOMENTS FROM PREVIOUS GALAS',
-    line: 'World-class speakers, bridge-building at one table.',
-    all: 'ALL PHOTOS →',
+    title: 'Moments', all: 'All photos →',
     modalEyebrow: 'GALA · MOMENTS', modalTitle: 'Moments from previous Galas',
     modalNote: 'Galleries from each Gala land here as our team publishes them.',
-    close: 'CLOSE', photos: ['photo-candlelit.jpg', 'photo-ballroom.jpg', 'photo-stage.jpg']
+    photos: ['photo-candlelit.jpg', 'photo-ballroom.jpg', 'photo-stage.jpg', 'photo-forum.jpg'],
+    alts: ['Guests in conversation at a previous Gala', 'The Emerald Ballroom set for dinner', 'A panel on the Gala stage', 'The ballroom during the evening']
   },
   glance: {
-    n: '03', title: 'THE EVENING AT A GLANCE',
+    n: '03', title: 'The evening at a glance',
     // fallback only — shown when gala_settings carries no schedule rows
     fallback: [
-      { time: '19:00', title: 'Doors open — welcome reception &amp; networking' },
-      { time: '', title: 'Dinner, keynotes and the Med&amp;X Annual Awards follow through the evening', right: 'UNTIL 23:30', gold: true }
-    ],
-    note: 'Panels with our speakers on high-performance leadership and the challenges and opportunities of international biomedical collaboration. The Awards honor those who did the most to internationalize Croatian medicine and science this year. Detailed program follows soon.',
-    photoCaption: 'GALA 2025 · HOTEL ESPLANADE'
+      { time: '19:00', title: 'Doors open', description: 'Welcome reception and networking' },
+      { time: '', title: 'Dinner, keynotes and the Med&X Annual Awards', description: 'Through the evening, until midnight', gold: true }
+    ]
   },
-  policy: {
-    tag: 'SEAT POLICY',
-    line: 'Seats are non-refundable — but you can transfer your seat to a colleague up to the day of the event.',
-    cta: 'TRANSFER YOUR SEAT →'
+  know: {
+    title: 'Good to know',
+    policy: 'Seat policy',
+    policyLine: 'Seats are non-refundable. You can transfer your seat to a colleague up to the day of the event.',
+    transfer: 'Transfer your seat →',
+    ask: 'Message us', askSub: 'Seats, tables, dietary needs'
   },
   ics: { file: `medx-gala-${FACTS.year}.ics`, added: 'Calendar file downloaded — open it to add the Gala.' },
   followed: 'You follow the Gala — updates reach your inbox and alerts.',
-  unfollowed: 'Gala updates are off.',
-  footer: {
-    line: 'Questions about the Gala · seats, tables, dietary needs?',
-    sub: 'Message us · replies land right here in your portal inbox.',
-    cta: 'MESSAGE US →'
-  }
+  unfollowed: 'Gala updates are off.'
 };
 
 // ---- view state ----
@@ -149,14 +150,16 @@ async function load() {
   // This page holds the most authoritative price the portal can read. Hand it to facts.js so every
   // other screen quotes the same number and the same deadline (never FACTS' hard-coded 15 Sep).
   if ((r.meta && r.meta.price) || s.price_gala_early_bird != null || s.price_gala_regular != null) setLiveGalaPrice(price);
+  const dress = String(s.dress_code || FACTS.gala.dress).split('/')[0].trim();
   return {
     s, date, time, d,
     startAt: `${date}T${time}:00+01:00`,                       // Zagreb is CET (+01:00) in December
-    heroDate: d ? `${d.toLocaleDateString('en-GB', { weekday: 'long' })}, ${d.getDate()} ${d.toLocaleDateString('en-GB', { month: 'long' })} ${d.getFullYear()} · ${time}` : '',
-    bandMonth: d ? d.toLocaleDateString('en-GB', { month: 'long' }).toUpperCase() : '', bandDay: d ? d.getDate() : '',
+    // hero: "Sat 5 Dec 2026 · 19:00"; facts: "Saturday, 5 December 2026"
+    heroDate: d ? `${d.toLocaleDateString('en-GB', { weekday: 'short' })} ${d.getDate()} ${MON[d.getMonth()]} ${d.getFullYear()} · ${time}` : '',
+    longDate: d ? `${d.toLocaleDateString('en-GB', { weekday: 'long' })}, ${d.getDate()} ${d.toLocaleDateString('en-GB', { month: 'long' })} ${d.getFullYear()}` : '',
     venueLong,
-    venueShort: FACTS.gala.venue.toUpperCase(),
-    dress: String(s.dress_code || `${FACTS.gala.dress} / Formal attire`).toUpperCase(),
+    venueName: venueLong.split(',')[0].replace(/\s*emerald ballroom\s*/i, '').trim() || FACTS.gala.venue,
+    dress: dress ? dress.charAt(0).toUpperCase() + dress.slice(1).toLowerCase() : COPY.facts.dress,
     open: s.is_registration_open === undefined ? true : !!Number(s.is_registration_open),
     price,
     speakers: Array.isArray(s.speakers) ? s.speakers.filter(x => x && x.name) : [],
@@ -181,268 +184,208 @@ function reserveUrl() {
   return '/plexus?' + q.toString();
 }
 
-// gold CTA for the current seat state — used in the hero and mirrored in "WHY WE GATHER"
-function goldCta(label, { pad = '13px 22px', size = '10.5px' } = {}) {
-  const style = `padding:${pad};background:#c9a962;color:#191512;font:600 ${size} Inter,sans-serif;letter-spacing:.16em;text-decoration:none;white-space:nowrap`;
-  const hover = 'background:#b8994f;color:#191512';
+// gold CTA for the current seat state — the hero's one action. Same hrefs and data-acts as before;
+// the look is the house gold button (full width on a phone, css/views/gala.css)
+function goldCta(label) {
+  const cls = 'class="btn-gold btn-block mx-gala-cta"';
   switch (D.state.key) {
-    case 'paid': return `<a href="/app/me" style="${style}" data-hover="${hover}">${COPY.status.ctaPaid}</a>`;
-    case 'pay': return `<span data-act="pay" style="${style};cursor:pointer" data-hover="${hover}">${COPY.status.ctaPay}</span>`;
-    case 'pending': return `<a href="/app/plexus/mine" style="${style}" data-hover="${hover}">${COPY.status.ctaPending}</a>`;
+    case 'paid': return `<a href="/app/me" ${cls}>${COPY.status.ctaPaid}</a>`;
+    case 'pay': return `<span data-act="pay" ${cls} role="button">${COPY.status.ctaPay}</span>`;
+    case 'pending': return `<a href="/app/plexus/mine" ${cls}>${COPY.status.ctaPending}</a>`;
     default:
-      if (!D.open) return `<span data-act="closed" style="${style};cursor:pointer" data-hover="${hover}">${label}</span>`;
-      return `<a href="${esc(reserveUrl())}" style="${style}" data-hover="${hover}">${label}</a>`;
+      if (!D.open) return `<span data-act="closed" ${cls} role="button">${label}</span>`;
+      return `<a href="${esc(reserveUrl())}" ${cls}>${label}</a>`;
   }
 }
 
-function statusNote() {
-  if (D.state.key === 'none') return D.open ? COPY.hero.note : COPY.hero.closedNote;
-  const base = { pending: COPY.status.pending, pay: COPY.status.pay, paid: COPY.status.paid }[D.state.key];
-  return base + (D.state.key === 'paid' && D.seat && D.seat.table_label ? esc(COPY.status.table(D.seat.table_label)) : '');
+// ---------------------------------------------------------------- small parts
+const icon = (n, s) => ui.icon(n, s || 20);
+function sectionHead(n, title, link) {
+  return `<div class="mx-sh">${n ? `<span class="mx-sh-n">${n}</span>` : ''}<h2 class="mx-sh-t">${title}</h2>${link || ''}</div>`;
 }
+function fact({ ic, v, s, go, act, attrs }) {
+  const tag = act ? `li class="mx-fact" data-act="${act}"${attrs || ''}` : 'li class="mx-fact"';
+  return `<${tag}>${icon(ic)}<div class="mx-fact-body"><span class="mx-fact-v">${v}</span>${s ? `<span class="mx-fact-s">${s}</span>` : ''}</div>${go || ''}</li>`;
+}
+function flipLabel(iso) {
+  const d = fmt.toDate(String(iso || '').slice(0, 10));
+  return d ? `${d.getDate()} ${MON[d.getMonth()]}` : '';
+}
+const mapUrl = q => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
 
 // ---------------------------------------------------------------- blocks
 function blockCrumb() {
   return `
-  <!-- dc: Gala Evening.dc.html › "Breadcrumb" -->
+  <!-- dc: Gala Evening.dc.html › "Breadcrumb" (desktop; hidden on phones, where the top bar carries back) -->
   <div class="mx-crumbs mx-gutter" style="display:flex;align-items:center;gap:13px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16)">
-    <a href="/app/projects" data-dir="back" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239" data-hover="color:#191512">${COPY.crumb.left}</a>
-    <span style="color:rgba(25,21,18,.35);font-size:10px">→</span>
-    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#191512">${COPY.crumb.right}</span>
+    <a href="/app/projects" data-dir="back" style="font:600 12px Inter,sans-serif;letter-spacing:.12em;color:#4a4239" data-hover="color:#191512">${COPY.crumb.left}</a>
+    <span style="color:rgba(25,21,18,.35);font-size:12px">→</span>
+    <span style="font:600 12px Inter,sans-serif;letter-spacing:.12em;color:#191512">${COPY.crumb.right}</span>
   </div>
   <!-- /dc -->`;
 }
 
-function followToggle(label) {
-  return `
-      <div data-block="follow" style="display:flex;align-items:center;gap:10px;margin-top:20px">
-        <span data-act="tgFollow" role="switch" aria-checked="${st.follow}" aria-label="${esc(label)}" class="mx-switch"><span></span></span>
-        <span style="display:flex;flex-direction:column;gap:3px"><span data-role="follow-label" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.8)">${COPY.hero.follow(st.follow)}</span><span style="font-size:10.5px;color:rgba(247,241,230,.5)">${COPY.hero.followSub}</span></span>
-      </div>`;
-}
-
+// §6: eyebrow · title · one date line · ONE action, over the photo's bottom scrim. Nothing else.
 function blockHero() {
   return `
   <!-- dc: Gala Evening.dc.html › "Hero" -->
-  <div class="mx-ink" style="position:relative;overflow:hidden">
-    <img class="mx-hero-photo" src="/assets/photo-gala.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 30%">
-    <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(25,21,18,.7) 0%,rgba(25,21,18,.55) 55%,rgba(25,21,18,.85) 100%)"></div>
-    <div class="mx-pad-hero" style="position:relative;padding:58px 36px 48px;display:flex;flex-direction:column;align-items:center;text-align:center">
-      <span style="padding:6px 12px;border:1px solid rgba(201,169,98,.7);color:#c9a962;font:600 10px Inter,sans-serif;letter-spacing:.18em">${COPY.hero.eyebrow}</span>
-      <div class="mx-display-46" style="font-family:Fraunces,serif;font-size:52px;line-height:1.08;color:#f7f1e6;margin-top:20px">${COPY.hero.title}</div>
-      <div class="mx-gala-hero-date" style="font-family:Fraunces,serif;font-style:italic;font-size:21px;color:#c9a962;margin-top:14px">${esc(D.heroDate)}</div>
-      <div style="font-size:15px;color:rgba(247,241,230,.85);margin-top:8px">${COPY.hero.tagline} · ${esc(D.venueLong)}</div>
-      <div style="display:flex;gap:13px;margin-top:26px;justify-content:center;flex-wrap:wrap">
-        ${goldCta(COPY.hero.reserve(fmt.eur(D.price.current)))}
-        <span data-act="dlIcs" style="padding:13px 22px;border:1px solid rgba(247,241,230,.45);color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="border-color:#f7f1e6">${COPY.hero.calendar}</span>
-      </div>
-      <div data-role="statusNote" style="font-size:11px;color:rgba(247,241,230,.55);margin-top:10px">${statusNote()}</div>
-      ${followToggle('Get updates from the Gala')}
+  <section class="mx-hero mx-ink mx-gala-hero">
+    <img class="mx-hero-photo" src="/assets/photo-gala.jpg" alt="" style="object-position:50% 30%">
+    <div class="mx-scrim"></div>
+    <div class="mx-hero-body">
+      <span class="mx-hero-eyebrow">${COPY.hero.eyebrow}</span>
+      <h1 class="mx-hero-title">${COPY.hero.title}</h1>
+      <p class="mx-hero-date">${esc(D.heroDate)}</p>
+      <div class="mx-hero-cta">${goldCta(COPY.hero.reserve(fmt.eur(D.price.current)))}</div>
     </div>
-  </div>
+  </section>
   <!-- /dc -->`;
 }
 
-function blockBand() {
+// the countdown and nothing else — the facts it used to carry live once, in the facts block
+function blockCountdown() {
+  const cell = (id, unit) => `<span class="mx-cd-cell"><b class="mx-cd-num" data-cd="${id}">—</b><i class="mx-cd-unit">${unit}</i></span>`;
+  return `
+  <div class="mx-countdown" role="timer" aria-label="Time until the Gala">
+    <span class="mx-cd-label">${COPY.countdown.label}</span>
+    ${cell('days', COPY.countdown.units[0])}${cell('hrs', COPY.countdown.units[1])}${cell('min', COPY.countdown.units[2])}
+  </div>`;
+}
+
+function seatRow() {
+  const k = D.state.key;
+  if (k === 'none') return '';
+  const v = { pending: COPY.status.pending, pay: COPY.status.pay, paid: COPY.status.paid }[k]
+    + (k === 'paid' && D.seat && D.seat.table_label ? esc(COPY.status.table(D.seat.table_label)) : '');
+  const s = { pending: COPY.status.pendingSub, pay: COPY.status.paySub, paid: COPY.status.paidSub }[k];
+  return fact({ ic: 'check', v, s });
+}
+
+function blockFacts() {
   const p = D.price;
-  const priceLine = p.phase === 'early_bird' && p.next
-    ? COPY.band.priceEarly(fmt.eur(p.current), esc(fmt.shortDate(p.flip_date)), fmt.eur(p.next))
-    : COPY.band.priceRegular(fmt.eur(p.current));
-  const cell = (id, unit) => `<span style="display:flex;align-items:baseline;gap:6px"><span data-cd="${id}" style="font-family:Fraunces,serif;font-size:24px">—</span><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.65)">${unit}</span></span>`;
+  const priceV = p.phase === 'early_bird' && p.next
+    ? COPY.facts.priceEarly(fmt.eur(p.current), esc(flipLabel(p.flip_date)), fmt.eur(p.next))
+    : COPY.facts.priceRegular(fmt.eur(p.current));
+  const priceS = D.state.key === 'none' && !D.open ? COPY.hero.closedNote : COPY.facts.priceSub;
   return `
-  <!-- dc: Gala Evening.dc.html › "THE EVENING BEGINS IN" -->
-  <div class="mx-pad-band mx-gala-band" style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;background:#191512;color:#f7f1e6;flex-wrap:wrap">
-    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.18em;color:#c9a962">${COPY.band.begins}</span>
-    ${cell('days', COPY.band.units[0])}
-    ${cell('hrs', COPY.band.units[1])}
-    ${cell('min', COPY.band.units[2])}
-    <span class="mx-band-break" aria-hidden="true"></span>
-    <span style="width:1px;height:18px;background:rgba(247,241,230,.25)"></span>
-    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.9)">${COPY.band.when(esc(D.bandMonth), esc(D.bandDay), esc(D.time), esc(D.venueShort))}</span>
-    <span style="width:1px;height:18px;background:rgba(247,241,230,.25)"></span>
-    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">${esc(D.dress)}</span>
-    <span style="width:1px;height:18px;background:rgba(247,241,230,.25)"></span>
-    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">${priceLine}</span>
-  </div>
-  <!-- /dc -->`;
+  <section class="mx-sec mx-sec--tight" data-block="facts">
+    <ul class="mx-facts">
+      ${fact({ ic: 'calendar', v: esc(D.longDate), s: esc(COPY.facts.when(D.time)) })}
+      ${fact({ ic: 'pin', v: esc(D.venueName), s: COPY.facts.venueSub, go: `<a class="mx-fact-go" href="${esc(mapUrl(D.venueLong))}" target="_blank" rel="noopener">${COPY.facts.map}</a>` })}
+      ${fact({ ic: 'tie', v: esc(D.dress), s: COPY.facts.dressSub })}
+      ${fact({ ic: 'ticket', v: priceV, s: priceS })}
+      ${seatRow()}
+      ${fact({ ic: 'plus', v: COPY.facts.calendar, s: COPY.facts.calendarSub, act: 'dlIcs', go: icon('chevron-right', 18) })}
+      <li class="mx-fact" data-block="follow">${icon('bell')}<div class="mx-fact-body"><span class="mx-fact-v">${COPY.facts.follow}</span><span class="mx-fact-s" data-role="follow-label">${COPY.facts.followSub(st.follow)}</span></div><span data-act="tgFollow" role="switch" aria-checked="${st.follow}" aria-label="Get updates from the Gala" class="mx-switch"><span></span></span></li>
+    </ul>
+  </section>`;
 }
 
-function speakerCard(sp) {
-  const img = sp.image ? `<img data-role="portrait" src="${esc(api.url(sp.image))}" alt="${esc(sp.name)}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top;display:block">` : '';
+// ONE card for every speaker: a 96 circle from the bundled crop (_portraits.js), name, role on two lines at most.
+// The card opens the bio sheet.
+function speakerCard(sp, i) {
+  const name = fmt.person(sp.name);
   return `
-      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column">
-        <div style="position:relative;aspect-ratio:1/1;background:#191512;overflow:hidden">${img || ui.monogram(sp.name, 54)}</div>
-        <div style="padding:14px 16px;display:flex;flex-direction:column;gap:5px"><span style="font-family:Fraunces,serif;font-size:16px;line-height:1.2">${esc(fmt.person(sp.name))}</span><span style="font-size:11.5px;color:#4a4239">${esc(sp.title || sp.role || '')}</span></div>
+      <div class="mx-person" data-act="bio" data-i="${i}" aria-label="${esc(name)}, biography">
+        ${ui.portrait({ name, src: portraitSrc(sp, api.url), size: 96, alt: '' })}
+        <span class="mx-person-name">${esc(name)}</span>
+        <span class="mx-person-role">${esc(sp.title || sp.role || '')}</span>
       </div>`;
 }
-
 function blockStage() {
-  const grid = D.speakers.length ? `
-    <div class="mx-grid-4 mx-gala-stage" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;padding:18px 0 10px">
-      ${D.speakers.map(speakerCard).join('')}
-    </div>` : `
-    <div class="empty" style="padding:26px 0 18px">
-      <span style="width:28px;height:1px;background:#c9a962;margin-bottom:6px"></span>
-      <span style="font-family:Fraunces,serif;font-style:italic;font-size:17px">${COPY.stage.emptyLine}</span>
-      <span style="font-size:12.5px;color:#4a4239;max-width:400px;line-height:1.55">${COPY.stage.emptyWhy}</span>
-      <a href="/app/plexus/program" style="margin-top:8px;padding:11px 20px;border:1px solid rgba(25,21,18,.3);font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#191512;white-space:nowrap" data-hover="border-color:#191512;color:#191512">${COPY.stage.all}</a>
-    </div>`;
+  const body = D.speakers.length
+    ? `<div class="mx-grid2 mx-gala-stage">${D.speakers.map(speakerCard).join('')}</div>`
+    : `<div class="empty"><span class="empty-line">${COPY.stage.emptyLine}</span><span class="empty-why">${COPY.stage.emptyWhy}</span></div>`;
   return `
-    <!-- dc: Gala Evening.dc.html › "01 · ON STAGE THAT NIGHT" -->
-    <div class="mx-wrap-row" style="display:flex;align-items:baseline;gap:14px;padding:24px 0 4px">
-      <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.stage.n}</span>
-      <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.stage.title}</span>
-      <a href="/app/plexus/program" style="font:600 10.5px Inter,sans-serif;letter-spacing:.16em;margin-left:10px;white-space:nowrap">${COPY.stage.all}</a>
-    </div>
-    <div style="font-size:13px;color:#4a4239;max-width:640px;line-height:1.55">${COPY.stage.sub}</div>
-    ${grid}
-    <!-- /dc -->`;
+  <!-- dc: Gala Evening.dc.html › "01 · ON STAGE THAT NIGHT" -->
+  <section class="mx-sec" data-block="stage">
+    ${sectionHead(COPY.stage.n, COPY.stage.title, `<a class="mx-sh-a" href="/app/plexus/program">${COPY.stage.all}</a>`)}
+    ${body}
+  </section>
+  <!-- /dc -->`;
 }
 
-function performerInit(p) {
-  const parts = String(p.name || '').replace(/[“”"']/g, '').split(/\s+/).filter(Boolean);
-  return fmt.initials(parts[0] || '', parts[parts.length - 1] || '') || '♪';
-}
-
-// Named performers get the cards; unnamed ones get one line under the schedule (blockPerformersLine).
-function blockPerformers() {
-  if (!D.performers.announced) return `<!-- dc: Gala Evening.dc.html › "FEATURED PERFORMERS" --><!-- names not entered yet — the single line under the schedule carries this --><!-- /dc -->`;
-  const list = D.performers.list.map(p => ({ init: performerInit(p), name: p.name, role: p.role || '' }));
-  return `
-    <!-- dc: Gala Evening.dc.html › "FEATURED PERFORMERS" -->
-    <div class="mx-wrap-row" style="display:flex;align-items:baseline;justify-content:center;gap:14px;padding:16px 0 10px">
-      <span style="font:600 11px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">${COPY.performers.label}</span>
-      <span style="padding:2px 7px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">${COPY.performers.badgeNamed}</span>
-    </div>
-    <div class="mx-gala-perf" style="display:flex;gap:16px;justify-content:center;padding-bottom:26px">
-      ${list.map(p => `
-        <div style="width:260px;border:1px solid rgba(201,169,98,.5);background:#191512;color:#f7f1e6;padding:16px;display:flex;gap:12px;align-items:center">
-          <span style="width:44px;height:44px;background:rgba(201,169,98,.16);flex:none;display:flex;align-items:center;justify-content:center;font:600 14px Fraunces,serif;color:#c9a962">${esc(p.init)}</span>
-          <span><span style="display:block;font-family:Fraunces,serif;font-size:15px">${esc(p.name)}</span><span style="display:block;font-size:11.5px;color:rgba(247,241,230,.6)">${esc(p.role)}</span></span>
-        </div>`).join('')}
-    </div>
-    <!-- /dc -->`;
-}
-function blockPerformersLine() {
-  if (D.performers.announced) return '';
-  return `
-    <div style="font-family:Fraunces,serif;font-style:italic;font-size:13.5px;color:#4a4239;padding:0 0 18px">${esc(COPY.performers.tbaLine)}</div>`;
-}
-
+// the statement once, two facts, and the long copy folded away
 function blockWhy() {
   return `
   <!-- dc: Gala Evening.dc.html › "02 · WHY WE GATHER" -->
-  <div class="mx-pad-36 mx-ink" style="background:#191512;color:#f7f1e6;padding:30px 32px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:11px;margin:2px 0 24px">
-      <span style="font:600 11px Inter,sans-serif;letter-spacing:.18em;color:#c9a962">${COPY.why.eyebrow}</span>
-      <span class="mx-display-26" style="font-family:Fraunces,serif;font-size:23px;line-height:1.3;max-width:660px">${COPY.why.line}</span>
-      <span style="font-size:12.5px;color:rgba(247,241,230,.7);line-height:1.6;max-width:680px">${COPY.why.body}</span>
-      <span style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:2px">
-        ${COPY.why.chips.map(c => `<span style="padding:4px 9px;border:1px solid rgba(201,169,98,.5);color:#c9a962;font:600 8.5px Inter,sans-serif;letter-spacing:.14em">${c}</span>`).join('\n        ')}
-      </span>
-      <span style="margin-top:6px">${goldCta(COPY.hero.reserve(fmt.eur(D.price.current)), { pad: '12px 20px', size: '10px' })}</span>
-    </div>
+  <section class="mx-sec" data-block="why">
+    ${sectionHead(COPY.why.n, COPY.why.title)}
+    <p class="mx-gala-statement">${COPY.why.line}</p>
+    <ul class="mx-facts">${COPY.why.facts.map(f => fact({ ic: f.icon, v: f.v, s: f.s })).join('')}</ul>
+    <div class="mx-accs"><details class="mx-acc"><summary>${COPY.why.more}</summary><div class="mx-acc-a">${COPY.why.body}</div></details></div>
+  </section>
   <!-- /dc -->`;
 }
 
 function blockMoments() {
   return `
-    <!-- dc: Gala Evening.dc.html › "MOMENTS FROM PREVIOUS GALAS" -->
-    <div class="mx-grid-4 mx-gala-gallery" style="display:grid;grid-template-columns:repeat(4,1fr);grid-auto-rows:150px;gap:12px;padding:24px 0">
-      ${COPY.moments.photos.map((p, i) => `<span class="mx-ph" data-act="allPhotos" data-i="${i}" tabindex="-1" aria-hidden="true"><img src="/assets/${p}" alt="" style="width:100%;height:100%;object-fit:cover;display:block"></span>`).join('\n      ')}
-      <div style="background:#efe7d8;padding:16px 18px;display:flex;flex-direction:column;justify-content:center;gap:7px">
-        <span style="font:600 9px Inter,sans-serif;letter-spacing:.2em;color:#9b1b22">${COPY.moments.label}</span>
-        <span style="font-family:Fraunces,serif;font-style:italic;font-size:15px;line-height:1.35;color:#191512">${COPY.moments.line}</span>
-        <span data-act="allPhotos" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;cursor:pointer">${COPY.moments.all}</span>
-      </div>
+  <!-- dc: Gala Evening.dc.html › "MOMENTS FROM PREVIOUS GALAS" -->
+  <section class="mx-sec" data-block="moments">
+    ${sectionHead('', COPY.moments.title, `<span class="mx-sh-a" data-act="allPhotos" data-i="0">${COPY.moments.all}</span>`)}
+    <div class="mx-shelf mx-gala-shelf" style="--w:240px">
+      ${COPY.moments.photos.map((p, i) => `<div class="mx-shelf-item"><div class="mx-media r-4x3 mx-ph" data-act="allPhotos" data-i="${i}" role="button" aria-label="Open photo ${i + 1} of ${COPY.moments.photos.length}"><img src="/assets/${p}" alt="${esc(COPY.moments.alts[i] || '')}" loading="lazy"></div></div>`).join('')}
     </div>
-    <!-- /dc -->`;
+  </section>
+  <!-- /dc -->`;
 }
 
-function glanceRow(r, i, last) {
-  const gold = r.gold || /award/i.test(String(r.title || ''));
-  return `
-        <div class="mx-gala-glance-row" style="display:flex;gap:18px;align-items:baseline;padding:13px 0;${last ? '' : 'border-bottom:1px solid rgba(25,21,18,.12)'}">
-          <span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:${gold ? '#6e5626' : '#9b1b22'};width:56px;flex:none">${esc(r.time || '')}</span>
-          <span style="font-family:Fraunces,serif;font-size:16.5px;flex:1"${r.description ? ` title="${esc(r.description)}"` : ''}>${r.html || esc(fmt.euro(r.title || ''))}</span>
-          ${r.right ? `<span style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239;white-space:nowrap">${esc(r.right)}</span>` : ''}
-        </div>`;
-}
-
+// the schedule as a timeline: time, title, the admin's description as one line under it (it used to hide in a
+// tooltip). The Awards row is gold; the music row carries the performers line when the names are not in yet.
 function blockGlance() {
   const rows = D.schedule.length
-    ? D.schedule.map(r => ({ time: r.time, title: r.title, description: r.description }))
-    : COPY.glance.fallback.map(r => ({ time: r.time, html: r.title, right: r.right, gold: r.gold }));
+    ? D.schedule.map(r => ({ time: r.time, title: fmt.euro(r.title || ''), sub: r.description || '' }))
+    : COPY.glance.fallback.map(r => ({ time: r.time, title: r.title, sub: r.description, gold: r.gold }));
+  const musicAt = rows.findIndex(r => /music/i.test(r.title));
+  if (!D.performers.announced && musicAt >= 0 && !rows[musicAt].sub) rows[musicAt].sub = COPY.performers.tbaLine;
+  const row = r => `<li class="mx-tl-row${r.gold || /award/i.test(r.title) ? ' is-gold' : ''}"><time class="mx-tl-time">${esc(r.time || '')}</time><div class="mx-tl-body"><span class="mx-tl-title">${esc(r.title)}</span>${r.sub ? `<span class="mx-tl-sub">${esc(r.sub)}</span>` : ''}</div></li>`;
+  const named = D.performers.announced ? `
+    <div class="mx-gala-perf">
+      <span class="mx-gala-perf-h">${COPY.performers.title}</span>
+      ${D.performers.list.map(p => `<div class="mx-person-row is-static">${ui.portrait({ name: String(p.name || '').replace(/[“”"']/g, ''), src: p.image ? api.url(p.image) : '', size: 64, alt: '' })}<span class="mx-person-text"><span class="mx-person-name">${esc(p.name)}</span><span class="mx-person-role">${esc(p.role || '')}</span></span></div>`).join('')}
+    </div>` : '';
   return `
-    <!-- dc: Gala Evening.dc.html › "03 · THE EVENING AT A GLANCE" -->
-    <div style="border-top:1px solid rgba(25,21,18,.16);padding-bottom:8px">
-      <div class="mx-grid-side" style="display:grid;grid-template-columns:1fr 380px;gap:44px;align-items:start">
-        <div>
-        <div style="display:flex;align-items:baseline;gap:14px;padding:24px 0 12px">
-          <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.glance.n}</span>
-          <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.glance.title}</span>
-        </div>
-        ${rows.map((r, i) => glanceRow(r, i, i === rows.length - 1)).join('')}
-        <div style="font-family:Fraunces,serif;font-style:italic;font-size:13.5px;color:#4a4239;line-height:1.6;padding:4px 0 14px;max-width:640px">${COPY.glance.note}</div>
-        </div>
-        <div style="padding-top:24px;display:flex;flex-direction:column;gap:10px">
-          <div style="border:1px solid rgba(201,169,98,.8);padding:9px">
-            <span style="display:block"><img src="/assets/photo-forum.jpg" alt="" style="width:100%;height:210px;object-fit:cover;object-position:center 40%;display:block"></span>
-          </div>
-          <div style="display:flex;align-items:center">
-            <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.18em;color:#4a4239">${COPY.glance.photoCaption}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-    <!-- /dc -->`;
+  <!-- dc: Gala Evening.dc.html › "03 · THE EVENING AT A GLANCE" -->
+  <section class="mx-sec" data-block="glance">
+    ${sectionHead(COPY.glance.n, COPY.glance.title)}
+    <ol class="mx-timeline">${rows.map(row).join('')}</ol>
+    ${named}
+  </section>
+  <!-- /dc -->`;
 }
 
-// v2 addition 2026-08-31 — seat-transfer + cancellation policy, one line, no refund flow.
-// The transfer itself lives in My Plexus (js/views/plexus.js › "Transfer to a colleague").
-// UX audit 2026-09-02 › item 15: the link is offered only to a member who HOLDS a seat. With zero
-// registrations it used to land on a card promising a transfer "right from this page" where no
-// control exists — a dead end costs more trust than a missing feature. The policy line stays: it is
-// what a member reads before buying.
-function blockPolicy() {
+// Seat policy (+ the transfer link only for a member who HOLDS a seat — UX audit 2026-09-02 › item 15;
+// the transfer itself lives in My Plexus) and one row to message the team.
+function blockKnow() {
   const holdsSeat = D.state.key === 'paid';
   return `
-    <!-- dc: Gala Evening.dc.html › "Seat policy" -->
-    <div style="border-top:1px solid rgba(25,21,18,.16);padding:16px 0 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
-      <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.18em;color:#c9a962;white-space:nowrap">${COPY.policy.tag}</span>
-      <span style="font-family:Fraunces,serif;font-style:italic;font-size:14.5px;color:#4a4239;line-height:1.55">${esc(COPY.policy.line)}</span>
-      ${holdsSeat ? `<a href="/app/plexus/mine" data-v2="opens My Plexus › Transfer to a colleague" style="font:600 9.5px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;white-space:nowrap;text-decoration:none">${COPY.policy.cta}</a>` : ''}
+  <!-- dc: Gala Evening.dc.html › "Seat policy" + "Questions" -->
+  <section class="mx-sec" data-block="know">
+    ${sectionHead('', COPY.know.title)}
+    <div class="mx-accs">
+      <details class="mx-acc"><summary>${COPY.know.policy}</summary><div class="mx-acc-a">${COPY.know.policyLine}${holdsSeat ? `<br><a href="/app/plexus/mine" data-v2="opens My Plexus › Transfer to a colleague">${COPY.know.transfer}</a>` : ''}</div></details>
     </div>
-    <!-- /dc -->`;
-}
-
-function blockFooter() {
-  return `
-  <!-- dc: Gala Evening.dc.html › "Questions" -->
-  <div class="mx-gutter mx-wrap-row" style="display:flex;align-items:center;gap:20px;padding:18px 36px 30px;border-top:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
-    <span style="font-family:Fraunces,serif;font-style:italic;font-size:16px;color:#4a4239">${COPY.footer.line}</span>
-    <span style="font-size:12px;color:#4a4239">${COPY.footer.sub}</span>
-    <div style="flex:1"></div>
-    <a href="/app/messages?about=gala" style="padding:10px 16px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.footer.cta}</a>
-  </div>
+    <div class="mx-list">
+      <a class="mx-row" href="/app/messages?about=gala">${icon('mail')}<span class="mx-row-l">${COPY.know.ask}<span class="mx-row-s">${COPY.know.askSub}</span></span>${icon('chevron-right', 18)}</a>
+    </div>
+  </section>
   <!-- /dc -->`;
 }
 
 function template() {
   return `
-<div data-screen-label="Gala Evening" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
+<div data-screen-label="Gala Evening" class="mx-pg mx-gala">
   ${blockCrumb()}
   ${blockHero()}
-  ${blockBand()}
-  <div class="mx-gutter" style="padding:0 36px">
+  ${blockCountdown()}
+  <div class="mx-p">
+    ${blockFacts()}
     ${blockStage()}
-    ${blockPerformers()}
     ${blockWhy()}
     ${blockMoments()}
     ${blockGlance()}
-    ${blockPerformersLine()}
-    ${blockPolicy()}
+    ${blockKnow()}
   </div>
-  ${blockFooter()}
 </div>`;
 }
 
@@ -452,6 +395,22 @@ function downloadText(filename, text, mime) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+function openBio(i) {
+  const sp = D.speakers[Number(i)];
+  if (!sp) return;
+  const name = fmt.person(sp.name);
+  openModal = ui.modal({
+    eyebrow: COPY.stage.bioEyebrow,
+    body: `<div class="mx-gala-bio">
+      ${ui.portrait({ name, src: portraitSrc(sp, api.url), size: 96, alt: '' })}
+      <div class="mx-modal-title">${esc(name)}</div>
+      <div class="mx-gala-bio-role">${esc(sp.title || sp.role || '')}</div>
+      <p>${sp.bio ? esc(sp.bio) : `<i>${COPY.stage.bioPending}</i>`}</p>
+    </div>`
+  });
+  openModal.onClose(() => { openModal = null; });
 }
 
 const handlers = {
@@ -474,7 +433,7 @@ const handlers = {
     if (st) st.follow = on;
     ui.toast(on ? COPY.followed : COPY.unfollowed);
     chrome.refresh();
-  }, on => { const l = el.parentElement && el.parentElement.querySelector('[data-role="follow-label"]'); if (l) l.innerHTML = COPY.hero.follow(on); }),
+  }, on => { const l = el.parentElement && el.parentElement.querySelector('[data-role="follow-label"]'); if (l) l.innerHTML = COPY.facts.followSub(on); }),
   pay: async (el) => {
     const reg = D.state.reg;
     if (!reg) return ui.toast(COPY.status.none, { kind: 'error' });
@@ -487,10 +446,11 @@ const handlers = {
     el.removeAttribute('aria-disabled');
   },
   closed: () => ui.toast(COPY.hero.closedNote.replace(/&amp;/g, '&')),
+  bio: (el) => openBio(el.dataset.i),
   // v2: no gala gallery endpoint exists yet — the export's real event photos, one at a time at full size
   // (ui.lightbox: ← / →, arrow keys, Esc), opening on the photo that was clicked
   allPhotos: (el) => {
-    openModal = ui.lightbox(COPY.moments.photos.concat(['photo-forum.jpg']).map(p => ({ src: '/assets/' + p })), {
+    openModal = ui.lightbox(COPY.moments.photos.map((p, i) => ({ src: '/assets/' + p, alt: COPY.moments.alts[i] || '' })), {
       start: el && el.dataset.i, eyebrow: COPY.moments.modalEyebrow, title: COPY.moments.modalTitle, note: COPY.moments.modalNote
     });
   }
@@ -513,12 +473,6 @@ export default {
     if (rootEl !== root || (ctx.ready && !(await ctx.ready()))) return; // navigated away while loading, or the router moved on
     st = { follow: D.follow };
     root.innerHTML = template();
-    // portrait images fall back to the artboard's striped PORTRAIT placeholder when the
-    // admin-entered image path is not served from this origin
-    root.querySelectorAll('img[data-role="portrait"]').forEach(img => {
-      img.addEventListener('error', () => img.remove(), { once: true });
-      if (img.complete && img.naturalWidth === 0) img.remove();
-    });
     unbind = ui.bind(root, handlers);
     startTimers();
     chrome.refresh();

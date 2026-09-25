@@ -22,6 +22,7 @@ import { session } from '../state.js';
 import { ui, esc } from '../ui.js';
 import { FACTS } from '../facts.js';
 import router from '../router.js';
+import { portraitSrc } from './_portraits.js';
 
 export const SOURCE = 'no artboard — Plexus Week Live, built from tokens (2026-09-22)';
 
@@ -40,7 +41,7 @@ export const COPY = {
     over: 'That was the last session — thank you for coming.', tbd: 'Times to be confirmed'
   },
   slots: { title: 'YOUR SLOTS', sub: 'Where you speak', speaking: 'SPEAKING' },
-  att: { on: 'IN MY SCHEDULE', off: 'ADD TO MY SCHEDULE', speaking: 'YOU SPEAK HERE', meetup: 'YOUR PLACE IS HELD', tbd: 'TBD', over: 'OVERLAPS', going: n => `${n} going`, seats: n => `${n} seats`,
+  att: { on: 'IN MY SCHEDULE', off: 'ADD TO MY SCHEDULE', speaking: 'YOU SPEAK HERE', meetup: 'YOUR PLACE IS HELD', tbd: 'TBD', tbdLine: 'Speaker to be announced', over: 'OVERLAPS', going: n => `${n} going`, seats: n => `${n} seats`,
     ticket: 'Open this from your ticket link to build your schedule.',
     notHeld: 'This event is not on your ticket — the program is shown read-only.',
     failed: 'That did not save — check the connection and tap again.' },
@@ -147,7 +148,6 @@ const timeRange = s => s.start_time ? `${s.start_time}${s.end_time ? '–' + (s.
 const clock = ts => { const d = new Date(ts || Date.now()); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 const dayParts = ymd => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ymd || '')); if (!m) return null; const d = new Date(+m[1], +m[2] - 1, +m[3]); return { n: Number(m[3]), dow: DOW[d.getDay()], mon: MON[Number(m[2]) - 1].toUpperCase(), year: m[1] }; };
 // "Dr. Yi-Hsiang (Sean) Hsu" → "YH", "prim. dr. Gzim Redžepi" → "GR": titles and nicknames dropped, letters only
-const initials = name => String(name || '').replace(/\([^)]*\)/g, ' ').replace(/\b(prof|dr|prim|mr|mrs|ms|md|phd)\.?\s+/gi, ' ').split(/\s+/).map(w => w.replace(/[^\p{L}]/gu, '')).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '·';
 const kindLabel = k => KIND_LABEL[k] || KIND_LABEL.other;
 // an event over two days (the conference runs 4–5 December) says so: "Fri 4 – Sat 5 Dec"; one day keeps the
 // server's "Friday 4 Dec". A 23:59 end is a placeholder for "until late", never a time anyone should read.
@@ -387,8 +387,9 @@ function tplSpeakersRow(s) {
   const people = (s.speakers || []).filter(x => x && x.name);
   const names = (s.speaker_names || []).filter(x => x && x.name);
   if (!people.length && !names.length) return '';
-  const av = p => p.photo_url ? `<img class="lv-av" src="${esc(p.photo_url)}" alt="" loading="lazy">` : `<span class="lv-av txt">${esc(initials(p.name))}</span>`;
-  const all = people.map(p => ({ name: p.name, av: av(p) })).concat(names.map(p => ({ name: p.name, av: null })));
+  // every person is the same 32 circle (ui.portrait): the bundled crop for a speaker we know, else their photo, else initials
+  const av = p => ui.portrait({ name: p.name, src: portraitSrc(p), size: 32, alt: '' });
+  const all = people.map(p => ({ name: p.name, av: av(p) })).concat(names.map(p => ({ name: p.name, av: portraitSrc(p) ? av(p) : null })));
   const shown = all.slice(0, 3), rest = all.length - shown.length;
   // "+N more" is a sibling of the two-line clamp — inside it, it was the first thing the clamp cut off
   return `<div class="lv-spk"><span class="lv-avs">${shown.filter(x => x.av).map(x => x.av).join('')}</span><span class="lv-spk-names">${shown.map(x => esc(x.name)).join(', ')}</span>${rest > 0 ? `<b class="lv-spk-more">+${rest} more</b>` : ''}</div>`;
@@ -408,25 +409,27 @@ function tplCard(s, { schedule, conflict } = {}) {
   const ev = eventOf(s.event_key) || {};
   const light = isLight(s);
   const cls = ['lv-card', light ? 'light' : '', s.is_tbd ? 'tbd' : '', attending(s.id) ? 'going' : '', speaking(s.id) ? 'mine' : ''].filter(Boolean).join(' ');
+  // one type chip; a session still waiting for its speaker says so in a quiet line under the title (never a second chip)
   const tags = [
     `<span class="lv-tag${s.kind === 'keynote' ? ' gold' : ''}">${kindLabel(s.kind)}</span>`,
-    s.is_tbd ? `<span class="lv-tag gold">${COPY.att.tbd}</span>` : '',
     speaking(s.id) ? `<span class="lv-tag red">${COPY.slots.speaking}</span>` : '',
     conflict ? `<span class="lv-tag red">${COPY.att.over}</span>` : '',
     s.show_counts && (s.count || s.capacity) ? `<span class="lv-tag soft">${[s.count ? COPY.att.going(s.count) : null, s.capacity ? COPY.att.seats(s.capacity) : null].filter(Boolean).join(' · ')}</span>` : ''
   ].join('');
   const where = [s.room, s.location_note].filter(Boolean).map(esc).join(' · ');
-  const when = schedule ? `${esc(timeRange(s))}${duration(s) ? ` · ${esc(duration(s))}` : ''}` : `${s.end_time ? `→ ${esc(endLabel(s.end_time))}` : ''}${duration(s) ? ` · ${esc(duration(s))}` : ''}`;
+  // the program's time column already prints the start: the card says how long and where, once ("15 min · Main Hall")
+  const when = schedule ? `${esc(timeRange(s))}${duration(s) ? ` · ${esc(duration(s))}` : ''}` : '';
+  const meta = [schedule ? '' : esc(duration(s) || ''), where].filter(Boolean).join(' · ');
   const evLine = schedule && heldEvents().length > 1 ? `<span class="lv-card-ev">${esc(ev.short || ev.label || '')}</span>` : '';
   const foot = tplToggle(s) + (schedule && S.token ? icsLink(COPY.schedule.ics, 'lv-ics', { session: s.id }) : '');
   return `
     <article class="${cls}" data-sid-card="${esc(s.id)}">
       <div class="lv-card-body" data-act="open" data-id="${esc(s.id)}">
-        <div class="lv-card-top"><span class="lv-when">${when}</span><span class="lv-tags">${tags}</span></div>
+        <div class="lv-card-top">${when ? `<span class="lv-when">${when}</span>` : ''}<span class="lv-tags">${tags}</span></div>
         ${evLine}
         <h3 class="lv-card-title">${esc(s.title || 'Session')}</h3>
-        ${tplSpeakersRow(s)}
-        ${where ? `<div class="lv-where"><svg width="12" height="14" viewBox="0 0 12 14" aria-hidden="true"><path d="M6 13.3S1 8.4 1 5.2a5 5 0 0 1 10 0c0 3.2-5 8.1-5 8.1Z" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="6" cy="5.2" r="1.7" fill="currentColor"/></svg>${where}</div>` : ''}
+        ${tplSpeakersRow(s) || (s.is_tbd ? `<span class="lv-tbd">${COPY.att.tbdLine}</span>` : '')}
+        ${meta ? `<div class="lv-where">${ui.icon(where ? 'pin' : 'clock', 16)}${meta}</div>` : ''}
       </div>
       ${foot ? `<div class="lv-card-foot">${foot}</div>` : ''}
     </article>`;
@@ -517,7 +520,7 @@ function tplSpeakers() {
   if (!list.length) return `<div class="lv-empty"><span class="lv-rule"></span><span class="lv-empty-line">${COPY.speakers.empty}</span></div>`;
   return `<div class="lv-grid">${list.map((sp, i) => `
     <div class="lv-person" data-act="spk" data-i="${i}" role="button">
-      ${sp.photo_url ? `<img class="lv-portrait" src="${esc(sp.photo_url)}" alt="" loading="lazy">` : `<span class="lv-portrait txt">${esc(initials(sp.name))}</span>`}
+      ${ui.portrait({ name: sp.name, src: portraitSrc(sp), size: 96, alt: '' })}
       <span class="lv-person-name">${esc(sp.name)}</span>
       <span class="lv-person-sub">${esc(sp.institution || sp.title || '')}</span>
     </div>`).join('')}</div>`;
@@ -881,12 +884,12 @@ function sessionSheet(s) {
   return `
     ${sheetHead(`${esc(ev.short || ev.label || 'Plexus Week')} · ${esc(s.day_label || '')}`)}
     <div class="lv-sheet-body">
-      <div class="lv-tags">${`<span class="lv-tag${s.kind === 'keynote' ? ' gold' : ''}">${kindLabel(s.kind)}</span>`}${s.is_tbd ? `<span class="lv-tag gold">${COPY.att.tbd}</span>` : ''}${speaking(s.id) ? `<span class="lv-tag red">${COPY.slots.speaking}</span>` : ''}</div>
+      <div class="lv-tags">${`<span class="lv-tag${s.kind === 'keynote' ? ' gold' : ''}">${kindLabel(s.kind)}</span>`}${speaking(s.id) ? `<span class="lv-tag red">${COPY.slots.speaking}</span>` : ''}</div>
       <h2 class="lv-sheet-title">${esc(s.title || 'Session')}</h2>
       <div class="lv-sheet-when">${esc(timeRange(s))}${duration(s) ? ` · ${esc(duration(s))}` : ''}</div>
       ${where ? `<div class="lv-sheet-sec"><span class="lv-info-label">${COPY.sheet.where}</span><div>${where}</div></div>` : ''}
       ${s.description ? `<div class="lv-sheet-sec"><span class="lv-info-label">${COPY.sheet.about}</span><div class="lv-prose">${esc(s.description).replace(/\n+/g, '<br>')}</div></div>` : ''}
-      ${people.length ? `<div class="lv-sheet-sec"><span class="lv-info-label">${COPY.sheet.with}</span><div class="lv-people">${people.map(p => `<div class="lv-pp">${p.photo ? `<img class="lv-av lg" src="${esc(p.photo)}" alt="">` : `<span class="lv-av lg txt">${esc(initials(p.name))}</span>`}<span><b>${esc(p.name)}</b>${p.sub ? `<br><span class="lv-soft">${esc(p.sub)}</span>` : ''}</span></div>`).join('')}</div></div>` : ''}
+      ${people.length ? `<div class="lv-sheet-sec"><span class="lv-info-label">${COPY.sheet.with}</span><div class="lv-people">${people.map(p => `<div class="lv-pp">${ui.portrait({ name: p.name, src: portraitSrc({ name: p.name, photo_url: p.photo }), size: 44, alt: '' })}<span><b>${esc(p.name)}</b>${p.sub ? `<br><span class="lv-soft">${esc(p.sub)}</span>` : ''}</span></div>`).join('')}</div></div>` : ''}
       ${s.show_counts && (s.count || s.capacity) ? `<div class="lv-sheet-sec"><span class="lv-soft">${[s.count ? COPY.att.going(s.count) : null, s.capacity ? COPY.att.seats(s.capacity) : null].filter(Boolean).join(' · ')}</span></div>` : ''}
     </div>
     <div class="lv-sheet-foot">
@@ -900,7 +903,7 @@ function speakerSheet(sp) {
   return `
     ${sheetHead(esc((eventOf(S.current) || {}).short || 'Speaker'))}
     <div class="lv-sheet-body">
-      <div class="lv-pp big">${sp.photo_url ? `<img class="lv-av xl" src="${esc(sp.photo_url)}" alt="">` : `<span class="lv-av xl txt">${esc(initials(sp.name))}</span>`}<span><h2 class="lv-sheet-title">${esc(sp.name)}</h2>${sub ? `<div class="lv-soft">${esc(sub)}</div>` : ''}</span></div>
+      <div class="lv-pp big">${ui.portrait({ name: sp.name, src: portraitSrc(sp), size: 96, alt: '' })}<span><h2 class="lv-sheet-title">${esc(sp.name)}</h2>${sub ? `<div class="lv-soft">${esc(sub)}</div>` : ''}</span></div>
       ${sp.bio ? `<div class="lv-sheet-sec"><div class="lv-prose">${esc(sp.bio).replace(/\n+/g, '<br>')}</div></div>` : ''}
       ${mine.length ? `<div class="lv-sheet-sec"><span class="lv-info-label">${COPY.speakers.sessions}</span>${mine.map(s => `<div class="lv-mini" data-act="open" data-id="${esc(s.id)}"><span class="lv-mini-time">${esc(s.start_time || '—')}</span><span class="lv-mini-body"><b>${esc(s.title || 'Session')}</b><br><span class="lv-soft">${[s.day_label, s.room, duration(s)].filter(Boolean).map(esc).join(' · ')}</span></span>${tplToggle(s, { compact: true })}</div>`).join('')}</div>` : ''}
     </div>`;

@@ -1,90 +1,81 @@
-/* css/views/plexus.css — Plexus screen group (overview · program · zagreb · mine).
-   Injected once by js/views/plexus.js. Rules here carry NO look: only responsive overrides for the
-   artboards' inline layouts (class hooks prefixed mx-, translated from responsive.css) and the
-   behaviour the artboard expressed through prototype state (bio modal, sticky bits). */
+/* css/views/plexus.css — Plexus screen group (overview · program · zagreb · mine). Injected once by js/views/plexus.js.
+   The screens are composed from the PHONE CALM KIT (app.css); only what is particular to Plexus lives here. */
 
-/* tab strip (OVERVIEW · MY PLEXUS & REGISTER · PROGRAM & SPEAKERS · EXPLORE ZAGREB) never wraps mid-label */
-.mx-plexus-tabs a, .mx-plexus-tabs span { white-space: nowrap; }
+.mx-px { background: #f7f1e6; color: #191512; }
 
-/* speaker portraits / institution logos dropped into the artboard's striped placeholder boxes */
-.mx-portrait { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
-.mx-logo { height: 24px; width: auto; max-width: 130px; object-fit: contain; margin-top: 2px; align-self: flex-start; display: block; }
+/* hero: on a phone the portrait crop keeps the Plexus roll-up and the panel, and leaves the projected slide's lettering at the edge */
+.mx-px-heroimg { object-position: 75% 50%; }
+@media (min-width: 701px) { .mx-px-heroimg { object-position: 50% 88%; } }
 
-/* bio modal sheet (Plexus Conference.dc.html › bio overlay): tall bios scroll inside the sheet — measured
-   against the VISIBLE height (dvh), so Safari's toolbars or the keyboard never push its × off screen */
-.mx-bio-sheet { max-height: 88vh; max-height: calc(100dvh - 36px); overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box; }
-@media (max-width: 500px) { [data-role="bio-scrim"] { padding: 18px !important; } }
+/* ---- the four tabs + the event app row ---- */
+.mx-px-nav { display: flex; flex-direction: column; gap: 12px; }
+.mx-px-seg > a, .mx-px-seg > span { flex: 1 0 auto; }
+@media (min-width: 701px) { .mx-px-seg, .mx-px-live { max-width: 720px; } }
+.mx-px-live .mx-row-l { font-weight: 500; }
 
-/* hero: narrower crops put the stage photo's projected slide ("Welcome to Gala Evening · Plexus Conference
-   2025") and the Plexus banner right behind the headline and VIEW SCHEDULE — the scrim deepens there so the
-   copy, not the photo's own text, is what reads */
-@media (max-width: 1100px) {
-  .mx-px-scrim { background: linear-gradient(180deg, rgba(25,21,18,.8) 0%, rgba(25,21,18,.74) 55%, rgba(25,21,18,.88) 100%) !important; }
-  /* the photo stays as atmosphere; its own lettering is softened out of reading range */
-  .mx-ink > .mx-hero-photo[src$="photo-stage.jpg"] { filter: blur(2.5px); }
-}
+/* ---- Plexus Week: one row per event; the title is the row's link, a registration button (its old href) sits above it ---- */
+.mx-px-year { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.mx-timeline--wide .mx-px-weekrow { position: relative; grid-template-columns: 72px minmax(0, 1fr) 20px; }
+.mx-px-weekrow > .mx-ic { align-self: center; color: rgba(25,21,18,.32); }
+.mx-px-weeklink { color: #191512; text-decoration: none; }
+.mx-px-weeklink::after { content: ""; position: absolute; inset: 0; }
+@media (hover: hover) { .mx-px-weekrow:hover { background: var(--row-hover); } .mx-px-weeklink:hover { color: #191512; } }
+.mx-px-weekrow:has(.mx-px-weeklink:active) { opacity: .86; }
+.mx-px-weeklink:focus-visible { outline: none; }
+.mx-px-weekrow:has(.mx-px-weeklink:focus-visible) { outline: 2px solid #9b1b22; outline-offset: 2px; }
+.mx-px-weekbtn { position: relative; z-index: 1; align-self: flex-start; margin-top: 10px; }
 
-/* QR pass image (My Plexus › "03 · MY PASS") */
-.mx-qr { width: 148px; height: 148px; object-fit: contain; background: #fff; border: 1px solid rgba(25,21,18,.16); padding: 8px; box-sizing: content-box; display: block; }
-
-@media (max-width: 1100px) {
-  /* Plexus Week band: four blocks across get cramped before the shared mx-grid-4 hook fires */
-  .mx-week-grid { grid-template-columns: 1fr 1fr !important; }
-}
-@media (max-width: 900px) {
-  /* ink program section: text column + (200px photo | text) grid → single column */
-  .mx-grid-photo { grid-template-columns: 1fr !important; }
-  .mx-grid-photo > div:first-child { min-height: 180px; }
-  /* program header row (ADD TO CALENDAR · DOWNLOAD PDF · hint) wraps */
-  .mx-prog-head { flex-wrap: wrap !important; }
-  .mx-prog-head > .mx-hint { margin-left: 0 !important; flex-basis: 100%; }
-  .mx-speakers-head { flex-wrap: wrap !important; }
-  /* hero paddings not covered by the shared hooks */
-  .mx-pad-hero-z { padding: 48px 18px 40px !important; }
-  .mx-pad-mine { padding: 32px 18px 26px !important; }
-  .mx-pad-ink { padding: 24px 18px 26px !important; }
-  /* My Plexus hero facts column loses its left rule when stacked */
-  .mx-mine-facts { border-left: 0 !important; padding-left: 0 !important; }
-  .mx-min-420 { min-width: 0 !important; }
-  /* photo strip rows get shorter */
-  .mx-photo-strip { grid-auto-rows: 130px !important; }
-  /* at-a-glance and program rows wrap their right-hand labels */
-  .mx-glance-row, .mx-day-row { flex-wrap: wrap !important; }
-}
+/* ---- the stage: the Gala's speaker card (2 + 2 + 1 on a phone, one row of five on a desktop) ---- */
 @media (max-width: 700px) {
-  /* My Plexus hero + overview connect strip: the text column takes the full row, facts/CTA drop
-     below (the artboard's inline flex:1 sets flex-basis:0% — override needs !important) */
-  .mx-min-420 { flex-basis: 100% !important; }
+  .mx-px-stage > :last-child:nth-child(odd) { grid-column: 1 / -1; justify-self: center; width: calc(50% - 6px); }
 }
+@media (min-width: 901px) { .mx-px-stage:has(> :nth-child(5):last-child) { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+.mx-px-stage .mx-person { padding: 4px 0; }
+.mx-px-stage .mx-person-role { -webkit-line-clamp: 3; }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .mx-px-stage .mx-person .mx-pic { transition: transform var(--t-quick) var(--ease), box-shadow var(--t-quick) var(--ease); }
+  .mx-px-stage .mx-person:hover .mx-pic { transform: translateY(-2px); box-shadow: 0 10px 22px -12px rgba(25,21,18,.45); }
+  .mx-px-stage .mx-person:hover .mx-person-name { color: #9b1b22; }
+}
+.mx-px-stage .mx-person:active .mx-pic, [data-screen-label="Plexus Program"] .mx-person-row[data-act]:active { opacity: .86; }
+
+/* ---- this year's threads: two tiles, a title and one line each ---- */
+.mx-px-threads { display: grid; grid-template-columns: 1fr; gap: 12px; }
+@media (min-width: 701px) { .mx-px-threads { grid-template-columns: 1fr 1fr; gap: 16px; } }
+.mx-px-thread { display: flex; flex-direction: column; gap: 8px; padding: 20px; background: #fdfaf3; border: 1px solid rgba(25,21,18,.16); }
+.mx-px-thread-n { font: 600 12px/16px Inter, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: #9b1b22; }
+.mx-px-thread:nth-child(2) .mx-px-thread-n { color: #6e5626; }
+.mx-px-thread-t { font: 400 22px/28px Fraunces, serif; color: #191512; }
+.mx-px-thread-t i { color: #9b1b22; }
+.mx-px-thread:nth-child(2) .mx-px-thread-t i { color: #6e5626; }
+.mx-px-thread-b { font: 400 14px/20px Inter, sans-serif; color: #4a4239; }
+
+/* ---- the Gala card: one compact card, never a full-width billboard on a desktop ---- */
+@media (min-width: 701px) { .mx-px-gala { max-width: 640px; } }
+
+/* ---- moments ---- */
+.mx-px-shelf .mx-ph { cursor: pointer; }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) { .mx-px-shelf .mx-ph img { transition: transform var(--t-drift) var(--ease); } .mx-px-shelf .mx-ph:hover img { transform: scale(1.04); } }
+.mx-px-shelf .mx-ph:active { opacity: .86; }
+
+/* ---- the bio sheet: the circle, name, role, bio, sessions ---- */
+.mx-bio-scrim { position: fixed; inset: 0; z-index: 70; background: rgba(25,21,18,.55); display: flex; align-items: center; justify-content: center; padding: 18px; box-sizing: border-box; }
+.mx-bio-sheet { position: relative; background: #fdfaf3; width: 100%; max-width: 520px; padding: 32px 24px 24px; box-sizing: border-box; box-shadow: 0 10px 34px rgba(25,21,18,.35);
+  max-height: 88vh; max-height: calc(100dvh - 36px); overflow-y: auto; overscroll-behavior: contain; }
+.mx-bio-x { position: absolute; top: 6px; right: 6px; color: #4a4239; }
+/* phones: the bio rises as a bottom sheet, like every sheet in the portal (ui.modal) */
 @media (max-width: 500px) {
-  .mx-display-52, .mx-display-54 { font-size: 30px !important; }
-  .mx-display-42 { font-size: 28px !important; }
-  .mx-session-indent { padding-left: 0 !important; }
-  .mx-bio-sheet { padding: 20px 18px !important; }
+  .mx-bio-scrim { align-items: flex-end; padding: 0; }
+  .mx-bio-sheet { max-width: none; max-height: 88dvh; padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
 }
-
-/* overview › "On the Plexus stage" teaser: the confirmed speakers as a row of overlapping faces */
-.mx-px-faces { display: flex; flex: none; padding-left: 10px; }
-.mx-px-face { position: relative; width: 46px; height: 46px; margin-left: -10px; border: 2px solid #fdfaf3; background: #191512; overflow: hidden; box-sizing: content-box; }
-.mx-px-face img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 20%; }
-.mx-px-face .mx-mono::after { display: none; }
-/* speakers without a photo: initials in the part of the tile the next one leaves visible (the overlap hid half of each) */
-.mx-px-face:has(> .mx-mono) + .mx-px-face { margin-left: -5px; }
-.mx-px-face > .mx-mono { font-size: 14px !important; letter-spacing: 0; }
-@media (max-width: 560px) {
-  /* phone: the sentence takes the whole first row; the faces and ALL SPEAKERS → share the row under it.
-     (The text span's inline flex:1 is a 0% basis, so a plain wrap never wrapped it — it shrank to one
-     word per line, 28 px wide and 375 px tall at 390.) */
-  .mx-px-teaser { flex-wrap: wrap; gap: 14px 18px !important; }
-  .mx-px-teaser > span:nth-child(2) { flex: 1 1 100% !important; order: -1; }
-  .mx-px-teaser > span:last-child { margin-left: auto; }
-  .mx-px-face { width: 38px; height: 38px; }
-}
-
-/* bio sheet opens and closes like every other sheet (app.css › .mx-modal): scrim fades, the sheet rises and comes
-   to rest (--ease-settle); on close the pair fades out over the exit timing as the sheet sinks a few px (plexus.js ›
-   closeBio adds .is-leaving, then redraws the block). .mx-bio-in is added only when a bio is opened, so a re-draw
-   (adding a session) stays still. */
+.mx-bio-head { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; }
+.mx-bio-head .mx-pic { margin-bottom: 10px; }
+.mx-bio-name { font: 400 22px/28px Fraunces, serif; color: #191512; }
+.mx-bio-role { font: 400 14px/20px Inter, sans-serif; color: #4a4239; }
+.mx-bio-text { margin: 18px 0 0; font: 400 16px/24px Inter, sans-serif; color: #191512; }
+.mx-bio-sess { margin-top: 20px; }
+.mx-bio-sess-h { font: 600 12px/16px Inter, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: #6e5626; margin-bottom: 8px; }
+.mx-bio-none { margin: 0; font: 400 14px/20px Inter, sans-serif; color: #4a4239; }
 @media (prefers-reduced-motion: no-preference) {
   [data-role="bio-scrim"].mx-bio-in { animation: mx-fade var(--t-reveal) var(--ease-fade) backwards; }
   [data-role="bio-scrim"].mx-bio-in .mx-bio-sheet { animation: mx-fade var(--t-reveal) var(--ease-fade) backwards, mx-settle-up var(--t-settle) var(--ease-settle) backwards; }
@@ -93,42 +84,43 @@
 }
 [data-role="bio-scrim"].is-leaving { pointer-events: none; }
 
-/* countdown band, 701–1130 px (one row needs 1,119): the countdown keeps the first line and the three facts
-   share the second, instead of ADD TO CALENDAR wrapping alone after a dangling rule */
-@media (max-width: 1130px) {
-  .mx-px-band { row-gap: 10px !important; }
-  .mx-px-band > .mx-band-break { display: block; flex-basis: 100%; height: 0; }
-  .mx-px-band > .mx-band-break + span[style*="width:1px"] { display: none; }
-}
-/* countdown band on a phone: the label takes its own line, the three digits share the next, each fact
-   below gets a centred line — the vertical rules only made sense side by side, so they go */
-@media (max-width: 700px) {
-  .mx-px-band { gap: 10px 22px !important; padding-top: 16px !important; padding-bottom: 16px !important; }
-  .mx-px-band > span[style*="width:1px"] { display: none !important; }
-  .mx-px-band > span:first-child { flex-basis: 100%; text-align: center; }
-  .mx-px-band > span:not([data-cd]):not(:first-child):not([style*="display:flex"]) { flex-basis: 100%; text-align: center; }
-}
+/* add-to-my-schedule: a quiet text control, 44 tall */
+.mx-px-add { align-self: flex-start; display: inline-flex; align-items: center; min-height: 44px; margin: -4px 0 -10px; font: 500 14px/20px Inter, sans-serif; color: #9b1b22; cursor: pointer; }
+.mx-px-add.is-on { color: #6e5626; }
 
-/* whole-card targets: a speaker card opens the bio from anywhere on it, a Plexus Week card follows its
-   CTA — the one real control stretches an invisible hit area over the card ("stretched link"), so
-   keyboard focus and the accessible name stay on that control */
-.mx-sp-card, .mx-week-card { position: relative; }
-.mx-sp-card [data-act="vb"]::after, .mx-week-card > a::after { content: ""; position: absolute; inset: 0; }
-/* …and the keyboard ring draws around the whole card (what a click and a hover act on), not the small label */
-.mx-sp-card:has([data-act="vb"]:focus-visible), .mx-week-card:has(> a:focus-visible) { outline: 2px solid #9b1b22; outline-offset: 3px; }
-.mx-sp-card [data-act="vb"]:focus-visible, .mx-week-card > a:focus-visible { outline: none; }
+/* ---- program ---- */
+.mx-px-days .mx-day-row[data-act] { cursor: pointer; }
+.mx-px-sessions { list-style: none; padding: 4px 0 16px 20px; border-top: 1px solid rgba(25,21,18,.1); }
+.mx-px-sessions .mx-timeline { max-width: none; }
+.mx-px-note { margin: 12px 0 0; font: 400 14px/20px Inter, sans-serif; color: #4a4239; }
+.mx-px-actions { margin-top: 24px; }
 
-/* Plexus Week band on a phone: one card per row. The ≤1100 two-across rule above outranked the shared
-   ≤560 single-column rule in app.css (same weight, later file), so at 390 px two cramped cards sat side
-   by side and "RESERVE A SEAT · €150 →" ran out through the card's edge. */
-@media (max-width: 560px) {
-  .mx-week-grid { grid-template-columns: 1fr !important; }
-}
+/* ---- zagreb ---- */
+.mx-px-stop-n { font: 400 15px/24px Fraunces, serif; color: #6e5626; }
+.mx-px-advent { margin-top: 20px; }
+.mx-px-taste { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (min-width: 901px) { .mx-px-taste { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; } }
+.mx-px-tile { display: flex; flex-direction: column; gap: 6px; padding: 16px; background: #fdfaf3; border: 1px solid rgba(25,21,18,.16); min-width: 0; }
+.mx-px-tile-t { font: 400 18px/24px Fraunces, serif; color: #191512; }
+.mx-px-tile-b { font: 400 14px/20px Inter, sans-serif; color: #4a4239; }
 
-/* Explore Zagreb › GETTING AROUND on a phone: each way of getting around reads as one sentence with a
-   hanging square, instead of a bold word squeezed into its own narrow column */
-@media (max-width: 700px) {
-  .mx-zg-around { gap: 12px !important; }
-  .mx-zg-around > span:not(:first-child) { display: block !important; flex-basis: 100%; padding-left: 15px; text-indent: -15px; line-height: 1.55; }
-  .mx-zg-around > span:not(:first-child) > span:first-child { display: inline-block; vertical-align: middle; margin: -2px 9px 0 0; text-indent: 0; }
-}
+/* ---- my plexus ---- */
+.mx-px-minecta { display: flex; flex-direction: column; gap: 8px; margin-top: 20px; }
+.mx-px-minesub { font: 400 14px/20px Inter, sans-serif; color: #4a4239; }
+@media (min-width: 501px) { .mx-px-minecta > .btn-block { max-width: 360px; } }
+.mx-px-minefacts { margin-top: 24px; }
+.mx-px-incl { display: grid; grid-template-columns: 1fr; gap: 12px; }
+@media (min-width: 701px) { .mx-px-incl { grid-template-columns: 1fr 1fr; gap: 16px; } }
+.mx-px-inclcard { display: flex; flex-direction: column; gap: 16px; padding: 20px; background: #fdfaf3; border: 1px solid rgba(25,21,18,.16); min-width: 0; }
+.mx-px-inclhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.mx-px-incltitle { font: 400 20px/26px Fraunces, serif; color: #191512; }
+.mx-px-incltitle i { color: #9b1b22; }
+.mx-px-inclcard > .btn-sm { align-self: flex-start; }
+.mx-px-textbtn { display: inline-flex; align-items: center; min-height: 44px; font: 500 16px/24px Inter, sans-serif; color: #9b1b22; cursor: pointer; }
+.mx-qr { width: 200px; height: 200px; object-fit: contain; background: #fff; border: 1px solid rgba(25,21,18,.16); padding: 12px; box-sizing: content-box; display: block; }
+.mx-px-pass { display: flex; flex-wrap: wrap; gap: 24px; }
+.mx-px-passitem { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.mx-px-passlabel { font: 600 12px/16px Inter, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: #4a4239; }
+.mx-px-passempty, .mx-px [data-block="who"] .empty { padding: 8px 0 0; align-items: flex-start; text-align: left; }
+.mx-px-passempty > .mx-ic { color: #6e5626; }
+.mx-px-find { margin-top: 16px; }

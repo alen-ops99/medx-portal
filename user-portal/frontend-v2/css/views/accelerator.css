@@ -1,71 +1,125 @@
-/* ============================================================================
-   Med&X member portal v2 — ACCELERATOR screen CSS (injected by js/views/accelerator.js)
-   Sources: Accelerator.dc.html + Accelerator Application.dc.html (their <style> blocks) and
-   responsive.css. Artboard markup keeps its inline styles verbatim; the rules here only add
-   the artboards' own base rules (select focus), behaviour states (drag-over, disabled) and
-   the responsive overrides the artboards express through responsive.css.
-   ========================================================================== */
+/* css/views/accelerator.css — the Accelerator (overview + application), injected by js/views/accelerator.js.
+   Composed from the PHONE CALM KIT (app.css); only what is particular to these two screens lives here. */
 
-/* the Application artboard's helmet rules — crimson focus on every control, incl. <select> */
+.mx-ax { background: #f7f1e6; color: #191512; }
+@media (min-width: 701px) { .mx-ax-tabs { max-width: 420px; } }
+
+/* ---- the countdown: one number ---- */
+.mx-ax-cd { grid-template-columns: max-content; }
+
+/* ---- tiles: the stipend numeral is the longest; it shrinks with the screen instead of running out of its tile ---- */
+.mx-ax-tile-money .mx-tile-n { font-size: min(28px, 5.6vw); }
+@media (min-width: 701px) { .mx-ax-tile-money .mx-tile-n { font-size: 34px; } }
+.mx-ax-tile-money .mx-tile-n { color: #6e5626; }
+
+/* ---- the program: a statement, the long copy folded away, then who it is for ---- */
+.mx-ax-statement { margin: 0; max-width: 640px; font: 400 22px/28px Fraunces, serif; color: #191512; text-wrap: balance; }
+.mx-ax-statement i { color: #9b1b22; }
+@media (min-width: 901px) { .mx-ax-statement { font-size: 28px; line-height: 36px; } }
+.mx-ax [data-block="program"] .mx-accs { margin-top: 16px; }
+.mx-ax-h3 { display: block; margin: 28px 0 14px; font: 600 12px/16px Inter, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: #6e5626; }
+
+/* ---- hosts: institutions are squares (never circles), one hairline row each; the detail opens under its row ---- */
+.mx-ax-hostmark { flex: none; width: 44px; height: 44px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; overflow: hidden;
+  background: #191512; color: #c9a962; font: 400 13px/1 Fraunces, serif; letter-spacing: .02em; text-align: center; object-fit: contain; }
+.mx-ax-host { cursor: pointer; }
+.mx-ax-host.is-open { background: var(--row-hover); }
+.mx-ax-hosts { max-width: 720px; }
+.mx-ax-hostdetail { padding: 4px 0 16px 58px; }
+.mx-ax-dl { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 12px; padding: 8px 0; border-top: 1px solid rgba(25,21,18,.08); }
+.mx-ax-dt { font: 600 12px/20px Inter, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #6e5626; }
+.mx-ax-dd { font: 400 14px/20px Inter, sans-serif; color: #191512; overflow-wrap: anywhere; }
+@media (max-width: 500px) { .mx-ax-hostdetail { padding-left: 0; } .mx-ax-dl { grid-template-columns: 1fr; gap: 2px; } }
+.mx-ax-textbtn { display: inline-flex; align-items: center; min-height: 44px; margin-top: 4px; font: 500 14px/20px Inter, sans-serif; color: #9b1b22; cursor: pointer; }
+
+/* ---- selection: numbered steps on the timeline ---- */
+.mx-ax-stepn { font: 400 15px/24px Fraunces, serif; color: #9b1b22; }
+.mx-ax-note { display: block; margin: 12px 0 0; font: 400 14px/20px Inter, sans-serif; color: #4a4239; }
+
+/* ---- your application: one card, its states and actions ---- */
+.mx-ax-app { display: flex; flex-direction: column; gap: 8px; padding: 20px; background: #fdfaf3; border: 1px solid rgba(25,21,18,.16); max-width: 720px; box-sizing: border-box; }
+.mx-ax-app--flat { background: none; border: 0; padding-left: 0; padding-right: 0; }
+.mx-ax-apptags { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 4px; }
+.mx-ax-appinst { font: 400 14px/20px Inter, sans-serif; color: #4a4239; }
+.mx-ax-appline { font: 400 20px/26px Fraunces, serif; color: #191512; }
+.mx-ax-appwhy { font: 400 16px/24px Inter, sans-serif; color: #4a4239; }
+.mx-ax-appact { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; }
+.mx-ax-gateact { flex-direction: column; align-items: stretch; }
+@media (min-width: 501px) { .mx-ax-gateact { flex-direction: row; } .mx-ax-gateact > .btn-block { width: auto; } }
+.mx-ax-lookup { display: flex; flex-direction: column; gap: 8px; margin-top: 24px; max-width: 420px; }
+.mx-ax-lookrow { display: flex; gap: 10px; align-items: center; }
+.mx-ax-lookrow .input { flex: 1 1 auto; text-transform: uppercase; letter-spacing: .08em; font-variant-numeric: tabular-nums; }
+.mx-ax-lookrow .btn-sm { flex: none; min-height: 52px; }
+.mx-ax-err { margin-top: 8px; font: 400 14px/20px Inter, sans-serif; color: #9b1b22; }
+.mx-ax-results { margin-top: 16px; overflow-x: auto; max-width: 720px; }
+.mx-ax-results-h { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.mx-ax-results-h .mx-ax-h3 { margin: 0; }
+.mx-ax-results table { border-collapse: collapse; width: 100%; min-width: 520px; }
+.mx-ax-results th { text-align: left; white-space: nowrap; padding: 8px 12px; font: 600 12px/16px Inter, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #4a4239; border-bottom: 1px solid rgba(25,21,18,.16); }
+.mx-ax-results td { padding: 10px 12px; font: 400 14px/20px Inter, sans-serif; color: #191512; border-bottom: 1px solid rgba(25,21,18,.08); }
+.mx-ax-results tr.is-own { background: #f7efdf; }
+.mx-ax-rank { font-family: Fraunces, serif !important; }
+.mx-ax-num { font-variant-numeric: tabular-nums; }
+.mx-ax-yours { font: 600 12px Inter, sans-serif; letter-spacing: .08em; color: #9b1b22; }
+.mx-ax-followrow { margin-top: 16px; }
+
+/* ---- previous cohorts: one accordion per class ---- */
+.mx-ax-count { margin-left: auto; font: 400 14px/20px Inter, sans-serif; color: #4a4239; }
+.mx-ax-fellows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.mx-ax-fellows > li { display: flex; flex-direction: column; gap: 1px; padding: 8px 0; border-top: 1px solid rgba(25,21,18,.08); }
+.mx-ax-fname { font: 400 18px/24px Fraunces, serif; color: #191512; }
+.mx-ax-fwhere { font: 400 14px/20px Inter, sans-serif; color: #4a4239; }
+.mx-ax [data-block="cohorts"] .mx-shelf { margin-top: 20px; }
+
+/* ---- the application form ---- */
+.mx-ax-wizhead .mx-lt { margin-top: 12px; }
+.mx-ax-stepper { max-width: 960px; }
+.mx-ax-steplabel { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font: 400 14px/20px Inter, sans-serif; color: #4a4239; }
+.mx-ax-steplabel strong { font: 400 18px/24px Fraunces, serif; color: #191512; }
+.mx-ax-segs { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin-top: 10px; }
+.mx-ax-seg { position: relative; display: block; height: 4px; background: rgba(25,21,18,.14); cursor: pointer; transition: background-color var(--t-quick) var(--ease); }
+.mx-ax-seg::after { content: ""; position: absolute; left: 0; right: 0; top: -20px; bottom: -20px; }   /* 44 tall to the finger */
+.mx-ax-seg.is-done { background: #c9a962; }
+.mx-ax-seg.is-cur { background: #9b1b22; }
+.mx-ax-wizard { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 24px; align-items: start; margin-top: 20px; max-width: 1100px; }
+@media (max-width: 900px) { .mx-ax-wizard { grid-template-columns: 1fr; } }
+.mx-ax-panel { background: #fdfaf3; border: 1px solid rgba(25,21,18,.16); min-width: 0; }
+.mx-ax-fields { grid-template-columns: 1fr 1fr; }
+@media (max-width: 700px) { .mx-ax-fields { grid-template-columns: 1fr !important; } .mx-ax-fields > label { grid-column: auto !important; } }
+@media (max-width: 500px) { .mx-ax-panel-pad { padding-left: 16px !important; padding-right: 16px !important; } }
+.mx-ax-drop { transition: border-color var(--t-quick) var(--ease), background-color var(--t-quick) var(--ease); min-height: 56px; }
+.mx-ax-drop.is-over, .mx-ax-drop:focus-visible { border-color: #9b1b22 !important; background: #fdfaf3 !important; outline: 0; }
+.mx-ax-gdpr { border-top: 1px solid rgba(25,21,18,.1); border-bottom: 1px solid rgba(25,21,18,.1); }
+.mx-ax-todo { color: #9b1b22; }
+.mx-ax-summary { margin-top: 12px; border-bottom: 1px solid rgba(25,21,18,.1); }
+.mx-ax-submitrow { display: flex; flex-direction: column; align-items: stretch; gap: 10px; margin-top: 20px; }
+@media (min-width: 501px) { .mx-ax-submitrow { flex-direction: row; flex-wrap: wrap; align-items: center; } .mx-ax-submitrow > .btn-block { width: auto; } }
+.mx-ax-submit[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
+.mx-ax-footer { display: flex; align-items: center; gap: 12px; padding: 16px 28px; border-top: 1px solid rgba(25,21,18,.16); }
+@media (max-width: 500px) { .mx-ax-footer { padding: 14px 16px; } }
+.mx-ax-footer [data-act="prev"][aria-disabled="true"] { opacity: .35; cursor: default; }
+.mx-ax-saved { flex: 1 1 auto; text-align: center; font: 400 12px/16px Inter, sans-serif; color: #4a4239; }
+@media (max-width: 500px) {
+  .mx-ax-footer { flex-wrap: wrap; justify-content: space-between; }
+  .mx-ax-saved { order: -1; flex-basis: 100%; text-align: left; }
+}
+.mx-ax-rail { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.mx-ax-rail-card { padding: 20px; background: #fdfaf3; border: 1px solid rgba(25,21,18,.16); }
+.mx-ax-railhead { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.mx-ax-railhead .mx-ax-h3 { margin: 0; }
+.mx-ax-pct { font: 400 28px/1 Fraunces, serif; color: #6e5626; font-variant-numeric: tabular-nums; }
+.mx-ax-bar { height: 3px; background: rgba(25,21,18,.12); margin: 12px 0 16px; position: relative; }
+.mx-ax-bar > span { position: absolute; left: 0; top: 0; bottom: 0; background: #c9a962; transition: width var(--t-reveal) var(--ease); }
+.mx-ax-railchecks > li { font-size: 14px; line-height: 20px; color: #4a4239; }
+.mx-ax-railchecks > li.is-done { color: #191512; }
+.mx-ax-railchecks > li:not(.is-done) > .mx-ic { color: rgba(25,21,18,.3); }
+.mx-ax-before > summary { padding-left: 16px; padding-right: 16px; }
+.mx-ax-before .mx-acc-a { padding: 0 16px 16px; }
+.mx-ax-before { border-bottom: 1px solid rgba(25,21,18,.1); }
+.mx-ax-foot { margin-top: 32px; }
+
+/* the form's own focus + control rules (the artboard's helmet rules) */
 [data-screen-label="Accelerator Application"] select:focus,
 [data-screen-label="Accelerator Application"] input:focus,
 [data-screen-label="Accelerator Application"] textarea:focus { outline: 1px solid #9b1b22; outline-offset: -1px; }
-[data-screen-label="Accelerator Application"] select { -webkit-appearance: none; appearance: none; border-radius: 0;
-  background-image: linear-gradient(45deg, transparent 50%, #4a4239 50%), linear-gradient(135deg, #4a4239 50%, transparent 50%);
-  background-position: calc(100% - 17px) 50%, calc(100% - 12px) 50%; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; padding-right: 30px; }
 [data-screen-label="Accelerator Application"] input[type="checkbox"] { accent-color: #9b1b22; }
-[data-screen-label="Accelerator"] input:focus { outline: 1px solid #9b1b22; outline-offset: -1px; }
-
-/* document drop zone — drag-over + keyboard focus states (look is inline) */
-.mx-ax-drop { transition: border-color var(--t-quick) var(--ease), background-color var(--t-quick) var(--ease); }
-.mx-ax-drop.is-over, .mx-ax-drop:focus-visible { border-color: #9b1b22 !important; background: #fdfaf3 !important; outline: 0; }
-
-/* disabled controls (submit before completion, Previous on step 1) */
-[data-screen-label="Accelerator Application"] [aria-disabled="true"] { cursor: not-allowed; }
-
-/* results table (v2 addition under RESULTS LOOKUP) */
-.mx-ax-results { overflow-x: auto; }
-.mx-ax-results table { border-collapse: collapse; width: 100%; min-width: 520px; }
-
-/* cohorts panel rows scroll if the admin list is long */
-.mx-ax-fellows { min-height: 0; }
-
-/* ---- responsive (responsive.css → class hooks) ---- */
-@media (max-width: 900px) {
-  .mx-ax-cohorts { grid-template-columns: 1fr 1fr !important; grid-auto-rows: minmax(180px, auto) !important; }
-  .mx-ax-cohorts > div:last-child { grid-column: 1 / -1; }
-  .mx-ax-hosts { grid-template-columns: 1fr 1fr !important; }
-  .mx-ax-cohortcols { grid-template-columns: 1fr 1fr !important; }
-  .mx-ax-selection { grid-template-columns: 1fr 1fr !important; }
-  .mx-ax-wizard { grid-template-columns: 1fr !important; }
-  .mx-ax-stepper > div { padding: 0 10px 12px !important; }
-}
-/* stats band, one row needs 1,044 px: narrower, the countdown keeps the first line and the four facts share
-   the second (the rule after it goes); below ~740 the facts wrap without rules */
-@media (max-width: 1060px) {
-  .mx-ax-band { row-gap: 10px !important; }
-  .mx-ax-band > .mx-band-break { display: block; flex-basis: 100%; height: 0; }
-  .mx-ax-band > .mx-band-break + span[style*="width:1px"] { display: none; }
-}
-@media (max-width: 740px) { .mx-ax-band > span[style*="width:1px"] { display: none !important; } }
-@media (max-width: 700px) {
-  .mx-ax-faq { grid-template-columns: 1fr !important; }
-  .mx-ax-fields { grid-template-columns: 1fr !important; }
-  .mx-ax-fields > label { grid-column: auto !important; }
-  .mx-ax-cohorts { grid-template-columns: 1fr !important; }
-  .mx-ax-cohorts > div:first-child, .mx-ax-cohorts > div:nth-child(2) { min-height: 120px; }
-  .mx-ax-display-52 { font-size: 34px !important; }
-  .mx-ax-display-34 { font-size: 26px !important; }
-  .mx-ax-band { gap: 8px 14px !important; }
-  .mx-ax-band > span[style*="width:1px"] { display: none !important; }
-}
-@media (max-width: 500px) {
-  .mx-ax-hosts, .mx-ax-selection, .mx-ax-cohortcols { grid-template-columns: 1fr !important; }
-  .mx-ax-stepper > div { padding: 0 6px 10px !important; }
-  .mx-ax-stepper > div > span:nth-child(2) { font-size: 7.5px !important; letter-spacing: .08em !important; }
-  .mx-ax-panel-pad { padding-left: 16px !important; padding-right: 16px !important; }
-  .mx-ax-footer { flex-wrap: wrap; gap: 10px; }
-  .mx-ax-footer > div[style*="flex:1"] { flex-basis: 100%; display: none; }
-  .mx-ax-lookup input { width: 100% !important; box-sizing: border-box; }
-  .mx-ax-display-52 { font-size: 30px !important; }
-}

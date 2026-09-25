@@ -25,32 +25,18 @@ export const SOURCE = 'Accelerator.dc.html · Accelerator Application.dc.html';
 // ---- COPY: every string that may change in a revision (dates/prices via FACTS or the API) ----
 export const COPY = {
   crumbs: { projects: 'PROJECTS', name: 'THE ACCELERATOR', mine: 'MY APPLICATION' },
-  tabs: { overview: 'OVERVIEW', apply: 'MY APPLICATION' },
+  tabs: { overview: 'Overview', apply: 'My application' },
   hero: {
-    pill: (opens, placement) => `APPLICATIONS OPEN ${opens} · ${placement} PLACEMENTS`,
-    pillOpen: placement => `APPLICATIONS OPEN NOW · ${placement} PLACEMENTS`,
-    pillClosed: placement => `APPLICATIONS CLOSED · ${placement} PLACEMENTS`,
-    title: 'The Med&amp;X <i style="color:#c9a962">Accelerator</i>',
+    title: 'The Med&amp;X <i>Accelerator</i>',
+    date: d => `Applications open ${d}`, dateOpen: 'Applications open now', dateClosed: 'Applications closed for this cycle',
+    followTitle: 'Accelerator updates', followSub: on => on ? 'On · email and portal alerts' : 'Off · email and portal alerts',
     // 2026-09-17: the 2026 cohort on the Gordon Hall steps replaces the stock hall photo.
     photo: { src: '/assets/ax-hero-boston-2026.jpg', alt: 'The 2026 Accelerator fellows at Harvard Medical School, Boston' },
-    // The intro named four institutions while the tiles below listed eight (audit C2). It now
-    // derives from the same host data the tiles render: a short list is named, a long one is
-    // counted — never a second, drifting copy of the roster.
-    who: 'For Croatian medical and biomedical students, young researchers, and young physicians.',
-    sub: names => {
-      const base = COPY.hero.who + ' Summer research internships at ';
-      if (!names.length) return COPY.hero.who + ' Summer research internships at our host institutions.';
-      if (names.length > 4) return base + names.length + ' host institutions — listed below.';
-      if (names.length === 1) return base + names[0] + '.';
-      return base + names.slice(0, -1).join(', ') + ', and ' + names[names.length - 1] + '.';
-    },
     notify: 'GET NOTIFIED WHEN APPLICATIONS OPEN',
     notified: '✓ ON THE LIST — WE’LL EMAIL YOU AT OPENING',
     start: 'START YOUR APPLICATION →',
     resume: 'CONTINUE YOUR APPLICATION →',
     view: 'VIEW YOUR APPLICATION →',
-    followLine: on => `GET UPDATES FROM THE ACCELERATOR · ${on ? 'ON' : 'OFF'}`,
-    followSub: 'Email + portal alerts · manage topics in Profile &amp; settings',
     notedToast: 'Noted — we’ll email you the day applications open.',
     followOnToast: 'Accelerator updates on — email + portal alerts.',
     followOffToast: 'Accelerator updates off.'
@@ -58,61 +44,61 @@ export const COPY = {
   band: {
     openIn: 'APPLICATIONS OPEN IN', closeIn: 'APPLICATIONS CLOSE IN', open: 'APPLICATIONS', openNow: 'NOW', closed: 'CLOSED',
     // the region is read from the host list (all eight are in the USA today — the band said USA & EUROPE)
-    days: 'DAYS', duration: '8–12 WEEKS', hosts: (n, region) => `${n} HOST INSTITUTIONS${region ? ' · ' + region : ''}`,
-    positions: r => `${r} POSITIONS`, stipend: '€800–1,000 STIPEND'
+    days: 'days', duration: '8–12',
+    weeks: 'Weeks', hosts: 'Host institutions', hostsIn: region => `Hosts · ${region}`, places: 'Places', stipend: '€800–1,000', stipendL: 'Stipend'
   },
   program: {
-    n: '01', title: 'THE PROGRAM',
+    n: '01', title: 'The program',
+    line: 'Summer research at <i>world-renowned</i> labs and clinics, for Croatia’s next generation.',
+    more: 'About the program',
+    eligible: ['Croatian citizenship', 'Senior medical students', 'Biochemistry and biomedical engineering students', 'Early-career researchers, 0–3 years after graduation'],
     body: 'A prestigious summer research program placing exceptional Croatian students and early-career researchers at world-renowned labs and clinics. The mission goes beyond the internship: experience an amazing institution, grow professionally and personally, and bring that knowledge home · building lasting bridges in biomedicine between Croatia and the world.',
-    whoTitle: 'WHO IT’S FOR', whoSub: 'Croatian citizens at the start of their careers — wherever in the world you study or work.',
-    chips: ['SENIOR MEDICAL STUDENTS', 'BIOCHEMISTRY &amp; BIOMEDICAL ENGINEERING STUDENTS', 'EARLY-CAREER RESEARCHERS · 0–3 YRS POST-GRADUATION'],
-    chipGold: 'CROATIAN CITIZENSHIP REQUIRED',
-    hostsTitle: 'HOST LABS &amp; CLINICS', hostsSub: 'Click an institution to learn more · specific placements depend on mentor availability.',
+    whoTitle: 'Who it’s for', whoSub: 'Croatian citizens at the start of their careers, wherever you study or work.',
+    hostsTitle: 'Host labs &amp; clinics', hostsSub: 'Placements depend on mentor availability.',
     positions: n => `${n} ${Number(n) === 1 ? 'position' : 'positions'}`, positionsTbc: 'Positions TBC', site: 'Website →',
     // The host drawer (2026-09-17): every field the public endpoints carry that holds something, one row
     // each — a panel of six "Details coming" rows read as unfinished. What is not filled in yet is said once.
     detail: {
-      soon: 'Details coming', close: 'CLOSE', more: opens => `Mentors, program type and dates for this host are published with the call on ${opens}.`,
+      soon: 'Details coming', close: 'Close', more: opens => `Mentors, program type and dates for this host are published with the call on ${opens}.`,
       rows: [['about', 'ABOUT'], ['lab', 'LAB / CLINIC'], ['mentor', 'MENTOR'], ['fields', 'PROGRAM TYPE'], ['duration', 'DURATION'], ['spots', 'SPOTS'], ['year', 'YEAR'], ['website', 'WEBSITE']],
       extra: [['requirements', 'REQUIREMENTS'], ['stipend', 'STIPEND'], ['accommodation', 'ACCOMMODATION'], ['visa', 'VISA'], ['contact', 'CONTACT']]
     }
   },
   included: {
-    n: '02', title: 'WHAT’S INCLUDED', stipend: '€800–1,000',
-    stipendSub: 'fellowship stipend for travel, living expenses, and health insurance',
-    chips: ['VISA DOCUMENTATION', 'HOUSING ASSISTANCE', 'TRAVEL ARRANGEMENTS', 'ONBOARDING SUPPORT', 'MENTORSHIP PROGRAM', 'CERTIFICATE OF COMPLETION']
+    n: '02', title: 'What’s included', stipend: '€800–1,000',
+    items: ['Stipend for travel, living and health insurance', 'Visa documentation', 'Housing assistance', 'Travel arrangements', 'Onboarding and a mentorship program', 'Certificate of completion'],
   },
   selection: {
-    n: '03', title: 'HOW SELECTION WORKS',
+    n: '03', title: 'How selection works',
     steps: opens => [
-      { n: '1', t: 'Submit your application', d: `Online form with your CV, mentor letter, and required documents · opens ${opens}.` },
-      { n: '2', t: 'Document review', d: 'Two-phase document review by the selection committee; shortlisted candidates advance.' },
-      { n: '3', t: 'Interview round', d: 'Interviews with two Croatian biomedical professionals, scheduled after document review.' },
-      { n: '4', t: 'Selection & onboarding', d: 'Results arrive by email with your access code · fellowship paperwork begins.' }
+      { n: '01', t: 'Apply', d: `CV, mentor letter, documents · from ${opens}` },
+      { n: '02', t: 'Document review', d: 'Two phases; shortlisted candidates advance' },
+      { n: '03', t: 'Interview', d: 'With two Croatian biomedical professionals' },
+      { n: '04', t: 'Selection & onboarding', d: 'Results by email with your access code' }
     ],
-    note: 'Being selected by Med&amp;X does not guarantee placement · final acceptance is subject to the host institution’s approval.'
+    note: 'Final acceptance is subject to the host institution’s approval.'
   },
   application: {
-    n: '04', title: 'YOUR APPLICATION',
+    n: '04', title: 'Your application', resultAvail: 'RESULT AVAILABLE',
     noneLine: opens => `No application yet · they open ${opens}.`,
     noneOpenLine: 'No application yet · applications are open.',
     closedLine: 'Applications for this cycle have closed.',
-    noneWhy: 'Ready your CV and a mentor letter, plus a one-line summary of your project. Your application and its status will live here.',
-    openWhy: 'Have your CV, a mentor letter, and a one-line project summary ready — your progress saves automatically.',
+    noneWhy: 'Ready your CV, a mentor letter and a one-line project summary.',
+    openWhy: 'Your progress saves automatically as you go.',
     draftLine: pct => `Your draft is saved · ${pct}% complete.`,
-    draftWhy: 'Pick up where you left off — your progress saves automatically as you type.',
+    draftWhy: 'Pick up where you left off; it saves as you type.',
     subLine: (num, when) => `Application ${num} submitted${when ? ' ' + when : ''}.`,
-    subWhy: 'We emailed a confirmation. The committee will reach you here and by email at every stage.',
-    reviewWhy: 'The selection committee is reviewing your documents. You will hear from us by email at every stage.',
+    subWhy: 'We emailed a confirmation. The committee reaches you here and by email.',
+    reviewWhy: 'The committee is reviewing your documents. You hear from us by email.',
     resultLine: 'Your result is ready.',
-    resultWhy: 'Results arrive by email with your access code — look yours up below.',
-    notify: 'GET NOTIFIED →', notified: '✓ ON THE LIST', preview: 'PREVIEW THE APPLICATION →',
+    resultWhy: 'Your access code is in your email. Look your result up below.',
+    notify: 'GET NOTIFIED →', notified: '✓ ON THE LIST', preview: 'PREVIEW →',
     start: 'START YOUR APPLICATION →', resume: 'CONTINUE YOUR APPLICATION →', view: 'VIEW YOUR APPLICATION →',
     payFee: 'PAY THE €75 FEE →', feeNote: 'Processing fee pending — your application stays valid either way.',
     statusWord: { submitted: 'SUBMITTED', review: 'UNDER REVIEW', accepted: 'ACCEPTED', waitlisted: 'WAITLISTED', rejected: 'NOT SELECTED', draft: 'DRAFT' }
   },
   results: {
-    label: 'RESULTS LOOKUP', placeholder: 'AX26-XXXX', view: 'VIEW RESULTS',
+    label: 'Results lookup', placeholder: 'AX26-XXXX', view: 'VIEW RESULTS',
     hint: 'Access codes arrive by email after the review completes.',
     empty: 'Enter the access code from your email.',
     malformed: 'Access codes look like AX26-XXXX — check the email.',
@@ -125,17 +111,18 @@ export const COPY = {
     note: 'Results are anonymised — find your row by the application number from your confirmation email.'
   },
   team: {
-    n: '05', title: 'THE TEAM',
+    n: '05', title: 'The team',
     people: [
-      { init: 'MP', bg: '#9b1b22', fg: '#f7f1e6', name: 'Marija Pranjić', role: 'Program Director · coordinates partner institutions and mentors across Europe and the US' },
-      { init: 'MV', bg: '#191512', fg: '#f7f1e6', name: 'Miro Vuković, MD', role: 'Vice President · strategic lead for Med&amp;X partnerships' },
-      { init: 'MG', bg: '#9b1b22', fg: '#f7f1e6', name: 'Marina Grubić, MD', role: 'Vice President, Human Resources · fellow onboarding and mentor relations' },
-      { init: 'AJ', bg: '#c9a962', fg: '#191512', name: 'Alen Juginović, MD', role: 'Founder &amp; President, Med&amp;X · sleep neuroscientist at Harvard Medical School' },
-      { init: 'LS', bg: '#191512', fg: '#f7f1e6', name: 'Lucija Skejić', role: 'Program team · design &amp; member experience' }
+      { name: 'Marija Pranjić', role: 'Program Director' },
+      { name: 'Miro Vuković, MD', role: 'Vice President · partnerships' },
+      { name: 'Marina Grubić, MD', role: 'Vice President, Human Resources' },
+      { name: 'Alen Juginović, MD', role: 'Founder &amp; President, Med&amp;X' },
+      { name: 'Lucija Skejić', role: 'Program team · member experience' }
     ]
   },
   cohorts: {
-    title: 'PREVIOUS COHORTS', sub: 'The people who went — and where.',
+    title: 'Previous cohorts', sub: 'The people who went, and where.',
+    count: n => `${n} ${n === 1 ? 'fellow' : 'fellows'}`,
     // 2026-09-17: the list of fellows (from v2_accelerator_alumni, grouped by year) is the block;
     // the photos sit in a small gallery row beneath it. Sources: medx.hr live-site mirror
     // (acc_25_2 = MGH Boston arrival, acc_25 = lab day) + the 2026 cohort's Boston lounge shot.
@@ -152,11 +139,11 @@ export const COPY = {
       const span = years ? (years.from === years.to ? `the ${years.from} cohort` : `the ${years.from}–${years.to} cohorts`) : 'our cohorts';
       return `${n} ${n === 1 ? 'fellow' : 'fellows'} across ${span} · placed at our host institutions.`;
     },
-    classOf: y => `CLASS OF ${y}`, unknownYear: 'EARLIER COHORTS',
+    classOf: y => `Class of ${y}`, unknownYear: 'Earlier cohorts',
     where: a => [a.placement_institution, a.city].filter(Boolean).join(', ')
   },
   faq: {
-    n: '06', title: 'FREQUENTLY ASKED',
+    n: '06', title: 'Frequently asked',
     // COPY fallback — admin-editable rows come from GET /api/portal-content/published/accelerator-faq
     list: opens => [
       { q: 'What are the eligibility requirements?', a: 'Croatian citizenship is required. The program is aimed at senior medical, biochemistry-related, and biomedical engineering students, and early-career researchers up to three years post-graduation — wherever in the world you currently study or work.' },
@@ -167,16 +154,15 @@ export const COPY = {
     ]
   },
   footer: {
-    line: 'Questions about applying, placements, or eligibility?',
-    sub: 'Message us · the coordinators reply right here in your portal inbox.',
-    cta: 'MESSAGE US →'
+    ask: 'Message us', sub: 'Applying, placements, eligibility'
   },
   wiz: {
     eyebrow: placement => `MED&amp;X ACCELERATOR · ${placement}`,
     pillDraft: 'DRAFT · NOT YET SUBMITTED', pillSubmitted: when => `SUBMITTED${when ? ' · ' + when.toUpperCase() : ''}`,
     pillPreview: opens => `PREVIEW · OPENS ${opens}`,
     closes: d => `CLOSES ${d}`, opens: d => `OPENS ${d}`, open: 'APPLICATIONS OPEN', closed: 'APPLICATIONS CLOSED',
-    title: 'My <i style="color:#c9a962">Application</i>',
+    title: 'My <i>application</i>',
+    stepOf: n => `Step ${n} of 7`, gdprTitle: 'How your data is used',
     sub: 'Your progress saves automatically · leave and come back any time.',
     // before opening the pill and the gate card below already carry the date, so this line does not repeat it
     subSoon: 'Once applications open, your progress saves as you go · leave and come back any time.',
@@ -188,13 +174,13 @@ export const COPY = {
     submitHint: 'Enabled once every section is complete.', pdf: 'PREVIEW AS PDF',
     saved: { saving: 'Saving…', just: 'Saved just now', at: t => `Saved at ${t}`, none: 'Autosaves as you type' },
     reviewSub: 'Check each section before submitting · you can still edit until the deadline.',
-    reviewStatus: { done: 'COMPLETE', todo: 'INCOMPLETE' }, edit: 'EDIT →',
-    summaryTitle: 'APPLICATION SUMMARY',
+    reviewStatus: { done: 'Complete', todo: 'To do' }, edit: 'EDIT →',
+    summaryTitle: 'Application summary',
     summaryNote: 'Once submitted, you receive a confirmation email and can track the status here.',
-    checklist: { title: 'APPLICATION CHECKLIST', complete: 'COMPLETE' },
+    checklist: { title: 'Your checklist', complete: 'complete' },
     items: ['Personal info completed', 'Education details added', 'Institution preferences selected', 'Motivation statement written', 'Documents uploaded', 'Application reviewed'],
-    before: { title: 'BEFORE YOU START', body: 'Have your CV, a mentor letter, and a one-line project summary ready · you’ll upload them in Documents.' },
-    stuck: { line: 'Stuck on a question?', body: 'Message us · the coordinators reply right here in your portal inbox.', cta: 'MESSAGE US →' },
+    before: { title: 'BEFORE YOU START', titleShort: 'Before you start', body: 'Have your CV, a mentor letter, and a one-line project summary ready; you upload them in Documents.' },
+    stuck: { line: 'Stuck on a question?', sub: 'Message the coordinators', body: 'Message us · the coordinators reply right here in your portal inbox.', cta: 'MESSAGE US →' },
     footnote: 'Results arrive by emailed access code (AX26–XXXX) · look them up any time on ',
     footnoteLink: 'the Accelerator page',
     submittedLine: num => `Application ${num} is in.`,
@@ -255,8 +241,8 @@ const COUNTRIES = ('HR:Croatia|AF:Afghanistan|AL:Albania|DZ:Algeria|AD:Andorra|A
 // step-1 input/label vocabulary (Accelerator Application.dc.html) — applied to every step
 const F = {
   group: 'display:flex;flex-direction:column;gap:6px',
-  label: 'font:600 10px Inter,sans-serif;letter-spacing:.14em;color:#4a4239;text-transform:uppercase',
-  input: 'border:1px solid rgba(25,21,18,.25);background:#f7f1e6;padding:10px 12px;font-size:13px;color:#191512;font-family:Inter,sans-serif;width:100%;box-sizing:border-box;border-radius:0',
+  label: 'font:600 12px/16px Inter,sans-serif;letter-spacing:.12em;color:#4a4239;text-transform:uppercase',
+  input: 'border:1px solid rgba(25,21,18,.25);background:#fdfaf3;padding:13px 14px;min-height:52px;font-size:16px;color:#191512;font-family:Inter,sans-serif;width:100%;box-sizing:border-box;border-radius:0',
   req: '<span style="color:#9b1b22">*</span>'
 };
 
@@ -313,9 +299,6 @@ async function load(force) {
   cache = { at: Date.now(), data };
   return data;
 }
-
-// The hero sentence and the host tiles read ONE list, so they can never name different
-// institutions (audit C2).
 function hostNames() { return ((D && D.hosts) || []).map(h => String(h.name || '').trim()).filter(Boolean); }
 // True only when the alumni table has rows — no hardcoded names stand in (audit W6).
 function hasAlumni() { return !!(D && Array.isArray(D.alumni) && D.alumni.length); }
@@ -407,6 +390,13 @@ function placementLabel() {
   const y = new Date(opensInfo().at).getFullYear() || FACTS.year;
   return 'SUMMER ' + (y + 1);
 }
+// '15 Nov 2026' in Zagreb time ('' when the date cannot be read)
+function shortDate(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  try { return d.toLocaleDateString('en-GB', { timeZone: 'Europe/Zagreb', day: 'numeric', month: 'short', year: 'numeric' }); }
+  catch (e) { return ''; }
+}
 function countdownInfo() {
   const state = openState();
   if (D.countdown && new Date(D.countdown.target) > new Date()) {
@@ -455,90 +445,99 @@ function completionFor(values, files, submitted, consents) {
 }
 const completion = () => completionFor(W.values, W.files, W.submitted, W.consents);
 
+// ---------------------------------------------------------------- kit helpers (DESIGN-RULES §10)
+const icon = (n, s) => ui.icon(n, s || 20);
+const chev = () => ui.icon('chevron-right', 18);
+function sectionHead(n, title, right) {
+  return `<div class="mx-sh">${n ? `<span class="mx-sh-n">${n}</span>` : ''}<h2 class="mx-sh-t">${title}</h2>${right || ''}</div>`;
+}
+const checks = items => `<ul class="mx-checks">${items.map(t => `<li>${icon('check')}<span>${t}</span></li>`).join('')}</ul>`;
+
 // ---------------------------------------------------------------- shared blocks
 function blockCrumbs(applyTab) {
+  const L = 'font:600 12px Inter,sans-serif;letter-spacing:.12em';
   return `
-  <!-- dc: ${applyTab ? 'Accelerator Application' : 'Accelerator'}.dc.html › "Breadcrumb" -->
+  <!-- dc: ${applyTab ? 'Accelerator Application' : 'Accelerator'}.dc.html › "Breadcrumb" (desktop; phones carry back in the top bar) -->
   <div class="mx-crumbs mx-gutter" style="display:flex;align-items:center;gap:13px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16)">
-    <a href="/app/projects" data-dir="back" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239" data-hover="color:#191512">${COPY.crumbs.projects}</a>
-    <span style="color:rgba(25,21,18,.35);font-size:10px">→</span>
+    <a href="/app/projects" data-dir="back" style="${L};color:#4a4239" data-hover="color:#191512">${COPY.crumbs.projects}</a>
+    <span style="color:rgba(25,21,18,.35);font-size:12px">→</span>
     ${applyTab
-      ? `<a href="/app/accelerator" data-dir="back" style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em">${COPY.crumbs.name}</a>
-    <span style="color:rgba(25,21,18,.35);font-size:10px">→</span>
-    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#191512">${COPY.crumbs.mine}</span>`
-      : `<span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#191512">${COPY.crumbs.name}</span>`}
+      ? `<a href="/app/accelerator" data-dir="back" style="${L}">${COPY.crumbs.name}</a>
+    <span style="color:rgba(25,21,18,.35);font-size:12px">→</span>
+    <span style="${L};color:#191512">${COPY.crumbs.mine}</span>`
+      : `<span style="${L};color:#191512">${COPY.crumbs.name}</span>`}
   </div>
   <!-- /dc -->`;
 }
+// the two tabs as one segmented control (data-tabs keeps it lit and still while the tab changes)
 function blockTabs(applyTab) {
-  const on = 'font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22;white-space:nowrap';   // the underline is drawn by .mx-tab.is-on (app.css)
-  const off = 'font:600 10px Inter,sans-serif;letter-spacing:.15em;color:#4a4239;text-decoration:none;white-space:nowrap';
   return `
   <!-- dc: Accelerator.dc.html › "Tabs" -->
-  <div class="mx-tabs mx-gutter" data-tabs="accelerator" style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;border-bottom:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
-    ${applyTab ? `<a href="/app/accelerator" class="mx-tab" style="${off}" data-hover="color:#191512">${COPY.tabs.overview}</a>` : `<span class="mx-tab is-on" style="${on}" aria-current="page">${COPY.tabs.overview}</span>`}
-    ${applyTab ? `<span class="mx-tab is-on" style="${on}" aria-current="page">${COPY.tabs.apply}</span>` : `<a href="/app/accelerator/apply" class="mx-tab" style="${off}" data-hover="color:#191512">${COPY.tabs.apply}</a>`}
-  </div>
+  <nav class="mx-seg mx-ax-tabs" data-tabs="accelerator" aria-label="The Accelerator">
+    ${applyTab ? `<a href="/app/accelerator">${COPY.tabs.overview}</a>` : `<span class="is-on" aria-current="page">${COPY.tabs.overview}</span>`}
+    ${applyTab ? `<span class="is-on" aria-current="page">${COPY.tabs.apply}</span>` : `<a href="/app/accelerator/apply">${COPY.tabs.apply}</a>`}
+  </nav>
   <!-- /dc -->`;
 }
 
 // ---------------------------------------------------------------- overview blocks
+// FROZEN (DESIGN-RULES §8): the same data-acts (goApply · notify) and labels as before; the look is the house gold button
 function heroCta() {
   const state = openState(); const a = appState();
+  const cls = 'class="btn-gold btn-block" role="button"';
   if (state === 'open') {
     const label = a.kind === 'none' ? COPY.hero.start : (a.kind === 'draft' ? COPY.hero.resume : COPY.hero.view);
-    return `<span data-act="goApply" style="padding:13px 22px;background:#9b1b22;color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${label}</span>`;
+    return `<span data-act="goApply" ${cls}>${label}</span>`;
   }
   if (a.kind !== 'none' && a.kind !== 'draft') {
-    return `<span data-act="goApply" style="padding:13px 22px;background:#9b1b22;color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${COPY.hero.view}</span>`;
+    return `<span data-act="goApply" ${cls}>${COPY.hero.view}</span>`;
   }
-  return `<span data-act="notify" style="padding:13px 22px;background:#9b1b22;color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${st.notified ? COPY.hero.notified : COPY.hero.notify}</span>`;
+  return `<span data-act="notify" ${cls}>${st.notified ? COPY.hero.notified : COPY.hero.notify}</span>`;
 }
+// §6: eyebrow · title · one date line · ONE action
 function blockHero() {
   const state = openState();
-  const pill = state === 'open' ? COPY.hero.pillOpen(placementLabel())
-    : state === 'closed' ? COPY.hero.pillClosed(placementLabel())
-    : COPY.hero.pill(fmt.upper(esc(opensInfo().label)), placementLabel());
+  const date = state === 'open' ? COPY.hero.dateOpen : state === 'closed' ? COPY.hero.dateClosed : COPY.hero.date(esc(shortDate(opensInfo().at) || opensInfo().label));
   return `
   <!-- dc: Accelerator.dc.html › "Hero" -->
-  <div data-block="hero" class="mx-ink" style="position:relative;overflow:hidden">
-    <img class="mx-hero-photo" src="${COPY.hero.photo.src}" alt="${COPY.hero.photo.alt}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 85%">
-    <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(25,21,18,.72) 0%,rgba(25,21,18,.55) 55%,rgba(25,21,18,.85) 100%)"></div>
-    <div class="mx-pad-hero" style="position:relative;padding:54px 36px 44px;display:flex;flex-direction:column;align-items:center;text-align:center">
-      <span style="padding:6px 12px;border:1px solid rgba(201,169,98,.7);color:#c9a962;font:600 10px Inter,sans-serif;letter-spacing:.18em">${pill}</span>
-      <div class="mx-ax-display-52" style="font-family:Fraunces,serif;font-size:52px;line-height:1.08;color:#f7f1e6;margin-top:20px">${COPY.hero.title}</div>
-      <div style="font-size:15px;color:rgba(247,241,230,.85);margin-top:10px;max-width:560px">${esc(COPY.hero.sub(hostNames()))}</div>
-      <div data-role="hero-cta" style="display:flex;gap:13px;margin-top:26px;justify-content:center;flex-wrap:wrap">${heroCta()}</div>
-      <div style="display:flex;align-items:center;gap:10px;margin-top:20px">
-        <span data-act="tgFollow" role="switch" aria-checked="${st.follow}" aria-label="Get updates from the Accelerator" class="mx-switch"><span></span></span>
-        <span style="display:flex;flex-direction:column;gap:3px;text-align:left"><span data-role="follow-label" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.8)">${COPY.hero.followLine(st.follow)}</span><span style="font-size:10.5px;color:rgba(247,241,230,.5)">${COPY.hero.followSub}</span></span>
-      </div>
+  <section data-block="hero" class="mx-hero mx-ink mx-ax-hero">
+    <img class="mx-hero-photo" src="${COPY.hero.photo.src}" alt="${COPY.hero.photo.alt}" style="object-position:50% 85%">
+    <div class="mx-scrim"></div>
+    <div class="mx-hero-body">
+      <span class="mx-hero-eyebrow">${esc(placementLabel())}</span>
+      <h1 class="mx-hero-title">${COPY.hero.title}</h1>
+      <p class="mx-hero-date">${date}</p>
+      <div data-role="hero-cta" class="mx-hero-cta">${heroCta()}</div>
     </div>
+  </section>
+  <!-- /dc -->`;
+}
+// the countdown alone: "Applications open in · 51 days" (or NOW / CLOSED)
+function blockCountdown() {
+  const cd = countdownInfo();
+  return `
+  <!-- dc: Accelerator.dc.html › "Stats band" (countdown only; the facts live in the tiles) -->
+  <div class="mx-countdown mx-ax-cd" role="timer">
+    <span class="mx-cd-label">${cd.label}</span>
+    <span class="mx-cd-cell"><b class="mx-cd-num" data-cd="opendays">${cd.target ? daysTo(cd.target) : cd.big}</b>${cd.target ? `<i class="mx-cd-unit">${COPY.band.days}</i>` : ''}</span>
   </div>
   <!-- /dc -->`;
 }
-function blockBand() {
-  const cd = countdownInfo();
+function blockTiles() {
   const ov = D.overview || {};
-  const duration = ov.programDuration ? fmt.upper(esc(fmt.dash(ov.programDuration))) : COPY.band.duration;
-  const positions = COPY.band.positions(ov.positionsRange ? esc(fmt.dash(ov.positionsRange)) : '5–10');
-  const sep = '<span style="width:1px;height:18px;background:rgba(247,241,230,.25)"></span>';
+  const duration = ov.programDuration ? esc(fmt.dash(String(ov.programDuration).replace(/\s*weeks?\s*/i, ''))) : COPY.band.duration;
+  const positions = ov.positionsRange ? esc(fmt.dash(ov.positionsRange)) : '5–10';
+  const region = hostRegion();
+  const tile = (n, l, cls) => `<div class="mx-tile${cls ? ' ' + cls : ''}"><span class="mx-tile-n">${n}</span><span class="mx-tile-l">${l}</span></div>`;
   return `
-  <!-- dc: Accelerator.dc.html › "Stats band" -->
-  <div class="mx-ax-band mx-pad-band" style="display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 36px;background:#191512;color:#f7f1e6;flex-wrap:wrap">
-    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.18em;color:#c9a962">${cd.label}</span>
-    <span style="display:flex;align-items:baseline;gap:6px"><span data-cd="opendays" style="font-family:Fraunces,serif;font-size:24px">${cd.target ? daysTo(cd.target) : cd.big}</span>${cd.target ? `<span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.65)">${COPY.band.days}</span>` : ''}</span>
-    <span class="mx-band-break" aria-hidden="true"></span>
-    ${sep}
-    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.9)">${duration}</span>
-    ${sep}
-    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.9)">${COPY.band.hosts(D.hosts.length, hostRegion())}</span>
-    ${sep}
-    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.9)">${positions}</span>
-    ${sep}
-    <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">${COPY.band.stipend}</span>
-  </div>
-  <!-- /dc -->`;
+  <section class="mx-sec mx-sec--tight" data-block="tiles">
+    <div class="mx-tiles mx-ax-tiles">
+      ${tile(duration, COPY.band.weeks)}
+      ${tile(esc(String(D.hosts.length)), region ? COPY.band.hostsIn(region) : COPY.band.hosts)}
+      ${tile(positions, COPY.band.places)}
+      ${tile(COPY.band.stipend, COPY.band.stipendL, 'mx-ax-tile-money')}
+    </div>
+  </section>`;
 }
 // a host card just re-drawn takes focus back (its tabindex is normally added a beat later by ui.js)
 function focusCard(i) {
@@ -547,189 +546,142 @@ function focusCard(i) {
   if (!card.hasAttribute('tabindex')) { card.setAttribute('tabindex', '0'); card.setAttribute('role', 'button'); }
   try { card.focus({ preventScroll: true }); } catch (e) {}
 }
-// 'USA' · 'EUROPE' · 'USA &amp; EUROPE' from the hosts' own countries ('' when none is on file)
+// 'USA' · 'Europe' · 'USA & Europe' from the hosts' own countries ('' when none is on file)
 function hostRegion() {
   const cs = (D.hosts || []).map(h => String(h.country || '').trim()).filter(Boolean);
   if (!cs.length) return '';
   const us = cs.filter(c => /^(usa|us|u\.s\.a?\.?|united states( of america)?|america)$/i.test(c)).length;
-  return us === cs.length ? 'USA' : us ? 'USA &amp; EUROPE' : 'EUROPE';
+  return us === cs.length ? 'USA' : us ? 'USA &amp; Europe' : 'Europe';
 }
+// institutions are not people: a 44 SQUARE ink tile with the initials (or the logo), never a circle
 function hostCards() {
-  const cards = D.hosts.map((h, i) => `
-      <div data-act="pickHost" data-i="${i}" aria-expanded="${st.host === i}" class="mx-card-link is-small" style="border:1px solid ${st.host === i ? '#191512' : 'rgba(25,21,18,.16)'};background:#fdfaf3;padding:16px;display:flex;gap:13px;align-items:center;cursor:pointer" data-hover="border-color:#191512">
-        ${h.logo ? `<img src="${esc(h.logo)}" alt="" style="width:46px;height:46px;object-fit:contain;background:#191512;flex:none">` : `<span style="width:46px;height:46px;background:#191512;color:#c9a962;display:inline-flex;align-items:center;justify-content:center;font:600 ${String(h.abbr || '').length > 4 ? 8.5 : 11}px Fraunces,serif;flex:none;overflow:hidden;text-align:center;line-height:1">${esc(h.abbr)}</span>`}
-        <span style="min-width:0"><span style="display:block;font-family:Fraunces,serif;font-size:14.5px;line-height:1.2">${esc(h.name)}</span><span style="display:block;font-size:11px;color:#4a4239;margin-top:2px">${esc(h.city)}</span></span>
-      </div>`).join('');
-  const h = st.host !== null ? D.hosts[st.host] : null;
-  return `<div class="mx-ax-hosts" style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;padding-bottom:14px">${cards}</div>${h ? hostDetail(h) : ''}`;
+  const rows = D.hosts.map((h, i) => `
+      <div data-act="pickHost" data-i="${i}" aria-expanded="${st.host === i}" class="mx-row mx-ax-host${st.host === i ? ' is-open' : ''}">
+        ${h.logo ? `<img class="mx-ax-hostmark" src="${esc(h.logo)}" alt="">` : `<span class="mx-ax-hostmark" aria-hidden="true">${esc(h.abbr)}</span>`}
+        <span class="mx-row-l">${esc(h.name)}${h.city ? `<span class="mx-row-s">${esc(h.city)}</span>` : ''}</span>
+        ${icon(st.host === i ? 'chevron-down' : 'chevron-right', 18)}
+      </div>${st.host === i ? hostDetail(h) : ''}`).join('');
+  return `<div class="mx-list mx-list--plain mx-ax-hosts">${rows}</div>`;
 }
-// One drawer per host: the eight rows the page promises (blank → "Details coming") plus any of the
-// year-detail extras the admin has actually filled in.
+// One drawer per host: every field the public endpoints carry that holds something, one row each; what is not
+// filled in yet is said once.
 function hostDetail(h) {
   const c = COPY.program.detail;
-  const soon = `<span style="color:#9b8f80;font-style:italic">${c.soon}</span>`;
   const value = key => {
     if (key === 'about') return h.blurb ? esc(h.blurb) : '';
     if (key === 'spots') return h.spots !== null && !isNaN(h.spots) ? esc(COPY.program.positions(h.spots)) : '';
     if (key === 'year') return h.year ? esc(String(h.year)) : '';
-    if (key === 'website') return h.website ? `<a href="${esc(h.website)}" target="_blank" rel="noopener" style="color:#9b1b22">${esc(h.website.replace(/^https?:\/\//, '').replace(/\/$/, ''))} ↗</a>` : '';
+    if (key === 'website') return h.website ? `<a href="${esc(h.website)}" target="_blank" rel="noopener">${esc(h.website.replace(/^https?:\/\//, '').replace(/\/$/, ''))} ↗</a>` : '';
     return h[key] ? esc(h[key]) : '';
   };
-  const row = ([key, label], v) => `
-      <div style="display:flex;gap:16px;align-items:baseline;padding:8px 0;border-top:1px solid rgba(25,21,18,.1)">
-        <span style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#4a4239;flex:none;width:120px">${label}</span>
-        <span style="font-size:12.5px;color:#191512;line-height:1.55;flex:1;min-width:0;overflow-wrap:anywhere">${v || soon}</span>
-      </div>`;
+  const row = ([, label], v) => `<div class="mx-ax-dl"><span class="mx-ax-dt">${label}</span><span class="mx-ax-dd">${v}</span></div>`;
   const filled = c.rows.map(r => [r, value(r[0])]).filter(x => x[1]);
-  const rows = filled.map(([r, v]) => row(r, v)).join('')
-    + (filled.length < c.rows.length ? `<div style="padding:9px 0 3px;border-top:1px solid rgba(25,21,18,.1);font-size:12px;color:#6d6459;font-style:italic;line-height:1.5">${esc(c.more(opensInfo().label))}</div>` : '');
   const extras = c.extra.map(r => [r, value(r[0])]).filter(x => x[1]).map(([r, v]) => row(r, v)).join('');
   return `
-    <div data-block="host-detail" class="mx-reveal" tabindex="-1" aria-label="${esc(h.name)}" style="border:1px solid rgba(25,21,18,.16);border-left:3px solid #9b1b22;background:#fdfaf3;padding:16px 20px 12px;margin-bottom:14px">
-      <div style="display:flex;gap:14px;align-items:baseline;padding-bottom:8px">
-        <span style="font-family:Fraunces,serif;font-size:17px;flex:1;min-width:0">${esc(h.name)}${h.city ? `<span style="font-family:Inter,sans-serif;font-size:11.5px;color:#4a4239"> · ${esc(h.city)}</span>` : ''}</span>
-        <span data-act="closeHost" role="button" aria-label="Close" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#4a4239;cursor:pointer;flex:none">${c.close} ×</span>
-      </div>
-      <div class="mx-ax-hostrows">${rows}${extras}</div>
-    </div>`;
+      <div data-block="host-detail" class="mx-reveal mx-ax-hostdetail" tabindex="-1" aria-label="${esc(h.name)}">
+        ${filled.map(([r, v]) => row(r, v)).join('')}${extras}
+        ${filled.length < c.rows.length ? `<p class="mx-ax-note">${esc(c.more(opensInfo().label))}</p>` : ''}
+        <span data-act="closeHost" role="button" class="mx-ax-textbtn">${c.close}</span>
+      </div>`;
 }
 function blockProgram() {
   const about = (D.overview && D.overview.aboutProgram) ? esc(D.overview.aboutProgram) : COPY.program.body;
   return `
   <!-- dc: Accelerator.dc.html › "01 · THE PROGRAM" -->
-  <div class="mx-gutter" style="padding:0 36px">
-    <div style="display:flex;align-items:baseline;gap:14px;padding:26px 0 10px">
-      <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.program.n}</span>
-      <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.program.title}</span>
-    </div>
-    <div style="font-size:13.5px;color:#4a4239;line-height:1.65;max-width:68ch">${about}</div>
-    <div class="mx-wrap-row" style="display:flex;align-items:baseline;gap:14px;padding:16px 0 8px"><span style="font:600 11px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">${COPY.program.whoTitle}</span><span style="font-size:12px;color:#4a4239">${COPY.program.whoSub}</span></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;padding:0 0 18px">
-      ${COPY.program.chips.map(c => `<span class="mx-ax-chip" style="padding:6px 11px;border:1px solid rgba(25,21,18,.22);font:600 9.5px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${c}</span>`).join('\n      ')}
-      <span style="padding:6px 11px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 9.5px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${COPY.program.chipGold}</span>
-    </div>
-    <!-- dc: Accelerator.dc.html › "HOST LABS & CLINICS" -->
-    <div id="acc-hosts" class="mx-wrap-row" style="display:flex;align-items:baseline;gap:14px;padding:4px 0 12px">
-      <span style="font:600 11px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">${COPY.program.hostsTitle}</span>
-      <span style="font-size:12px;color:#4a4239">${COPY.program.hostsSub}</span>
-    </div>
+  <section class="mx-sec" data-block="program">
+    ${sectionHead(COPY.program.n, COPY.program.title)}
+    <p class="mx-ax-statement">${COPY.program.line}</p>
+    <div class="mx-accs"><details class="mx-acc"><summary>${COPY.program.more}</summary><div class="mx-acc-a">${about}</div></details></div>
+    <h3 class="mx-ax-h3">${COPY.program.whoTitle}</h3>
+    ${checks(COPY.program.eligible)}
+  </section>
+  <!-- /dc -->
+  <!-- dc: Accelerator.dc.html › "HOST LABS & CLINICS" -->
+  <section class="mx-sec" id="acc-hosts" data-block="hosts-sec">
+    ${sectionHead('', COPY.program.hostsTitle, `<span class="mx-tag mx-tag--soft">${esc(String(D.hosts.length))}</span>`)}
+    <p class="mx-sh-sub">${COPY.program.hostsSub}</p>
     <div data-block="hosts">${hostCards()}</div>
-    <!-- /dc -->
-    <div style="padding-bottom:14px"></div>
-  </div>
+  </section>
   <!-- /dc -->`;
 }
 function blockIncluded() {
   return `
   <!-- dc: Accelerator.dc.html › "02 · WHAT'S INCLUDED" -->
-  <div class="mx-gutter" style="padding:0 36px">
-    <div style="display:flex;align-items:baseline;gap:14px;padding:24px 0 14px">
-      <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.included.n}</span>
-      <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.included.title}</span>
-    </div>
-  </div>
-  <div class="mx-pad-36" style="background:#191512;color:#f7f1e6;padding:30px 36px 32px;display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center">
-    <span style="display:flex;align-items:baseline;gap:12px;justify-content:center;flex-wrap:wrap"><span style="font-family:Fraunces,serif;font-size:36px;color:#c9a962">${COPY.included.stipend}</span><span style="font-size:13px;color:rgba(247,241,230,.7)">${COPY.included.stipendSub}</span></span>
-    <span style="display:flex;gap:9px;flex-wrap:wrap;justify-content:center;font:600 9px Inter,sans-serif;letter-spacing:.14em">
-      ${COPY.included.chips.map(c => `<span style="padding:6px 11px;border:1px solid rgba(247,241,230,.25);color:rgba(247,241,230,.85);white-space:nowrap">${c}</span>`).join('\n      ')}
-    </span>
-  </div>
+  <section class="mx-sec" data-block="included">
+    ${sectionHead(COPY.included.n, COPY.included.title)}
+    ${checks(COPY.included.items)}
+  </section>
   <!-- /dc -->`;
 }
 function blockSelection() {
   return `
   <!-- dc: Accelerator.dc.html › "03 · HOW SELECTION WORKS" -->
-    <div id="acc-selection" style="display:flex;align-items:baseline;gap:14px;padding:24px 0 14px">
-      <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.selection.n}</span>
-      <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.selection.title}</span>
-    </div>
-    <div class="mx-ax-selection" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px">
-      ${COPY.selection.steps(esc(opensInfo().label)).map(s => `
-      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:18px;display:flex;flex-direction:column;gap:6px">
-        <span style="font-family:Fraunces,serif;font-size:22px;color:#9b1b22">${s.n}</span>
-        <span style="font-family:Fraunces,serif;font-size:15.5px">${esc(s.t)}</span>
-        <span style="font-size:12px;color:#4a4239;line-height:1.5">${s.d}</span>
-      </div>`).join('')}
-    </div>
-    <div style="font-family:Fraunces,serif;font-style:italic;font-size:13.5px;color:#4a4239;padding:14px 0 22px">${COPY.selection.note}</div>
+  <section class="mx-sec" id="acc-selection" data-block="selection">
+    ${sectionHead(COPY.selection.n, COPY.selection.title)}
+    <ol class="mx-timeline mx-ax-steps">${COPY.selection.steps(esc(shortDate(opensInfo().at) || opensInfo().label)).map(s => `
+      <li class="mx-tl-row"><span class="mx-tl-time mx-ax-stepn">${s.n}</span><div class="mx-tl-body"><span class="mx-tl-title">${esc(s.t)}</span><span class="mx-tl-sub">${s.d}</span></div></li>`).join('')}
+    </ol>
+    <p class="mx-ax-note">${COPY.selection.note}</p>
+  </section>
   <!-- /dc -->`;
 }
+// the application card keeps every state and every action it had, fee payment and the preview link included
 function applicationCard() {
   const state = openState(); const a = appState();
-  const ghost = 'padding:10px 16px;border:1px solid rgba(25,21,18,.3);font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#191512;cursor:pointer;white-space:nowrap;text-decoration:none';
-  const primary = 'padding:10px 16px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap';
-  const previewBtn = `<a href="/app/accelerator/apply?preview=1" style="${ghost}" data-hover="border-color:#191512">${COPY.application.preview}</a>`;
+  const previewBtn = `<a href="/app/accelerator/apply?preview=1" class="btn-ghost btn-sm">${COPY.application.preview}</a>`;
+  const card = (tags, line, why, actions, foot) => `
+        <div class="mx-ax-app">
+          ${tags ? `<div class="mx-ax-apptags">${tags}</div>` : ''}
+          <span class="mx-ax-appline">${line}</span>
+          <span class="mx-ax-appwhy">${why}</span>
+          <div class="mx-ax-appact">${actions}</div>
+          ${foot ? `<span class="mx-ax-note">${foot}</span>` : ''}
+        </div>`;
   if (a.kind === 'none' || (a.kind === 'draft' && state !== 'open' && !a.row && !draftHasContent(draftValues()))) {
     const line = state === 'open' ? COPY.application.noneOpenLine : state === 'closed' ? COPY.application.closedLine : COPY.application.noneLine(esc(opensInfo().label));
     const actions = state === 'open'
-      ? `<span data-act="goApply" style="${primary}" data-hover="background:#7e151b">${COPY.application.start}</span>`
-      : `<span data-act="notify" style="${primary}" data-hover="background:#7e151b">${st.notified ? COPY.application.notified : COPY.application.notify}</span>${previewBtn}`;
-    return `
-        <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:24px;display:flex;flex-direction:column;align-items:center;gap:9px;text-align:center">
-          <span style="width:28px;height:1px;background:#c9a962"></span>
-          <span style="font-family:Fraunces,serif;font-style:italic;font-size:17px;color:#4a4239">${line}</span>
-          <span style="font-size:12.5px;color:#4a4239;max-width:380px">${state === 'open' ? COPY.application.openWhy : COPY.application.noneWhy}</span>
-          <span style="margin-top:6px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:center">${actions}</span>
-        </div>`;
+      ? `<span data-act="goApply" role="button" class="btn-primary btn-sm">${COPY.application.start}</span>`
+      : `<span data-act="notify" role="button" class="btn-ghost btn-sm">${st.notified ? COPY.application.notified : COPY.application.notify}</span>${previewBtn}`;
+    return card('', line, state === 'open' ? COPY.application.openWhy : COPY.application.noneWhy, actions);
   }
   if (a.kind === 'draft') {
     const pct = a.pct !== undefined ? a.pct : 0;
-    return `
-        <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:24px;display:flex;flex-direction:column;align-items:center;gap:9px;text-align:center">
-          <span style="padding:3px 9px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 9px Inter,sans-serif;letter-spacing:.14em">${COPY.application.statusWord.draft}</span>
-          <span style="font-family:Fraunces,serif;font-style:italic;font-size:17px;color:#4a4239">${COPY.application.draftLine(pct)}</span>
-          <span style="font-size:12.5px;color:#4a4239;max-width:380px">${COPY.application.draftWhy}</span>
-          <span style="margin-top:6px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:center"><span data-act="goApply" style="${primary}" data-hover="background:#7e151b">${COPY.application.resume}</span></span>
-        </div>`;
+    return card(`<span class="mx-tag mx-tag--gold">${COPY.application.statusWord.draft}</span>`, COPY.application.draftLine(pct), COPY.application.draftWhy,
+      `<span data-act="goApply" role="button" class="btn-primary btn-sm">${COPY.application.resume}</span>`);
   }
   const row = a.row; const s = a.kind; const num = row.application_number || 'Your application';
   const when = row.submitted_at || row.created_at ? fmt.longRange(String(row.submitted_at || row.created_at).slice(0, 10)) : '';
   const chipWord = s === 'result' ? COPY.application.statusWord[a.decision] : s === 'review' ? COPY.application.statusWord.review : COPY.application.statusWord.submitted;
-  const chipStyle = s === 'result' ? 'border:1px solid rgba(201,169,98,.85);color:#6e5626' : 'border:1px solid rgba(201,169,98,.65);color:#6e5626';
   const line = s === 'result' ? COPY.application.resultLine : COPY.application.subLine(esc(num), when ? esc(when) : '');
   const why = s === 'result' ? COPY.application.resultWhy : s === 'review' ? COPY.application.reviewWhy : COPY.application.subWhy;
   const feePending = String(row.status) === 'submitted' && String(row.payment_status || '') !== 'paid';
-  return `
-        <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:24px;display:flex;flex-direction:column;align-items:center;gap:9px;text-align:center">
-          <span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center">
-            <span style="padding:3px 9px;${chipStyle};font:600 9px Inter,sans-serif;letter-spacing:.14em">${s === 'result' ? 'RESULT AVAILABLE' : chipWord}</span>
-            ${s === 'result' ? `<span style="padding:3px 9px;border:1px solid rgba(25,21,18,.25);color:#191512;font:600 9px Inter,sans-serif;letter-spacing:.14em">${chipWord}</span>` : ''}
-            ${row.institution_name ? `<span style="font-size:11px;color:#4a4239">${esc(row.institution_name)}</span>` : ''}
-          </span>
-          <span style="font-family:Fraunces,serif;font-style:italic;font-size:17px;color:#4a4239">${line}</span>
-          <span style="font-size:12.5px;color:#4a4239;max-width:400px">${why}</span>
-          <span style="margin-top:6px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:center">
-            <span data-act="goApply" style="${ghost}" data-hover="border-color:#191512">${COPY.application.view}</span>
-            ${feePending ? `<span data-act="payFee" data-app="${esc(row.id)}" style="${primary}" data-hover="background:#7e151b">${COPY.application.payFee}</span>` : ''}
-          </span>
-          ${feePending ? `<span style="font-size:11px;color:#4a4239">${COPY.application.feeNote}</span>` : ''}
-        </div>`;
+  const tags = `<span class="mx-tag mx-tag--gold">${s === 'result' ? COPY.application.resultAvail : chipWord}</span>${s === 'result' ? `<span class="mx-tag mx-tag--soft">${chipWord}</span>` : ''}${row.institution_name ? `<span class="mx-ax-appinst">${esc(row.institution_name)}</span>` : ''}`;
+  return card(tags, line, why,
+    `<span data-act="goApply" role="button" class="btn-ghost btn-sm">${COPY.application.view}</span>
+            ${feePending ? `<span data-act="payFee" data-app="${esc(row.id)}" role="button" class="btn-primary btn-sm">${COPY.application.payFee}</span>` : ''}`,
+    feePending ? COPY.application.feeNote : '');
 }
 function resultsBlock() {
   if (!st.results) return '';
   const rows = st.results.rows;
-  if (!rows.length) return `<div data-v2="results" class="mx-ax-results" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:14px 18px;margin-bottom:14px;font-size:12.5px;color:#4a4239">${COPY.results.none}</div>`;
+  if (!rows.length) return `<div data-v2="results" class="mx-ax-results mx-ax-note">${COPY.results.none}</div>`;
   const mineNums = new Set(D.mine.map(r => r.application_number).filter(Boolean));
-  const cell = 'padding:8px 12px;font-size:12px;color:#191512;border-bottom:1px solid rgba(25,21,18,.1)';
   const num = v => (v === null || v === undefined || v === '' || isNaN(Number(v))) ? '—' : Number(v).toFixed(1);
   return `
-      <div data-v2="results" class="mx-ax-results" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;margin-bottom:14px">
-        <div style="display:flex;align-items:baseline;gap:10px;padding:12px 18px;border-bottom:1px solid rgba(25,21,18,.16)">
-          <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22">${COPY.results.title(st.results.year || '')}</span>
-          <span style="font-size:11.5px;color:#4a4239">${COPY.results.note}</span>
-        </div>
+      <div data-v2="results" class="mx-ax-results">
+        <div class="mx-ax-results-h"><span class="mx-ax-h3">${COPY.results.title(st.results.year || '')}</span><span class="mx-ax-note">${COPY.results.note}</span></div>
         <table>
-          <thead><tr>${COPY.results.cols.map(c => `<th style="${cell};font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#4a4239;text-align:left;white-space:nowrap">${c}</th>`).join('')}</tr></thead>
+          <thead><tr>${COPY.results.cols.map(c => `<th>${c}</th>`).join('')}</tr></thead>
           <tbody>
           ${rows.map((r, i) => {
             const own = mineNums.has(r.application_number);
-            return `<tr${own ? ' style="background:#f7efdf"' : ''}>
-              <td style="${cell};font-family:Fraunces,serif;font-size:14px">${esc(r.rank_position || i + 1)}</td>
-              <td style="${cell};font:600 11px Inter,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:.06em">${esc(r.application_number || '—')}${own ? ` <span style="font:600 8px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22">${COPY.results.yours}</span>` : ''}</td>
-              <td style="${cell}">${num(r.objective_score)}</td>
-              <td style="${cell}">${num(r.interview_score)}</td>
-              <td style="${cell};font-weight:600">${num(r.total_score)}</td>
-              <td style="${cell};font:600 9px Inter,sans-serif;letter-spacing:.14em;color:${r.status === 'accepted' ? '#6e5626' : r.status === 'waitlisted' ? '#4a4239' : '#9b8f80'}">${esc(fmt.upper(r.status || '—'))}</td>
+            return `<tr${own ? ' class="is-own"' : ''}>
+              <td class="mx-ax-rank">${esc(r.rank_position || i + 1)}</td>
+              <td class="mx-ax-num">${esc(r.application_number || '—')}${own ? ` <span class="mx-ax-yours">${COPY.results.yours}</span>` : ''}</td>
+              <td>${num(r.objective_score)}</td>
+              <td>${num(r.interview_score)}</td>
+              <td><strong>${num(r.total_score)}</strong></td>
+              <td>${esc(r.status || '—')}</td>
             </tr>`;
           }).join('')}
           </tbody>
@@ -739,17 +691,16 @@ function resultsBlock() {
 function blockApplication() {
   return `
   <!-- dc: Accelerator.dc.html › "04 · YOUR APPLICATION" -->
-    <div style="border-top:1px solid rgba(25,21,18,.16);padding-bottom:8px">
-      <div data-block="application">${appSectionInner()}</div>
+  <section class="mx-sec" data-block="application-sec">
+    <div data-block="application">${appSectionInner()}</div>
+    <div class="mx-list mx-ax-followrow">
+      <div class="mx-row" data-block="follow">${icon('bell')}<span class="mx-row-l">${COPY.hero.followTitle}<span class="mx-row-s" data-role="follow-label">${COPY.hero.followSub(st.follow)}</span></span><span data-act="tgFollow" role="switch" aria-checked="${st.follow}" aria-label="Get updates from the Accelerator" class="mx-switch"><span></span></span></div>
+    </div>
+  </section>
   <!-- /dc -->`;
 }
-// Fellows come from v2_accelerator_alumni and NOWHERE else. There used to be a COPY fallback list
-// of eight names plus a hardcoded "18 fellows" footer, so the member page named four real people
-// and claimed a cohort size while the admin's own list said "No fellows entered yet" (audit W6).
-// The block is hidden entirely when the table is empty — see blockTeam().
-// Every fellow, grouped by cohort year (newest first), "Name — Institution, City". The API already
-// orders by year DESC, sort_order, name; the grouping here only adds the year headings.
-function fellowsList() {
+// Fellows come from v2_accelerator_alumni and NOWHERE else (audit W6): one accordion per class, newest first.
+function cohortAccordions() {
   const list = D.alumni || [];
   const groups = [];
   list.forEach(f => {
@@ -758,103 +709,68 @@ function fellowsList() {
     if (!g) { g = { key, rows: [] }; groups.push(g); }
     g.rows.push(f);
   });
-  return `
-            <div style="display:flex;align-items:baseline;gap:10px">
-              <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.18em;color:#c9a962">${COPY.cohorts.fellowsLabel(yearRange(D.alumniYears))}</span>
-            </div>
-            <div class="mx-ax-fellows mx-ax-cohortcols" style="display:grid;grid-template-columns:repeat(${Math.min(groups.length, 4) || 1},1fr);gap:0 28px;margin-top:12px">
-              ${groups.map(g => `
-              <div>
-                <div style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:rgba(247,241,230,.55);padding-bottom:4px;border-bottom:1px solid rgba(201,169,98,.45)">${g.key ? COPY.cohorts.classOf(g.key) : COPY.cohorts.unknownYear}</div>
-                ${g.rows.map(f => `
-                <div style="padding:7px 0;border-bottom:1px solid rgba(247,241,230,.1);line-height:1.35">
-                  <span style="font-family:Fraunces,serif;font-size:14px;display:block">${esc(f.name)}</span>
-                  ${f.where ? `<span style="font-size:11px;color:rgba(247,241,230,.6);display:block">${esc(f.where)}</span>` : ''}
-                </div>`).join('')}
-              </div>`).join('')}
-            </div>
-            <div style="font-size:10.5px;color:rgba(247,241,230,.5);padding-top:12px">${esc(COPY.cohorts.foot(list.length, D.alumniYears))}</div>`;
+  return `<div class="mx-accs" data-block="fellows">${groups.map((g, i) => `
+      <details class="mx-acc"${i === 0 ? '' : ''}><summary>${g.key ? COPY.cohorts.classOf(g.key) : COPY.cohorts.unknownYear}<span class="mx-ax-count">${esc(COPY.cohorts.count(g.rows.length))}</span></summary>
+        <div class="mx-acc-a"><ul class="mx-ax-fellows">${g.rows.map(f => `<li><span class="mx-ax-fname">${esc(f.name)}</span>${f.where ? `<span class="mx-ax-fwhere">${esc(f.where)}</span>` : ''}</li>`).join('')}</ul></div>
+      </details>`).join('')}</div>`;
 }
 function blockTeam() {
   return `
   <!-- dc: Accelerator.dc.html › "05 · THE TEAM" -->
-      <div>
-        <div style="display:flex;align-items:baseline;gap:14px;padding:24px 0 8px">
-          <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.team.n}</span>
-          <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.team.title}</span>
-        </div>
-        ${COPY.team.people.map((p, i) => `
-        <div style="display:flex;gap:16px;align-items:center;padding:10px 0;${i < COPY.team.people.length - 1 ? 'border-bottom:1px solid rgba(25,21,18,.12)' : ''}">
-          <span style="width:36px;height:36px;background:${p.bg};color:${p.fg};display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif;flex:none">${p.init}</span>
-          <span style="flex:1"><span style="display:block;font-size:13.5px;font-weight:600">${esc(p.name)}</span><span style="display:block;font-size:11.5px;color:#4a4239">${p.role}</span></span>
-        </div>`).join('')}
-        <!-- dc: Accelerator.dc.html › "PREVIOUS COHORTS" -->
-        ${/* The fellows panel renders ONLY from v2_accelerator_alumni; with the table empty the
-              column is dropped and the two cohort photos take the full width (audit W6). */''}
-        <div class="mx-wrap-row" style="display:flex;align-items:baseline;gap:14px;padding:20px 0 10px">
-          <span style="font:600 11px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">${COPY.cohorts.title}</span>
-          <span style="font-size:12px;color:#4a4239">${hasAlumni() ? COPY.cohorts.sub : COPY.cohorts.subNoNames}</span>
-        </div>
-        ${hasAlumni() ? `
-        <div style="background:#191512;color:#f7f1e6;padding:20px 24px 16px;margin-bottom:12px">
-          <div data-block="fellows" style="display:flex;flex-direction:column">${fellowsList()}</div>
-        </div>` : ''}
-        <div class="mx-ax-cohorts" style="display:grid;grid-template-columns:repeat(3,1fr);grid-auto-rows:${hasAlumni() ? '150px' : '220px'};gap:12px;padding-bottom:24px">
-          ${COPY.cohorts.photos.map(p => `
-          <div style="position:relative;overflow:hidden;background:repeating-linear-gradient(45deg,rgba(25,21,18,.08) 0 10px,rgba(25,21,18,.03) 10px 20px)"><img data-role="cohort-photo" src="${p.src}" alt="${p.alt}" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:${p.pos};display:block"></div>`).join('')}
-        </div>
-        <!-- /dc -->
-      </div>
+  <section class="mx-sec" data-block="team">
+    ${sectionHead(COPY.team.n, COPY.team.title)}
+    <div class="mx-person-rows">
+      ${COPY.team.people.map(p => `<div class="mx-person-row">${ui.portrait({ name: p.name.replace(/,\s*MD$/, ''), size: 44, alt: '' })}<span class="mx-person-text"><span class="mx-person-name">${esc(p.name)}</span><span class="mx-person-role">${p.role}</span></span></div>`).join('')}
     </div>
+  </section>
+  <!-- /dc -->
+  <!-- dc: Accelerator.dc.html › "PREVIOUS COHORTS" -->
+  <section class="mx-sec" data-block="cohorts">
+    ${sectionHead('', COPY.cohorts.title, hasAlumni() ? `<span class="mx-tag mx-tag--soft">${esc(COPY.cohorts.count(D.alumni.length))}</span>` : '')}
+    ${hasAlumni() ? cohortAccordions() : `<p class="mx-sh-sub">${COPY.cohorts.subNoNames}</p>`}
+    <div class="mx-shelf mx-ax-shelf" style="--w:260px">
+      ${COPY.cohorts.photos.map(p => `<div class="mx-shelf-item"><div class="mx-media r-4x3"><img data-role="cohort-photo" src="${p.src}" alt="${p.alt}" loading="lazy" style="object-position:${p.pos}"></div></div>`).join('')}
+    </div>
+  </section>
   <!-- /dc -->`;
 }
-function faqRows() {
-  const list = D.faq || COPY.faq.list(esc(opensInfo().label));
-  return list.map((f, i) => `
-        <div style="border-bottom:1px solid rgba(25,21,18,.12)">
-          <div data-act="faq" data-i="${i}" aria-expanded="${st.faqOpen === i}" style="display:flex;gap:12px;align-items:center;padding:11px 0;cursor:pointer" data-hover="color:#9b1b22"><span style="font-size:13px;flex:1">${D.faq ? esc(f.q) : f.q}</span><span style="color:#9b1b22;font-size:11px">${st.faqOpen === i ? '▲' : '▾'}</span></div>
-          ${st.faqOpen === i ? `<div class="mx-reveal" style="font-size:12.5px;color:#4a4239;line-height:1.6;padding:0 0 14px;max-width:520px">${D.faq ? esc(f.a) : f.a}</div>` : ''}
-        </div>`).join('');
-}
 function blockFaq() {
+  const list = D.faq || COPY.faq.list(esc(opensInfo().label));
   return `
   <!-- dc: Accelerator.dc.html › "06 · FREQUENTLY ASKED" -->
-    <div style="border-top:1px solid rgba(25,21,18,.16)">
-      <div style="display:flex;align-items:baseline;gap:14px;padding:24px 0 8px">
-        <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.faq.n}</span>
-        <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.faq.title}</span>
-      </div>
-      <div data-block="faq" class="mx-ax-faq" style="display:grid;grid-template-columns:1fr 1fr;gap:0 44px;align-items:start;padding-bottom:24px">${faqRows()}</div>
+  <section class="mx-sec" data-block="faq-sec">
+    ${sectionHead(COPY.faq.n, COPY.faq.title)}
+    <div data-block="faq" class="mx-accs">${list.map(f => `
+      <details class="mx-acc"><summary>${D.faq ? esc(f.q) : f.q}</summary><div class="mx-acc-a">${D.faq ? esc(f.a) : f.a}</div></details>`).join('')}
     </div>
+  </section>
   <!-- /dc -->`;
 }
 function blockFooter() {
   return `
   <!-- dc: Accelerator.dc.html › "Footer · MESSAGE US" -->
-  <div class="mx-gutter mx-wrap-row" style="display:flex;align-items:center;gap:20px;padding:18px 36px 30px;border-top:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
-    <span style="font-family:Fraunces,serif;font-style:italic;font-size:16px;color:#4a4239">${COPY.footer.line}</span>
-    <span style="font-size:12px;color:#4a4239">${COPY.footer.sub}</span>
-    <div style="flex:1"></div>
-    <a href="/app/messages?about=accelerator" style="padding:10px 16px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.footer.cta}</a>
-  </div>
+  <section class="mx-sec">
+    <div class="mx-list"><a class="mx-row" href="/app/messages?about=accelerator">${icon('mail')}<span class="mx-row-l">${COPY.footer.ask}<span class="mx-row-s">${COPY.footer.sub}</span></span>${chev()}</a></div>
+  </section>
   <!-- /dc -->`;
 }
 function overviewTemplate() {
   return `
-<div data-screen-label="Accelerator" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
+<div data-screen-label="Accelerator" class="mx-ax">
   ${blockCrumbs(false)}
-  ${blockTabs(false)}
   ${blockHero()}
-  ${blockBand()}
-  ${blockProgram()}
-  ${blockIncluded()}
-  <div class="mx-gutter" style="padding:0 36px">
+  ${blockCountdown()}
+  <div class="mx-p">
+    <section class="mx-sec mx-sec--tight">${blockTabs(false)}</section>
+    ${blockTiles()}
+    ${blockProgram()}
+    ${blockIncluded()}
     ${blockSelection()}
     ${blockApplication()}
     ${blockTeam()}
     ${blockFaq()}
+    ${blockFooter()}
   </div>
-  ${blockFooter()}
 </div>`;
 }
 
@@ -933,7 +849,7 @@ function blockWizHeader(preview) {
   const state = openState();
   const sub = W.submitted ? COPY.wiz.subDone : (!preview && openState() !== 'open' && appState().kind !== 'draft') ? COPY.wiz.subSoon : COPY.wiz.sub;
   // DRAFT · NOT YET SUBMITTED only where a draft can exist (applications open, or one already saved); before
-  // opening the badge says when they open, and the line beside it is not repeated
+  // opening the tag says when they open, and the line under it does not repeat it
   const gate = !W.submitted && !preview && state !== 'open' && appState().kind !== 'draft';
   const pill = W.submitted
     ? COPY.wiz.pillSubmitted(W.submitted.submitted_at || W.submitted.created_at ? fmt.longRange(String(W.submitted.submitted_at || W.submitted.created_at).slice(0, 10)) : '')
@@ -942,38 +858,31 @@ function blockWizHeader(preview) {
     : COPY.wiz.pillDraft;
   const right = gate ? ''
     : state === 'open'
-    ? (D.intake && D.intake.closes_at ? COPY.wiz.closes(fmt.upper(esc(zagrebDate(D.intake.closes_at)))) : COPY.wiz.open)
-    : state === 'closed' ? COPY.wiz.closed
-    : COPY.wiz.opens(fmt.upper(esc(opensInfo().label)));
+    ? (D.intake && D.intake.closes_at ? COPY.wiz.closes(fmt.upper(esc(zagrebDate(D.intake.closes_at)))) : '')
+    : '';
   return `
   <!-- dc: Accelerator Application.dc.html › "Header band" -->
-  <div class="mx-pad-36" style="background:#191512;color:#f7f1e6;padding:26px 36px 22px">
-    <div style="display:flex;align-items:baseline;gap:16px;flex-wrap:wrap">
-      <span style="font:600 10px Inter,sans-serif;letter-spacing:.18em;color:#c9a962">${COPY.wiz.eyebrow(placementLabel())}</span>
-      <span style="padding:3px 9px;border:1px solid rgba(201,169,98,.65);color:#c9a962;font:600 9px Inter,sans-serif;letter-spacing:.14em">${pill}</span>
-      <div style="flex:1"></div>
-      <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.65)">${right}</span>
-    </div>
-    <div class="mx-ax-display-34" style="font-family:Fraunces,serif;font-size:34px;margin-top:8px">${COPY.wiz.title}</div>
-    <div style="font-size:12.5px;color:rgba(247,241,230,.7);margin-top:5px">${sub}</div>
-  </div>
+  <section class="mx-sec mx-sec--tight mx-ax-wizhead">
+    <div class="mx-ax-apptags"><span class="mx-tag mx-tag--gold">${pill}</span>${right ? `<span class="mx-ax-appinst">${right}</span>` : ''}</div>
+    <h1 class="mx-lt">${COPY.wiz.title}</h1>
+    <p class="mx-lede">${sub}</p>
+  </section>
   <!-- /dc -->`;
 }
+// "Step 2 of 7" over seven segments (the step's title heads the panel below); each segment still jumps to its step
 function blockStepper() {
   const c = completion();
   const doneByStep = { 1: c.items[0].done, 2: c.items[1].done, 3: c.items[2].done, 4: c.items[3].done, 5: c.items[4].done, 6: c.consentsDone || !!W.submitted, 7: !!W.submitted };
   return `
   <!-- dc: Accelerator Application.dc.html › "Stepper" -->
-  <div data-block="stepper" class="mx-ax-stepper" style="display:flex;justify-content:center;gap:0;padding:18px 36px 0;border-bottom:1px solid rgba(25,21,18,.16);flex-wrap:wrap">
+  <div data-block="stepper" class="mx-ax-stepper">
+    <div class="mx-ax-steplabel"><span>${COPY.wiz.stepOf(W.step)}</span></div>
+    <div class="mx-ax-segs" role="tablist" aria-label="Application steps">
     ${COPY.wiz.steps.map((label, i) => {
       const n = i + 1, cur = n === W.step, done = doneByStep[n] && !cur;
-      return `
-    <div data-act="go" data-step="${n}" role="tab" aria-selected="${cur}" aria-label="Step ${n} · ${label}" style="display:flex;flex-direction:column;align-items:center;gap:7px;padding:0 18px 14px;cursor:pointer;position:relative">
-      <span style="width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;font:600 13px Fraunces,serif;background:${cur ? '#9b1b22' : done ? '#191512' : 'transparent'};color:${cur || done ? '#f7f1e6' : '#4a4239'};border:1px solid ${cur ? '#9b1b22' : done ? '#191512' : 'rgba(25,21,18,.3)'}">${done ? '✓' : n}</span>
-      <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:${cur ? '#9b1b22' : done ? '#191512' : '#4a4239'}">${label}</span>
-      <span style="position:absolute;left:0;right:0;bottom:-1px;height:2px;background:${cur ? '#9b1b22' : 'transparent'}"></span>
-    </div>`;
+      return `<span data-act="go" data-step="${n}" role="tab" aria-selected="${cur}" aria-label="Step ${n} · ${label}" class="mx-ax-seg${cur ? ' is-cur' : done ? ' is-done' : ''}"></span>`;
     }).join('')}
+    </div>
   </div>
   <!-- /dc -->`;
 }
@@ -1010,13 +919,13 @@ function docZone(key, label, req) {
   const file = W.files[key];
   const zone = file
     ? `<div class="mx-ax-drop" data-act="pickFile" data-doc="${key}" role="button" aria-label="Replace ${key} file" style="border:1px solid rgba(201,169,98,.75);background:#fdfaf3;padding:12px 14px;display:flex;align-items:center;gap:12px;cursor:pointer">
-         <span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#6e5626;white-space:nowrap">PDF</span>
-         <span style="font-size:12.5px;color:#191512;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(file.name)} <span style="color:#4a4239">(${(file.size / 1024).toFixed(1)} KB)</span></span>
-         <span data-act="clearFile" data-doc="${key}" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer;white-space:nowrap">${COPY.wiz.upload.remove}</span>
+         <span style="font:600 12px Inter,sans-serif;letter-spacing:.12em;color:#6e5626;white-space:nowrap">PDF</span>
+         <span style="font-size:14px;color:#191512;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(file.name)} <span style="color:#4a4239">(${(file.size / 1024).toFixed(1)} KB)</span></span>
+         <span data-act="clearFile" data-doc="${key}" style="display:inline-flex;align-items:center;min-height:44px;font:500 14px Inter,sans-serif;color:#9b1b22;cursor:pointer;white-space:nowrap">${COPY.wiz.upload.remove}</span>
        </div>`
     : `<div class="mx-ax-drop" data-act="pickFile" data-doc="${key}" role="button" aria-label="Upload ${key}" style="border:1px dashed rgba(25,21,18,.3);background:#f7f1e6;padding:18px 14px;display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer;text-align:center">
-         <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.15em;color:#9b1b22">${COPY.wiz.upload.click}<span style="color:#4a4239;letter-spacing:.06em;text-transform:none;font-weight:400">${COPY.wiz.upload.drag}</span></span>
-         <span style="font-size:11px;color:#4a4239">${COPY.wiz.upload.pdf}</span>
+         <span style="font:600 13px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22">${COPY.wiz.upload.click}<span style="color:#4a4239;letter-spacing:0;text-transform:none;font-weight:400">${COPY.wiz.upload.drag}</span></span>
+         <span style="font-size:14px;color:#4a4239">${COPY.wiz.upload.pdf}</span>
        </div>`;
   return `
           <div class="mx-ax-field" style="${F.group};grid-column:1 / -1">
@@ -1029,11 +938,8 @@ function docZone(key, label, req) {
 function stepHead(n, title, subHtml) {
   return `
         <div class="mx-ax-panel-pad" style="padding:24px 28px 8px">
-          <div style="display:flex;align-items:baseline;gap:14px">
-            <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">0${n}</span>
-            <span style="font-family:Fraunces,serif;font-size:22px">${title}</span>
-          </div>
-          ${subHtml ? `<div style="font-size:12px;color:#4a4239;margin-top:4px">${subHtml}</div>` : ''}
+          <div style="font:400 22px/28px Fraunces,serif">${title}</div>
+          ${subHtml ? `<div style="font-size:14px;line-height:20px;color:#4a4239;margin-top:4px">${subHtml}</div>` : ''}
         </div>`;
 }
 const GRID2 = 'display:grid;grid-template-columns:1fr 1fr;gap:16px 20px;padding:18px 28px 26px';
@@ -1079,11 +985,11 @@ function stepPanel() {
         </div>`;
   if (s === 6) return `${stepHead(6, COPY.wiz.stepTitles[5], '')}
         <div class="mx-ax-panel-pad" style="padding:14px 28px 26px;display:flex;flex-direction:column;gap:16px">
-          <div style="border:1px solid rgba(25,21,18,.16);border-left:3px solid #c9a962;background:#f7f1e6;padding:14px 16px;font-size:12.5px;color:#4a4239;line-height:1.6">${COPY.wiz.gdpr}</div>
+          <details class="mx-acc mx-ax-gdpr"><summary>${COPY.wiz.gdprTitle}</summary><div class="mx-acc-a">${COPY.wiz.gdpr}</div></details>
           ${COPY.wiz.consents.map((c, i) => `
           <label style="display:flex;align-items:flex-start;gap:12px;cursor:pointer">
-            <input type="checkbox" data-consent="c${i + 1}"${W.consents['c' + (i + 1)] ? ' checked' : ''} style="margin-top:3px;width:16px;height:16px;flex:none">
-            <span style="font-size:13px;color:#191512;line-height:1.55">${c} ${F.req}</span>
+            <input type="checkbox" data-consent="c${i + 1}"${W.consents['c' + (i + 1)] ? ' checked' : ''} style="margin-top:2px;width:20px;height:20px;flex:none">
+            <span style="font-size:16px;color:#191512;line-height:1.5">${c} ${F.req}</span>
           </label>`).join('')}
         </div>`;
   return panelReview();
@@ -1093,32 +999,28 @@ function panelReview() {
   const canSubmit = c.items.slice(0, 5).every(i => i.done) && c.consentsDone;
   const v = W.values;
   const docs = [W.files.cv && 'CV', W.files.transcript && 'Transcript', W.files.recommendation && 'Recommendation'].filter(Boolean);
-  const sumRow = (l, val) => `<div style="display:flex;justify-content:space-between;gap:18px;padding:5px 0"><span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#4a4239;white-space:nowrap">${l}</span><span style="font-size:12.5px;color:#191512;text-align:right;min-width:0;overflow-wrap:anywhere">${val || '—'}</span></div>`;
+  const sumRow = (l, val) => `<div class="mx-ax-dl"><span class="mx-ax-dt">${l}</span><span class="mx-ax-dd">${val || '—'}</span></div>`;
   const degree = (DEGREES.find(d => d[0] === v.axDegree) || [])[1] || '';
   return `${stepHead(7, COPY.wiz.stepTitles[6], COPY.wiz.reviewSub)}
-        <div class="mx-ax-panel-pad" style="padding:14px 28px 26px">
-          ${c.items.map((it, i) => `
-          <div style="display:flex;gap:14px;align-items:center;padding:12px 0;border-bottom:1px solid rgba(25,21,18,.12)">
-            <span style="width:12px;height:12px;border:1px solid ${it.done ? '#c9a962' : 'rgba(25,21,18,.35)'};background:${it.done ? '#c9a962' : 'transparent'};flex:none"></span>
-            <span style="font-family:Fraunces,serif;font-size:15.5px;flex:1">${it.label}</span>
-            <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:${it.done ? '#191512' : '#9b1b22'}">${it.done ? COPY.wiz.reviewStatus.done : COPY.wiz.reviewStatus.todo}</span>
-            <span data-act="go" data-step="${it.step}" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer;white-space:nowrap">${COPY.wiz.edit}</span>
-          </div>`).join('')}
-          <!-- v2: legacy Application Summary (app.part9.js › updateReview), quiet definition list -->
-          <div style="border:1px solid rgba(25,21,18,.16);background:#f7f1e6;padding:14px 18px;margin-top:16px">
-            <div style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#c9a962;padding-bottom:6px">${COPY.wiz.summaryTitle}</div>
-            ${sumRow('NAME', esc([v.axFirstName, v.axLastName].filter(Boolean).join(' ')))}
-            ${sumRow('EMAIL', esc(v.axEmail))}
-            ${sumRow('INSTITUTION', esc(v.axInstitution))}
-            ${sumRow('DEGREE', esc(degree))}
-            ${sumRow('FIRST CHOICE', esc(choiceName(v.axChoice1)))}
-            ${sumRow('SECOND CHOICE', esc(choiceName(v.axChoice2)))}
-            ${sumRow('DOCUMENTS', esc(docs.length ? docs.join(', ') : 'None uploaded'))}
+        <div class="mx-ax-panel-pad" style="padding:8px 28px 26px">
+          <div class="mx-list mx-list--plain">
+          ${c.items.map(it => `
+            <span data-act="go" data-step="${it.step}" role="button" class="mx-row">${ui.icon(it.done ? 'check' : 'edit')}<span class="mx-row-l">${it.label}</span><span class="mx-row-v${it.done ? '' : ' mx-ax-todo'}">${it.done ? COPY.wiz.reviewStatus.done : COPY.wiz.reviewStatus.todo}</span>${ui.icon('chevron-right', 18)}</span>`).join('')}
           </div>
-          <div style="display:flex;align-items:center;gap:14px;padding-top:18px;flex-wrap:wrap">
-            <span data-act="submit" role="button" aria-disabled="${canSubmit && !W.busy ? 'false' : 'true'}" style="padding:12px 20px;background:${canSubmit && !W.busy ? '#9b1b22' : 'rgba(155,27,34,.35)'};color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:${canSubmit && !W.busy ? 'pointer' : 'not-allowed'};white-space:nowrap"${canSubmit && !W.busy ? ' data-hover="background:#7e151b"' : ''}>${W.busy ? COPY.wiz.submitting : COPY.wiz.submit}</span>
-            <span data-act="pdf" style="padding:12px 20px;border:1px solid rgba(25,21,18,.3);font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#191512;cursor:pointer;white-space:nowrap" data-hover="border-color:#191512">${COPY.wiz.pdf}</span>
-            <span style="font-size:11.5px;color:#4a4239">${canSubmit ? COPY.wiz.summaryNote : COPY.wiz.submitHint}</span>
+          <!-- v2: legacy Application Summary (app.part9.js › updateReview), quiet definition list -->
+          <details class="mx-acc mx-ax-summary"><summary>${COPY.wiz.summaryTitle}</summary><div class="mx-acc-a">
+            ${sumRow('Name', esc([v.axFirstName, v.axLastName].filter(Boolean).join(' ')))}
+            ${sumRow('Email', esc(v.axEmail))}
+            ${sumRow('Institution', esc(v.axInstitution))}
+            ${sumRow('Degree', esc(degree))}
+            ${sumRow('First choice', esc(choiceName(v.axChoice1)))}
+            ${sumRow('Second choice', esc(choiceName(v.axChoice2)))}
+            ${sumRow('Documents', esc(docs.length ? docs.join(', ') : 'None uploaded'))}
+          </div></details>
+          <div class="mx-ax-submitrow">
+            <span data-act="submit" role="button" aria-disabled="${canSubmit && !W.busy ? 'false' : 'true'}" class="btn-primary btn-block mx-ax-submit">${W.busy ? COPY.wiz.submitting : COPY.wiz.submit}</span>
+            <span data-act="pdf" role="button" class="btn-ghost btn-sm">${COPY.wiz.pdf}</span>
+            <span class="mx-ax-note">${canSubmit ? COPY.wiz.summaryNote : COPY.wiz.submitHint}</span>
           </div>
         </div>`;
 }
@@ -1127,53 +1029,35 @@ function panelSubmitted() {
   const when = r && (r.submitted_at || r.created_at) ? fmt.longRange(String(r.submitted_at || r.created_at).slice(0, 10)) : '';
   const feePending = r && String(r.status) === 'submitted' && String(r.payment_status || '') !== 'paid';
   return `${stepHead(7, COPY.wiz.stepTitles[6], '')}
-        <div class="mx-ax-panel-pad" style="padding:10px 28px 26px;display:flex;flex-direction:column;align-items:center;gap:9px;text-align:center">
-          <span style="width:28px;height:1px;background:#c9a962"></span>
-          <span style="font-family:Fraunces,serif;font-style:italic;font-size:19px;color:#191512">${COPY.wiz.submittedLine(esc(r && r.application_number || 'received'))}</span>
-          <span style="font-size:12.5px;color:#4a4239;max-width:420px">${COPY.wiz.submittedWhy(esc((r && r.email) || ''))}${when ? ` Submitted ${esc(when)}.` : ''}</span>
-          <span style="margin-top:8px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:center">
-            <a href="/app/accelerator" style="padding:10px 16px;border:1px solid rgba(25,21,18,.3);font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#191512;white-space:nowrap;text-decoration:none" data-hover="border-color:#191512">BACK TO THE OVERVIEW →</a>
-            ${feePending ? `<span data-act="payFee" data-app="${esc(r.id)}" style="padding:10px 16px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${COPY.application.payFee}</span>` : ''}
-          </span>
-          ${feePending ? `<span style="font-size:11px;color:#4a4239">${COPY.application.feeNote}</span>` : ''}
+        <div class="mx-ax-panel-pad mx-ax-app mx-ax-app--flat" style="padding:10px 28px 26px">
+          <span class="mx-ax-appline">${COPY.wiz.submittedLine(esc(r && r.application_number || 'received'))}</span>
+          <span class="mx-ax-appwhy">${COPY.wiz.submittedWhy(esc((r && r.email) || ''))}${when ? ` Submitted ${esc(when)}.` : ''}</span>
+          <div class="mx-ax-appact">
+            <a href="/app/accelerator" class="btn-ghost btn-sm">BACK TO THE OVERVIEW →</a>
+            ${feePending ? `<span data-act="payFee" data-app="${esc(r.id)}" role="button" class="btn-primary btn-sm">${COPY.application.payFee}</span>` : ''}
+          </div>
+          ${feePending ? `<span class="mx-ax-note">${COPY.application.feeNote}</span>` : ''}
         </div>`;
 }
 function blockChecklist() {
   const c = completion();
   return `
-      <div data-block="checklist" style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:20px 22px">
-        <div style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">${COPY.wiz.checklist.title}</div>
-        <div style="margin-top:12px;display:flex;flex-direction:column">
-          ${c.items.map(it => `
-          <div style="display:flex;gap:11px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(25,21,18,.1)">
-            <span style="width:11px;height:11px;border:1px solid ${it.done ? '#c9a962' : 'rgba(25,21,18,.35)'};background:${it.done ? '#c9a962' : 'transparent'};flex:none"></span>
-            <span style="font-size:12px;color:${it.done ? '#191512' : '#4a4239'}">${it.label}</span>
-          </div>`).join('')}
-        </div>
-        <div style="display:flex;align-items:baseline;gap:8px;padding-top:14px">
-          <span style="font-family:Fraunces,serif;font-size:30px;color:#c9a962">${c.pct}%</span>
-          <span style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#4a4239">${COPY.wiz.checklist.complete}</span>
-        </div>
-        <div style="height:3px;background:rgba(25,21,18,.12);position:relative;margin-top:6px"><span style="position:absolute;left:0;top:0;bottom:0;background:#c9a962;width:${c.pct}%"></span></div>
+      <div data-block="checklist" class="mx-ax-rail-card">
+        <div class="mx-ax-railhead"><span class="mx-ax-h3">${COPY.wiz.checklist.title}</span><span class="mx-ax-pct">${c.pct}%</span></div>
+        <div class="mx-ax-bar"><span style="width:${c.pct}%"></span></div>
+        <ul class="mx-checks mx-ax-railchecks">${c.items.map(it => `<li class="${it.done ? 'is-done' : ''}">${ui.icon(it.done ? 'check' : 'plus', 18)}<span>${it.label}</span></li>`).join('')}</ul>
       </div>`;
 }
 function blockRail() {
   return `
-    <div style="display:flex;flex-direction:column;gap:14px">
+    <div class="mx-ax-rail">
       <!-- dc: Accelerator Application.dc.html › "APPLICATION CHECKLIST" -->
       ${blockChecklist()}
       <!-- /dc -->
-      <!-- dc: Accelerator Application.dc.html › "BEFORE YOU START" -->
-      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:18px 22px;display:flex;flex-direction:column;gap:8px">
-        <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#c9a962">${COPY.wiz.before.title}</span>
-        <span style="font-size:12px;color:#4a4239;line-height:1.55">${COPY.wiz.before.body}</span>
-      </div>
-      <!-- /dc -->
-      <!-- dc: Accelerator Application.dc.html › "Stuck on a question?" -->
-      <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:18px 22px;display:flex;flex-direction:column;gap:9px;align-items:flex-start">
-        <span style="font-family:Fraunces,serif;font-style:italic;font-size:14.5px;color:#4a4239">${COPY.wiz.stuck.line}</span>
-        <span style="font-size:11.5px;color:#4a4239;line-height:1.5">${COPY.wiz.stuck.body}</span>
-        <a href="/app/messages?about=accelerator" style="padding:9px 14px;background:#9b1b22;color:#f7f1e6;font:600 9.5px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.wiz.stuck.cta}</a>
+      <!-- dc: Accelerator Application.dc.html › "BEFORE YOU START" + "Stuck on a question?" -->
+      <div class="mx-list">
+        <details class="mx-acc mx-ax-before"><summary>${ui.icon('help')}${COPY.wiz.before.titleShort}</summary><div class="mx-acc-a">${COPY.wiz.before.body}</div></details>
+        <a class="mx-row" href="/app/messages?about=accelerator">${ui.icon('mail')}<span class="mx-row-l">${COPY.wiz.stuck.line}<span class="mx-row-s">${COPY.wiz.stuck.sub}</span></span>${ui.icon('chevron-right', 18)}</a>
       </div>
       <!-- /dc -->
     </div>`;
@@ -1181,18 +1065,17 @@ function blockRail() {
 function blockWizFooterNav() {
   const first = W.step <= 1, last = W.step >= 7;
   return `
-      <div class="mx-ax-footer" style="display:flex;align-items:center;padding:16px 28px;border-top:1px solid rgba(25,21,18,.16)">
-        <span data-act="prev" role="button" aria-disabled="${first ? 'true' : 'false'}" style="padding:11px 18px;border:1px solid ${first ? 'rgba(25,21,18,.14)' : 'rgba(25,21,18,.3)'};font:600 10px Inter,sans-serif;letter-spacing:.16em;color:${first ? 'rgba(25,21,18,.3)' : '#191512'};cursor:${first ? 'default' : 'pointer'};white-space:nowrap">${COPY.wiz.prev}</span>
-        <div style="flex:1"></div>
-        <span data-role="saved" style="font-size:11px;color:#4a4239;margin-right:16px">${savedLabel()}</span>
-        ${!last ? `<span data-act="next" role="button" style="padding:11px 20px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${COPY.wiz.next}</span>` : ''}
+      <div class="mx-ax-footer">
+        <span data-act="prev" role="button" aria-disabled="${first ? 'true' : 'false'}" class="btn-ghost btn-sm">${COPY.wiz.prev}</span>
+        <span data-role="saved" class="mx-ax-saved">${savedLabel()}</span>
+        ${!last ? `<span data-act="next" role="button" class="btn-primary btn-sm">${COPY.wiz.next}</span>` : ''}
       </div>`;
 }
 function wizardMain() {
   return `
-  <div data-block="wizard" class="mx-ax-wizard mx-gutter" style="display:grid;grid-template-columns:1fr 280px;gap:26px;padding:26px 36px 10px;align-items:start">
+  <div data-block="wizard" class="mx-ax-wizard">
     <!-- dc: Accelerator Application.dc.html › "Wizard · main panel" -->
-    <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3">
+    <div class="mx-ax-panel">
       <div data-block="panel">${stepPanel()}</div>
       <!-- dc: Accelerator Application.dc.html › "Footer nav" -->
       <div data-block="footnav">${blockWizFooterNav()}</div>
@@ -1202,38 +1085,38 @@ function wizardMain() {
     ${blockRail()}
   </div>`;
 }
+// before applications open: when they open, one line, and two actions (get notified · preview the form)
 function gateCard(preview) {
   const state = openState();
   const line = state === 'closed' ? COPY.wiz.gate.closedLine : COPY.wiz.gate.line(esc(opensInfo().label));
   return `
   <!-- dc: Accelerator.dc.html › "04 · YOUR APPLICATION" (Get-notified capture — wizard hidden until applications open) -->
-  <div class="mx-gutter" style="padding:26px 36px 10px">
-    <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:34px 24px;display:flex;flex-direction:column;align-items:center;gap:9px;text-align:center">
-      <span style="width:28px;height:1px;background:#c9a962"></span>
-      <span style="font-family:Fraunces,serif;font-style:italic;font-size:17px;color:#4a4239">${line}</span>
-      <span style="font-size:12.5px;color:#4a4239;max-width:400px;line-height:1.55">${COPY.wiz.gate.why}</span>
-      <span style="margin-top:8px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:center">
-        <span data-act="notify" style="padding:11px 20px;background:#9b1b22;color:#f7f1e6;font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap" data-hover="background:#7e151b">${st.notified ? COPY.application.notified : COPY.application.notify}</span>
-        <span data-act="toPreview" style="padding:11px 20px;border:1px solid rgba(25,21,18,.3);font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#191512;cursor:pointer;white-space:nowrap" data-hover="border-color:#191512">${COPY.wiz.gate.preview}</span>
-      </span>
+  <section class="mx-sec mx-sec--tight">
+    <div class="mx-ax-app">
+      <span class="mx-ax-appline">${line}</span>
+      <span class="mx-ax-appwhy">${COPY.wiz.gate.why}</span>
+      <div class="mx-ax-appact mx-ax-gateact">
+        <span data-act="notify" role="button" class="btn-primary btn-block">${st.notified ? COPY.application.notified : COPY.application.notify}</span>
+        <span data-act="toPreview" role="button" class="btn-ghost btn-block">${COPY.wiz.gate.preview}</span>
+      </div>
     </div>
-  </div>
+  </section>
   <!-- /dc -->`;
 }
 function applyTemplate(preview) {
   const state = openState();
   const showWizard = state === 'open' || preview || !!W.submitted;
   return `
-<div data-screen-label="Accelerator Application" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
+<div data-screen-label="Accelerator Application" class="mx-ax">
   ${blockCrumbs(true)}
-  ${blockTabs(true)}
-  ${blockWizHeader(preview)}
-  ${showWizard ? blockStepper() + wizardMain() : gateCard(preview)}
-  <!-- dc: Accelerator Application.dc.html › "Results footnote" -->
-  <div class="mx-gutter" style="display:flex;align-items:center;gap:20px;padding:14px 36px 30px;flex-wrap:wrap">
-    <span style="font-size:11.5px;color:#4a4239">${COPY.wiz.footnote}<a href="/app/accelerator">${COPY.wiz.footnoteLink}</a>.</span>
+  <div class="mx-p">
+    <section class="mx-sec mx-sec--tight">${blockTabs(true)}</section>
+    ${blockWizHeader(preview)}
+    ${showWizard ? `<section class="mx-sec mx-sec--tight">${blockStepper()}${wizardMain()}</section>` : gateCard(preview)}
+    <!-- dc: Accelerator Application.dc.html › "Results footnote" -->
+    <p class="mx-ax-note mx-ax-foot">${COPY.wiz.footnote}<a href="/app/accelerator">${COPY.wiz.footnoteLink}</a>.</p>
+    <!-- /dc -->
   </div>
-  <!-- /dc -->
 </div>`;
 }
 
@@ -1378,13 +1261,13 @@ function previewPdf() {
 }
 
 // ---------------------------------------------------------------- handlers
-// The hero's follow switch and its ON / OFF line, painted in place (no hero re-draw — the photo and the
-// switch's own ease stay put); the CTA next to it follows once the save has landed.
+// The follow switch (the "Accelerator updates" row) and its On / Off line, painted in place; the hero's action
+// follows once the save has landed.
 function paintFollow(on) {
-  const hero = rootEl && rootEl.querySelector('[data-block="hero"]');
-  if (!hero) return;
-  const sw = hero.querySelector('[role="switch"]'); if (sw) sw.setAttribute('aria-checked', String(!!on));
-  const l = hero.querySelector('[data-role="follow-label"]'); if (l) l.innerHTML = COPY.hero.followLine(!!on);
+  const row = rootEl && rootEl.querySelector('[data-block="follow"]');
+  if (!row) return;
+  const sw = row.querySelector('[role="switch"]'); if (sw) sw.setAttribute('aria-checked', String(!!on));
+  const l = row.querySelector('[data-role="follow-label"]'); if (l) l.innerHTML = COPY.hero.followSub(!!on);
 }
 function repaintAfterFollow() {
   const cta = rootEl && rootEl.querySelector('[data-block="hero"] [data-role="hero-cta"]');
@@ -1433,7 +1316,6 @@ const handlers = {
     rerender('[data-block="hosts"]', `<div data-block="hosts">${hostCards()}</div>`);
     if (i !== null) focusCard(i);
   },
-  faq: (el) => { const i = parseInt(el.dataset.i, 10); st.faqOpen = st.faqOpen === i ? null : i; rerender('[data-block="faq"]', `<div data-block="faq" class="mx-ax-faq" style="display:grid;grid-template-columns:1fr 1fr;gap:0 44px;align-items:start;padding-bottom:24px">${faqRows()}</div>`); },
   viewResults: async (el) => {
     const input = rootEl.querySelector('[data-role="code"]');
     const raw = String((input && input.value) || '').trim().toUpperCase();
@@ -1475,22 +1357,20 @@ function appSectionInner() {
   // fallback clock in openState()) and stays afterwards, which is when AX26-XXXX codes exist.
   const lookupLive = openState() !== 'before';
   return `
-        <div id="acc-application" style="display:flex;align-items:baseline;gap:14px;padding:24px 0 12px">
-          <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.application.n}</span>
-          <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.application.title}</span>
-        </div>
+        <div id="acc-application">${sectionHead(COPY.application.n, COPY.application.title)}</div>
         ${applicationCard()}
         ${lookupLive ? `
-        <div class="mx-ax-lookup mx-wrap-row" style="display:flex;gap:12px;align-items:center;padding:14px 0 8px;flex-wrap:wrap">
-          <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#c9a962;white-space:nowrap">${COPY.results.label}</span>
-          <input data-role="code" placeholder="${COPY.results.placeholder}" aria-label="Results access code" maxlength="9" autocapitalize="characters" autocomplete="off" spellcheck="false" style="border:1px solid rgba(25,21,18,.25);padding:9px 13px;font:600 11px Inter,sans-serif;font-variant-numeric:tabular-nums;color:#191512;background:#fdfaf3;letter-spacing:.1em;width:110px;text-transform:uppercase;border-radius:0">
-          <span data-act="viewResults" style="padding:10px 15px;background:#191512;color:#f7f1e6;font:600 9.5px Inter,sans-serif;letter-spacing:.15em;cursor:pointer;white-space:nowrap" data-hover="background:#2c2620">${COPY.results.view}</span>
-          <span style="font-size:11.5px;color:#4a4239">${COPY.results.hint}</span>
+        <div class="mx-ax-lookup">
+          <label class="label" for="ax-code">${COPY.results.label}</label>
+          <div class="mx-ax-lookrow">
+            <input id="ax-code" class="input" data-role="code" placeholder="${COPY.results.placeholder}" aria-label="Results access code" maxlength="9" autocapitalize="characters" autocomplete="off" spellcheck="false">
+            <span data-act="viewResults" role="button" class="btn-ghost btn-sm">${COPY.results.view}</span>
+          </div>
+          <span class="mx-ax-note">${COPY.results.hint}</span>
         </div>
-        <div data-role="codeErr" role="alert" style="font-size:11.5px;color:#9b1b22;padding:0 0 10px;${st.codeErr ? '' : 'display:none'}">${esc(st.codeErr || '')}</div>
+        <div data-role="codeErr" role="alert" class="mx-ax-err" style="${st.codeErr ? '' : 'display:none'}">${esc(st.codeErr || '')}</div>
         <div data-block="results">${resultsBlock()}</div>` : `
-        <!-- v2: RESULTS LOOKUP hidden until applications open (openState() 'before' — intake state, FACTS.accelerator.opens fallback) — UX audit item 15 -->`}
-        <div style="padding-bottom:12px"></div>`;
+        <!-- v2: RESULTS LOOKUP hidden until applications open (openState() 'before' — intake state, FACTS.accelerator.opens fallback) — UX audit item 15 -->`}`;
 }
 
 // wizard input wiring (delegated; survives partial rerenders of stepper/checklist)
