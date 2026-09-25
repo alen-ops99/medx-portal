@@ -884,7 +884,7 @@ a.mx-person-row, .mx-person-row[data-act] { cursor: pointer; transition: backgro
 .mx-cd-label { margin-right: auto; font: 600 var(--fs-label)/16px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--gold); white-space: nowrap; }
 .mx-cd-cell { display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; }
 .mx-cd-num { font: 400 38px/1 var(--font-display); font-variant-numeric: tabular-nums lining-nums; color: var(--cream); font-style: normal; }
-.mx-cd-unit { font: 600 var(--fs-label)/16px var(--font-ui); letter-spacing: .1em; text-transform: uppercase; font-style: normal; color: rgba(247,241,230,.62); }
+.mx-cd-unit { font: 500 var(--fs-2nd)/20px var(--font-ui); letter-spacing: 0; text-transform: none; font-style: normal; color: rgba(247,241,230,.66); }
 @media (max-width: 500px) {
   .mx-countdown { display: grid; grid-template-columns: repeat(3, max-content); justify-content: start; column-gap: 28px; row-gap: 6px; }
   .mx-cd-label { grid-column: 1 / -1; }
@@ -973,7 +973,7 @@ a.mx-person-row, .mx-person-row[data-act] { cursor: pointer; transition: backgro
 .mx-pcard-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font: 400 var(--fs-2nd)/20px var(--font-ui); color: var(--ink); }
 .mx-pcard-meta .mx-ic { color: var(--gold-dark); }
 .mx-pcard-meta > .mx-sep { width: 8px; }
-.mx-pcard-price { margin-left: auto; font: 600 var(--fs-label)/16px var(--font-ui); letter-spacing: .1em; text-transform: uppercase; color: var(--gold-dark); white-space: nowrap; }
+.mx-pcard-price { margin-left: auto; font: 600 var(--fs-2nd)/20px var(--font-ui); color: var(--gold-dark); white-space: nowrap; }
 .mx-pcard-line { margin: 0; font: 400 var(--fs-2nd)/20px var(--font-ui); color: var(--soft); }
 .mx-pcard-main { color: inherit; text-decoration: none; }
 .mx-pcard-main::after { content: ""; position: absolute; inset: 0; z-index: 1; }

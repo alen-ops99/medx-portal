@@ -253,7 +253,7 @@ function blockPanel(inner) {
 ${inner}
       </div>
       <!-- dc: Auth.dc.html › "Footer" -->
-      <div style="padding:0 24px;font-size:12px;color:rgba(74,66,57,.75);display:flex;gap:16px;justify-content:center;flex-wrap:wrap">
+      <div style="padding:0 24px;font-size:14px;color:rgba(74,66,57,.75);display:flex;gap:6px 16px;justify-content:center;flex-wrap:wrap">
         <span style="white-space:nowrap">${COPY.footer.copyright}</span><a href="/privacy" style="color:rgba(74,66,57,.7)">${COPY.footer.privacy}</a><a href="/terms" style="color:rgba(74,66,57,.7)">${COPY.footer.terms}</a>
       </div>
       <!-- /dc -->

@@ -354,7 +354,13 @@ Desktop-first. `css/app.css` translates the export's `responsive.css` into class
 | `mx-display-46` · `mx-display-30` · `mx-display-26` | display type | 28 / 22 / 20 px ≤500 |
 | `mx-w250` · `mx-w230` · `mx-w220` | fixed-width inputs | full width |
 
-≤430 px (Mobile Portal.dc.html): the desktop chrome hides; the sticky compact top bar (logo or ← back on pushed sub-views, uppercase title, EN · HR, avatar), the compact email banner and the ink bottom tab bar show (`#mx-mobile-top`, `.mx-mobile-only`, `#mx-tabbar`; `#view` gets 86px bottom padding). Content keeps the desktop templates stacked by the hooks above — "carry full content". Hit targets ≥ 44px on the tab bar.
+≤500 px (Mobile Portal.dc.html): the desktop chrome hides; the sticky compact top bar, the compact email banner and the ink bottom tab bar show (`#mx-mobile-top`, `.mx-mobile-only`, `#mx-tabbar`; `#view` gets 86px bottom padding). Hit targets ≥ 44px.
+
+**Phone calm pass (2026-09-25).** The rules live in `Claude_Code_Projects/MedX/Mobile_Calm_and_Emails_2026-09-25/DESIGN-RULES.md` (type floor 12px, one filled button per screen height, facts in rows, people always circles). What changed here:
+- **Kit** — `css/tokens.css` (`--fs-*`, `--sp-*`, `--gutter-p`) and the `/* PHONE CALM KIT */` block at the end of `css/app.css`: `.mx-p` page wrapper, `.mx-lt` large title, `.mx-sh` section head, `.mx-facts`, `.mx-checks`, `.mx-timeline`, `.mx-tiles`, `.mx-person` / `.mx-person-row`, `.mx-grid2`, `.mx-shelf`, `.mx-media`, `.mx-hero` + `.mx-scrim`, `.mx-countdown`, `.mx-tag`, `.mx-accs`, `.mx-list` / `.mx-row`, `.mx-seg`, `.mx-iconbtn`, `.mx-pcard`, `.mx-linkcard`, `.mx-dark`. Catalogue with markup: DESIGN-RULES.md §14.
+- **People are drawn by `ui.portrait({ name, src, size, ring })`** (circles of 32 / 44 / 64 / 96; initials under the photo; a photo that fails is dropped by a delegated `error` listener so the initials show). **Icons** by `ui.icon(name, size)` from `js/icons.js` (1.5 stroke line set).
+- **Chrome** — tab bar: line icons over 12px sentence-case labels, lit tab = gold icon + cream label, unread count on Inbox (the markup is identical lit or not; `patchTabs` moves `aria-selected`). Top bar: root tabs = logo + search + alerts; pushed screens = back chevron + centred title. Breadcrumb rows (`.mx-crumbs`) and the Network / Messages tab strip hide ≤500px. Sheets (`ui.modal`) rise from the bottom edge on phones.
+- **Screens rebuilt on the kit (CORE):** Home, Projects (`projectCard()` shared with Home), People + person sheet, Inbox + conversation, My Med&X + certificates, Profile & settings, the auth screens, 404 / maintenance / stub pages. The project pages (Gala, Plexus, Bridges, Accelerator, Forum, meetups, the event app) are the PAGES builder's.
 
 ---
 

@@ -178,6 +178,12 @@ function statusLine(it) {
   if (it.amount > 0) return it.kind === 'gala' ? S.paidSeat(it.amount) : S.paid(it.amount);
   return S.free;
 }
+// '4–5 Dec' (day first, like the rest of the phone screens)
+function dayFirst(a, b) {
+  const x = fmt.toDate(a), y = fmt.toDate(b), M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  if (!x) return '';
+  return y && +y !== +x && y.getMonth() === x.getMonth() ? `${x.getDate()}–${y.getDate()} ${M[x.getMonth()]}` : `${x.getDate()} ${M[x.getMonth()]}`;
+}
 function shortRange(it) {
   const s = fmt.longRange(it.date, it.end_date);
   return s ? s.replace(/,\s*\d{4}$/, '') : '';
@@ -290,7 +296,7 @@ function walletCurrent() {
       <div data-block="wallet-list" class="mx-me-empty">
         <div class="mx-ghost-ticket" aria-hidden="true">
           <span class="gt-stub"><span>ADMIT</span><b>1</b></span>
-          <span class="gt-body"><span class="gt-eye">${esc(fmt.upper(FACTS.plexus.short))}</span><span class="gt-title">${COPY.wallet.emptyPh}</span><span class="gt-meta">${esc(FACTS.plexus.dateShort)} · ${esc(FACTS.plexus.city)}</span></span>
+          <span class="gt-body"><span class="gt-eye">${esc(fmt.upper(FACTS.plexus.short))}</span><span class="gt-title">${COPY.wallet.emptyPh}</span><span class="gt-meta">${esc(dayFirst(FACTS.plexus.start, FACTS.plexus.end))} · ${esc(FACTS.plexus.city)}</span></span>
         </div>
         <span class="empty-line">${COPY.wallet.emptyLine}</span>
         <a href="/app/plexus" class="btn-ghost btn-sm mx-me-btn">${COPY.wallet.emptyCtaT}</a>
