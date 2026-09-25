@@ -126,6 +126,26 @@ const listFiles = (dir) => { try { return fs.readdirSync(dir).sort(); } catch (e
         const someId = '11111111-2222-4333-8444-555555555555';
         check('unit: older task.create audit title is hidden, a new id is kept', taskVis.redactAuditRow({ action: 'task.create', detail: SECRET + 'x' }).detail === '(task title hidden)' && taskVis.redactAuditRow({ action: 'task.create', detail: someId }).detail === someId);
         check('unit: older nag.act task line loses the name, sponsor lines keep theirs', !taskVis.redactAuditRow({ action: 'nag.act', detail: 'task_overdue -> assignee nudged (Bob Test)' }).detail.includes('Bob') && taskVis.redactAuditRow({ action: 'nag.act', detail: 'sponsor_deliverable -> assignee nudged (Ann)' }).detail.includes('Ann'));
+        const idOnly = `task_overdue item ${someId} -> assignee nudged`;
+        check('unit: the id-only nudge line both portals write reads as stored (the redesign shows it the same)', taskVis.redactAuditRow({ action: 'nag.act', detail: idOnly }).detail === idOnly);
+
+        // ---- source shape: what a stale replica read can never undo ----
+        // Each backend reads from its own embedded replica, up to a minute behind the other backend's writes.
+        // The checklist PUT must never write back a title, person or date it read (a done tick after a
+        // redesign re-tag would hand the task back to the old first person, and the trigger would drop the
+        // rest), and MAIN's Action Center audit rows use the redesign's '<kind> item <id>' form.
+        const adminSrc = fs.readFileSync(path.join(ROOT, 'admin-portal/backend/server.js'), 'utf8');
+        const clPut = (adminSrc.match(/app\.put\('\/api\/admin\/tasks\/:id'[\s\S]*?\n    \}\);/) || [''])[0];
+        check('source: the checklist PUT writes title, assigned_to and due_date only when the body carries them',
+            ['title', 'assigned_to', 'due_date'].every(c => clPut.includes(`${c} = CASE WHEN ? THEN ? ELSE ${c} END`)), clPut.slice(0, 160));
+        check('source: the checklist PUT copies no title, person or date from the row it read',
+            clPut.length > 0 && !/existing\.(title|assigned_to|due_date)\b/.test(clPut.replace(/^.*handOffTaskPeople.*$/gm, '')));
+        check('source: the checklist PUT touches the tags only when the body carries assigned_to',
+            /if \(b\.assigned_to !== undefined\) \{[\s\S]*?handOffTaskPeople\(/.test(clPut) && (clPut.match(/handOffTaskPeople\(/g) || []).length === 1);
+        const nagSrc = (adminSrc.match(/app\.post\('\/api\/admin\/nag\/items\/:id\/act'[\s\S]*?app\.post\('\/api\/admin\/nag\/digest'/) || [''])[0];
+        check('source: every Action Center action on a task item is logged in the redesign\'s form',
+            nagSrc.length > 0 && !nagSrc.includes('-> nudge sent') && !/logAudit\(req, 'nag\.[a-z]+', (req\.params\.id|`\$\{req\.params\.id\})/.test(nagSrc)
+            && ['nag.act', 'nag.done', 'nag.dismiss', 'nag.unclaim', 'nag.claim'].every(a => new RegExp(`logAudit\\(req, '${a.replace('.', '\\.')}', [^\\n]*nagAuditDetail\\(item`).test(nagSrc)));
         check('unit: /uploads/tasks is blocked in any spelling', ['/tasks/a.txt', '/TASKS/a', '/%74asks/a', '/documents/../tasks/a', '/tasks'].every(taskVis.isTaskUploadPath) && !taskVis.isTaskUploadPath('/documents/a.txt') && !taskVis.isTaskUploadPath('/taskslist/a'));
 
         // ---- unit, on an in-memory database: the rule, the tag writer, the boot sweep, the audit scope ----
@@ -455,6 +475,27 @@ const listFiles = (dir) => { try { return fs.readdirSync(dir).sort(); } catch (e
             const au = await auditOf(P);
             check(`${P.name}: audit feed has no task title and names nobody on a task nudge`, au.status === 200 && !au.text.includes(SECRET) && !au.rows.some(a => a.action === 'nag.act' && /Bob|task_/.test(a.detail || '')), JSON.stringify(au.rows.filter(a => a.action === 'nag.act')));
             check(`${P.name}: audit feed carries no global scan counts`, !au.rows.some(a => a.action === 'nag.scan' && /open/.test(a.detail || '')));
+        }
+
+        // The Action Center's audit rows on a task item use the redesign's '<kind> item <id>' form, so the
+        // audit scope both portals share shows them only to the admin who acted: no one else learns that
+        // someone nudged, claimed or released a task item, or when.
+        if (nag) {
+            r = await api(ADMIN, `/api/admin/nag/items/${nag.id}/claim`, { method: 'POST', token: B.token });
+            const bClaimed = r.status === 200 && r.d && r.d.claimed === true;
+            r = await api(ADMIN, `/api/admin/nag/items/${nag.id}/claim`, { method: 'POST', token: B.token });
+            check('B (assignee) claims and releases T\'s Action Center item', bClaimed && r.status === 200 && r.d && r.d.claimed === false, r.text);
+            const aFeed = await auditOf(A);
+            check('A (the actor) reads her nudge row as "<kind> item <id> -> assignee nudged"', aFeed.rows.some(a => a.action === 'nag.act' && a.detail === `task_overdue item ${nag.id} -> assignee nudged`), JSON.stringify(aFeed.rows.filter(a => /^nag\./.test(a.action || '')).map(a => a.action + ': ' + a.detail)));
+            const bFeed = await auditOf(B);
+            check('B (the actor) reads his claim and release rows in the same form', bFeed.rows.some(a => a.action === 'nag.claim' && a.detail === `task_overdue item ${nag.id} -> Bob Test`) && bFeed.rows.some(a => a.action === 'nag.unclaim' && a.detail === `task_overdue item ${nag.id}`),
+                JSON.stringify(bFeed.rows.filter(a => /^nag\./.test(a.action || '')).map(a => a.action + ': ' + a.detail)));
+            check('B does not see A\'s nudge row on the same item', !bFeed.rows.some(a => a.action === 'nag.act' && String(a.detail || '').includes(nag.id)));
+            for (const P of [C, F]) {
+                const au = await auditOf(P);
+                check(`${P.name}: the audit feed has no row about T's Action Center item (nudge, claim, release)`, au.status === 200 && !au.rows.some(a => String(a.detail || '').includes(nag.id)),
+                    JSON.stringify(au.rows.filter(a => String(a.detail || '').includes(nag.id)).map(a => a.action + ': ' + a.detail)));
+            }
         }
 
         // A subtask given to someone who is not on the parent task is never nudged to them.
@@ -860,6 +901,9 @@ const listFiles = (dir) => { try { return fs.readdirSync(dir).sort(); } catch (e
         r = await api(USER, `/api/tasks/${H8}`, { method: 'PUT', token: C.token, body: { status: 'in_progress' } });
         h8 = rowOf(H8);
         check('H8: member PUT { status } by tagged Carol keeps assigned_to, due_date and the tags', r.status === 200 && h8.status === 'in_progress' && h8.assigned_to === B.tm && h8.due_date === yesterday && same(peopleOf(H8), [B.tm, C.tm]), JSON.stringify(h8) + ' ' + JSON.stringify(peopleOf(H8)));
+        r = await api(ADMIN, `/api/admin/tasks/${H8}`, { method: 'PUT', token: C.token, body: { done: 1 } });
+        h8 = rowOf(H8);
+        check('H8: a checklist done tick by tagged Carol keeps title, assigned_to, due_date and the tags', r.status === 200 && h8.status === 'done' && h8.title === SECRET + 'H8 renamed' && h8.assigned_to === B.tm && h8.due_date === yesterday && same(peopleOf(H8), [B.tm, C.tm]), JSON.stringify(h8) + ' ' + JSON.stringify(peopleOf(H8)));
         await keeps('H8 after partial edits', B, H8);
         await keeps('H8 after partial edits', C, H8);
         r = await api(USER, `/api/tasks/${H8}`, { method: 'PUT', token: B.token, body: { due_date: null } });

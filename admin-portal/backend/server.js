@@ -12257,16 +12257,27 @@ async function initializeApp() {
         let status = existing.status;
         if (b.done !== undefined) status = b.done ? 'done' : 'todo';
         else if (b.status) status = b.status;
-        const assignedTo = b.assigned_to !== undefined ? (b.assigned_to || null) : existing.assigned_to;
-        db.run(`UPDATE project_tasks SET title=?, assigned_to=?, due_date=?, status=?, completed_at=? WHERE id=?`,
-            [b.title !== undefined ? String(b.title).trim() : existing.title,
-             assignedTo,
-             b.due_date !== undefined ? (b.due_date || null) : existing.due_date,
+        // title, assigned_to and due_date change only when the body carries them (as the v1 PUT does): a
+        // done tick never writes back a title, person or date read from this server's copy of the
+        // database, which can lag the redesign's latest write (a re-tag) by up to a minute
+        db.run(`UPDATE project_tasks SET
+            title = CASE WHEN ? THEN ? ELSE title END,
+            assigned_to = CASE WHEN ? THEN ? ELSE assigned_to END,
+            due_date = CASE WHEN ? THEN ? ELSE due_date END,
+            status = ?, completed_at = ?
+            WHERE id = ?`,
+            [b.title !== undefined ? 1 : 0, b.title !== undefined ? String(b.title).trim() : null,
+             b.assigned_to !== undefined ? 1 : 0, b.assigned_to !== undefined ? (b.assigned_to || null) : null,
+             b.due_date !== undefined ? 1 : 0, b.due_date !== undefined ? (b.due_date || null) : null,
              status,
              status === 'done' ? (existing.completed_at || new Date().toISOString()) : null,
              req.params.id]);
         // a hand-off (or unassign) here leaves the task to exactly the new person: the tags follow
-        taskVis.handOffTaskPeople((sql, p) => db.run(sql, p), req.params.id, existing.assigned_to, assignedTo, req.user.id);
+        // (a body without assigned_to moved no one, so it never touches the tags)
+        if (b.assigned_to !== undefined) {
+            const after = (query.get('SELECT assigned_to FROM project_tasks WHERE id = ?', [req.params.id]) || {}).assigned_to;
+            taskVis.handOffTaskPeople((sql, p) => db.run(sql, p), req.params.id, existing.assigned_to, after, req.user.id);
+        }
         saveDb();
         res.json({ success: true });
     });
@@ -39387,6 +39398,10 @@ ${extraCss || ''}
     // APPROVAL-GATED single-row email batch into the outbox (sends only after the human approve
     // click). nudge_assignee -> queue an internal notification (direct message + best-effort push).
     // Anything else is acknowledged. Marks the item 'actioned'. Never sends email directly.
+    // Audit detail for an Action Center action, the redesign's form on the same audit_log: a task item is
+    // logged as '<kind> item <id>' (never the title or the assignee's name), which taskAuditScope (both
+    // trees, the same SQL) shows only to the admin who acted. Any other item is logged by its id.
+    const nagAuditDetail = (item, rest) => (taskVis.TASK_NAG_KINDS.has(item.kind) ? `${item.kind} item ${item.id}` : String(item.id)) + (rest || '');
     app.post('/api/admin/nag/items/:id/act', auth, adminOnly, async (req, res) => {
         try {
             const item = query.get("SELECT * FROM nag_items WHERE id = ?", [req.params.id]);
@@ -39448,8 +39463,9 @@ ${extraCss || ''}
                 } catch (e) { /* push is best-effort; the direct message is the guaranteed channel */ }
                 db.run("UPDATE nag_items SET status='actioned' WHERE id = ?", [item.id]);
                 saveDb();
-                // The audit feed goes to every admin: for a task item, the item id only (no kind, no name).
-                logAudit(req, 'nag.act', isTask ? `${item.id} -> nudge sent` : `${item.kind} -> assignee nudged (${payload.who || uid})`);
+                // The audit feed goes to every admin: a task item is logged by kind + item id only (no name),
+                // and only its actor sees that row (taskAuditScope).
+                logAudit(req, 'nag.act', isTask ? nagAuditDetail(item, ' -> assignee nudged') : `${item.kind} -> assignee nudged (${payload.who || uid})`);
                 return res.json({ success: true, action: 'nudge_sent' });
             }
 
@@ -39475,7 +39491,7 @@ ${extraCss || ''}
             }
             db.run("UPDATE nag_items SET status='done', resolved_at=datetime('now') WHERE id = ?", [req.params.id]);
             saveDb();
-            logAudit(req, 'nag.done', req.params.id + (taskCompleted ? ' (+task completed)' : ''));
+            logAudit(req, 'nag.done', nagAuditDetail(item, taskCompleted ? ' (+task completed)' : ''));
             res.json({ success: true, task_completed: taskCompleted });
         } catch (e) { console.error('[nag] done', e.message); res.status(500).json({ error: e.message }); }
     });
@@ -39487,7 +39503,7 @@ ${extraCss || ''}
             if (!item || !taskVis.nagItemVisible(query.get, req.user.id, item)) return res.status(404).json({ error: 'Item not found' });
             db.run("UPDATE nag_items SET status='dismissed', resolved_at=datetime('now') WHERE id = ?", [req.params.id]);
             saveDb();
-            logAudit(req, 'nag.dismiss', req.params.id);
+            logAudit(req, 'nag.dismiss', nagAuditDetail(item));
             res.json({ success: true });
         } catch (e) { console.error('[nag] dismiss', e.message); res.status(500).json({ error: e.message }); }
     });
@@ -39504,14 +39520,14 @@ ${extraCss || ''}
             if (item.claimed_by && item.claimed_by === me) {
                 db.run("UPDATE nag_items SET claimed_by=NULL, claimed_by_name=NULL, claimed_at=NULL WHERE id = ?", [req.params.id]);
                 saveDb();
-                logAudit(req, 'nag.unclaim', req.params.id);
+                logAudit(req, 'nag.unclaim', nagAuditDetail(item));
                 return res.json({ success: true, claimed: false });
             }
             const u = query.get("SELECT first_name, last_name FROM users WHERE email = ?", [me]) || {};
             const name = `${u.first_name || ''} ${u.last_name || ''}`.trim() || me;
             db.run("UPDATE nag_items SET claimed_by=?, claimed_by_name=?, claimed_at=datetime('now') WHERE id = ?", [me, name, req.params.id]);
             saveDb();
-            logAudit(req, 'nag.claim', `${req.params.id} -> ${name}`);
+            logAudit(req, 'nag.claim', nagAuditDetail(item, ` -> ${name}`));
             res.json({ success: true, claimed: true, claimed_by: me, claimed_by_name: name });
         } catch (e) { console.error('[nag] claim', e.message); res.status(500).json({ error: e.message }); }
     });

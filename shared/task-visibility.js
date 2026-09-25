@@ -231,7 +231,9 @@ function taskReminderDmScope(alias, userId) {
 }
 
 const ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const TASK_NAG_AUDIT_RE = /^task_(overdue|due_soon)\b/;
+// an older task nudge line ('<kind> -> assignee nudged (<name>)'), never the id-only '<kind> item <id>' form
+// both portals write now (the redesign shows that one to its actor as stored, so this one does too)
+const TASK_NAG_AUDIT_RE = /^task_(overdue|due_soon)\b(?! item )/;
 
 /**
  * The audit-log feed goes to every admin. Task audit lines now carry only ids; older rows held the
