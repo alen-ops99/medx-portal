@@ -2,12 +2,21 @@
  * shared/email-layout.js — THE Med&X email layout (2026-09-25).
  *
  * Every email both portals send is rendered in this one layout: a warm sand canvas, a cream card,
- * the ink band carrying the real med&X wordmark (hosted white PNG — it reads the same when a
- * client forces dark mode), a 2px crimson or gold rule, Fraunces headlines (Georgia fallback),
- * Inter text (Helvetica/Arial fallback), crimson buttons, gold hairlines and one quiet footer.
+ * the ink band carrying the real med&X wordmark (hosted white PNG), a 2px crimson or gold rule,
+ * Fraunces headlines (Georgia fallback), Inter text (Helvetica/Arial fallback), crimson buttons,
+ * gold hairlines and one quiet footer.
  * It is the design of design/handoff/member-portal-2026-08-28/Emails.dc.html, made bulletproof:
  * table layout, inline CSS, 600px max, a phone media query, an Outlook wrapper, light-only
  * color-scheme metas unless a builder opts into its dark-mode classes.
+ *
+ * Forced dark mode and the white wordmark: Apple Mail honours the light-only metas; Gmail iOS and
+ * Outlook for Windows invert colours on their own and would turn a plain ink band light, where the
+ * white "med&" vanishes (images are never inverted). The band therefore carries its ink three
+ * ways: bgcolor/background (every client), a linear-gradient background-image (Gmail iOS leaves
+ * background images alone) and, for Outlook, a VML fill (Outlook's dark mode is known to leave
+ * VML fills alone). Partial-invert clients (Outlook.com, Outlook iOS/Android, Gmail Android) keep
+ * dark grounds as they are. These are the clients' documented behaviours; a real dark-mode inbox
+ * check (Gmail iOS, Outlook for Windows) is still to be done.
  *
  * Ways in, one look out:
  *   layout({...})        the shell. v2/email-templates.js shell(), both buildEmailTemplate()s and
@@ -83,12 +92,20 @@ const microStyle = (color, size, spacing) =>
     `font-family:${T.sans};font-weight:600;font-size:${size || 10}px;letter-spacing:${spacing || '.18em'};color:${color};text-transform:uppercase;`;
 
 // Buttons: crimson fill (solid), outline (ghost), gold fill, ink fill — the square house corner.
+// Outlook for Windows ignores padding on a link, so it would paint only a thin strip behind the
+// label: there the side padding comes from two letter-spaced <i> spacers and the height from
+// mso-text-raise (the "link button" pattern). Other clients never see the spacers (they sit in
+// mso comments); the label's <span> is inert for them.
 function btn(label, href, kind, extra) {
     const solid = `display:inline-block;white-space:nowrap;padding:15px 34px;background:${T.crimson};color:${T.cream};font-family:${T.sans};font-weight:600;font-size:11px;letter-spacing:.16em;text-decoration:none;text-transform:uppercase;`;
     const ghost = `display:inline-block;white-space:nowrap;padding:14px 30px;border:1px solid rgba(25,21,18,.3);color:${T.ink};font-family:${T.sans};font-weight:600;font-size:11px;letter-spacing:.16em;text-decoration:none;text-transform:uppercase;`;
     const gold = `display:inline-block;white-space:nowrap;padding:14px 30px;background:${T.gold};color:#191512;border:1px solid #191512;font-family:${T.sans};font-weight:600;font-size:11px;letter-spacing:.16em;text-decoration:none;text-transform:uppercase;`;
     const ink = `display:inline-block;white-space:nowrap;padding:14px 30px;background:#191512;color:#f7f1e6;border:1px solid ${T.gold};font-family:${T.sans};font-weight:600;font-size:11px;letter-spacing:.16em;text-decoration:none;text-transform:uppercase;`;
-    return `<a class="mx-btn" href="${escUrl(href)}" style="${kind === 'ghost' ? ghost : kind === 'gold' ? gold : kind === 'ink' ? ink : solid}${extra || ''}">${label}</a>`;
+    const look = kind === 'ghost' ? ghost : kind === 'gold' ? gold : kind === 'ink' ? ink : solid;
+    const fill = kind === 'ghost' ? T.cream : kind === 'gold' ? T.gold : kind === 'ink' ? T.ink : T.crimson;
+    const side = kind === 'ghost' || kind === 'gold' || kind === 'ink' ? 30 : 34, top = side === 34 ? 15 : 14;
+    const spacer = raise => `<!--[if mso]><i style="letter-spacing:${side}px;mso-font-width:-100%;${raise ? `mso-text-raise:${raise}pt;` : ''}" hidden>&nbsp;</i><![endif]-->`;
+    return `<a class="mx-btn" href="${escUrl(href)}" style="${look}mso-padding-alt:0;text-underline-color:${fill};${extra || ''}">${spacer(top * 2)}<span style="mso-text-raise:${top}pt;">${label}</span>${spacer(0)}</a>`;
 }
 
 // Opt-in dark-mode CSS (darkReady): class-based overrides for clients that honour
@@ -142,6 +159,12 @@ a[x-apple-data-detectors]{color:inherit !important;text-decoration:none !importa
 }
 </style>`;
 
+// Outlook for Windows drops rgba() borders, so the layout's own hairlines are the solid colours the
+// translucent ones resolve to on their grounds (identical everywhere else).
+const HAIR_ON_CREAM = '#d3cec4';       // rgba(25,21,18,.16) on the cream card
+const GOLD_FRAME = '#dbc595';          // rgba(201,169,98,.65) on paper
+const ROW_RULE = '#e6e3dd';            // rgba(25,21,18,.1) on paper
+
 const RULES = {
     crimson: `background:${T.crimson};`,
     gold: `background:${T.gold};`,
@@ -183,6 +206,7 @@ function layout(o) {
         .filter(Boolean)
         .map(it => `<div class="em-soft" style="font-family:${T.sans};font-size:12px;color:${T.soft};line-height:1.7;">${it}</div>`).join('\n    ');
     const label = o.label == null ? '' : String(o.label);
+    const headPad = o.headerExtraHtml ? `26px ${padX}px 22px` : `22px ${padX}px`;
     return `<!DOCTYPE html>
 <html lang="${lang}" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
 <head>
@@ -195,9 +219,12 @@ function layout(o) {
 <meta name="supported-color-schemes" content="${scheme}">
 <title>${esc(o.title || 'Med&X')}</title>
 <!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->
+<!--[if mso]><style>*{font-family:Arial,Helvetica,sans-serif !important;}h1,h2,h3,.mx-h1,h1 i,h1 em,h1 span,.mx-h1 i,.mx-h1 em,.mx-h1 span{font-family:Georgia,'Times New Roman',serif !important;}</style><![endif]-->
+<!--[if !mso]><!-->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&amp;family=Inter:wght@400..700&amp;display=swap" rel="stylesheet">
+<!--<![endif]-->
 <style>:root{color-scheme:${scheme};supported-color-schemes:${scheme};}</style>
 ${BASE_CSS}
 ${o.darkReady ? DARK_CSS : ''}
@@ -207,16 +234,18 @@ ${o.preheader ? `<!--mx:skip--><div style="display:none;max-height:0;max-width:0
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="em-canvas" bgcolor="${T.canvas}" style="background:${T.canvas};"><tr><td align="center" class="mx-outer" style="padding:32px 12px;">
 <!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td><![endif]-->
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" class="em-cardbg mx-card" bgcolor="${T.cream}" style="width:100%;max-width:600px;background:${T.cream};box-shadow:0 10px 34px rgba(25,21,18,.18);">
-  <tr><td class="mx-head" bgcolor="${T.ink}" style="background:${T.ink};padding:${o.headerExtraHtml ? `26px ${padX}px 22px` : `22px ${padX}px`};">
+  <tr><td class="mx-head" bgcolor="${T.ink}" style="background:${T.ink};padding:${headPad};background-image:linear-gradient(${T.ink},${T.ink});mso-padding-alt:0;">
+    <!--[if gte mso 9]><v:rect xmlns:v="urn:schemas-microsoft-com:vml" fill="true" stroke="false" fillcolor="${T.ink}" style="width:600px;"><v:fill type="solid" color="${T.ink}" /><v:textbox inset="0,0,0,0" style="mso-fit-shape-to-text:true"><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:${headPad};"><![endif]-->
     <!--mx:skip--><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
       <td align="left" valign="middle" style="vertical-align:middle;"><img src="${escUrl(logoUrl())}" alt="med&amp;X" width="100" height="22" style="display:block;width:100px;height:22px;border:0;color:${T.cream};font-family:${T.serif};font-size:20px;line-height:22px;"></td>
       ${label ? `<td align="right" valign="middle" class="mx-label" style="vertical-align:middle;padding-left:16px;${microStyle(T.gold, 10, '.2em')}line-height:1.5;">${label}</td>` : ''}
     </tr></table><!--/mx:skip-->
     ${o.headerExtraHtml || ''}
+    <!--[if gte mso 9]></td></tr></table></v:textbox></v:rect><![endif]-->
   </td></tr>
   <tr><td height="2" style="height:2px;font-size:0;line-height:0;${ruleCss}">&nbsp;</td></tr>
   <tr><td class="mx-body" style="font-family:${T.sans};color:${T.ink};">${o.body || ''}</td></tr>
-  <tr><td align="center" class="em-hair mx-foot" style="border-top:1px solid ${T.hairline};padding:20px 40px 24px;">
+  <tr><td align="center" class="em-hair mx-foot" style="border-top:1px solid ${HAIR_ON_CREAM};padding:20px 40px 24px;">
     ${footer}
     ${footerLinksHtml(o.links)}
   </td></tr>
@@ -232,11 +261,11 @@ function facts(rows, opts) {
     const list = (rows || []).filter(r => r && r[0] != null && r[1] != null && r[1] !== '');
     if (!list.length) return '';
     const o = opts || {};
-    return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="em-fact" style="margin-top:${o.mt == null ? 20 : o.mt}px;border:1px solid rgba(201,169,98,.65);background:${T.cardCream};"><tr><td style="padding:8px 20px;">
+    return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="em-fact" style="margin-top:${o.mt == null ? 20 : o.mt}px;border:1px solid ${GOLD_FRAME};background:${T.cardCream};"><tr><td style="padding:8px 20px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
         ${list.map(([label, value], i) => `<tr>
-          <td valign="top" style="${i ? 'border-top:1px solid rgba(25,21,18,.1);' : ''}padding:10px 14px 10px 0;width:110px;${microStyle(T.ink, 10, '.12em')}font-weight:700;vertical-align:top;">${label}</td>
-          <td valign="top" style="${i ? 'border-top:1px solid rgba(25,21,18,.1);' : ''}padding:10px 0;font-family:${T.sans};font-size:14px;line-height:1.5;color:${T.ink};word-break:break-word;">${value}</td>
+          <td valign="top" style="${i ? `border-top:1px solid ${ROW_RULE};` : ''}padding:10px 14px 10px 0;width:110px;${microStyle(T.ink, 10, '.12em')}font-weight:700;vertical-align:top;">${label}</td>
+          <td valign="top" style="${i ? `border-top:1px solid ${ROW_RULE};` : ''}padding:10px 0;font-family:${T.sans};font-size:14px;line-height:1.5;color:${T.ink};word-break:break-word;">${value}</td>
         </tr>`).join('')}
         </table>
       </td></tr></table>`;
@@ -248,7 +277,7 @@ function block(o) {
     const padX = o.padX == null ? 40 : o.padX;
     const buttons = (o.buttons || (o.button ? [o.button] : [])).filter(b => b && b.label && b.href);
     return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td class="mx-pad" style="padding:${o.padTop == null ? 36 : o.padTop}px ${padX}px 34px;">
-      ${o.eyebrow ? `<div class="em-goldlab" style="${microStyle(T.gold, 10, '.18em')}">${o.eyebrow}</div>` : ''}
+      ${o.eyebrow ? `<div class="em-goldlab" style="${microStyle(T.goldDark, 10, '.18em')}">${o.eyebrow}</div>` : ''}
       ${o.headline ? `<h1 class="mx-h1 em-ink" style="margin:${o.eyebrow ? 10 : 0}px 0 0;font-family:${T.serif};font-weight:400;font-size:28px;line-height:1.18;letter-spacing:-.005em;color:${T.ink};">${o.headline}</h1>` : ''}
       ${o.bodyHtml ? `<div class="em-soft" style="margin-top:${o.headline || o.eyebrow ? 16 : 0}px;font-family:${T.sans};font-size:15px;line-height:1.7;color:${T.soft};overflow-wrap:anywhere;word-break:break-word;">${o.bodyHtml}</div>` : ''}
       ${o.facts ? facts(o.facts) : ''}
@@ -463,8 +492,18 @@ function restyleDecls(style, mode, ctx) {
     return { style: out, bg: ownBg, bgChanged, image };
 }
 
+// The contrast a text colour needs (WCAG AA): 3:1 for large text (18px, or 14px bold), else 4.5:1.
+// Only the element's own declarations are read; text of unknown size counts as body text.
+function textMin(style) {
+    const st = String(style || '');
+    const fs = /(?:^|;)\s*font-size\s*:\s*([\d.]+)px/i.exec(st) || /(?:^|;)\s*font\s*:[^;]*?([\d.]+)px/i.exec(st);
+    const size = fs ? +fs[1] : 0;
+    const bold = /(?:^|;)\s*font-weight\s*:\s*(bold|[6-9]00)\b/i.test(st) || /(?:^|;)\s*font\s*:\s*(bold|[6-9]00)\b/i.test(st);
+    return size >= 18 || (bold && size >= 14) ? 3 : 4.5;
+}
 // Readability guard: after re-homing, a text colour must still read on its ground. min: the
-// contrast below which the colour is swapped for ink or cream (whichever reads better).
+// contrast below which the colour is swapped — a pale gold for the dark gold, a pale grey for the
+// muted grey (so it stays quieter than the body text), anything else for ink / cream.
 function guardText(style, ground, min) {
     if (!ground) return style;
     return style.replace(/((?:^|;)\s*color\s*:\s*)([^;]+)/i, (m0, pre, val) => {
@@ -475,11 +514,14 @@ function guardText(style, ground, min) {
         if (contrast(seen, ground) >= min) return m0;
         const { h, s } = hsl(c);
         const lightGround = contrast(P(T.ink), ground) >= contrast(P(T.cream), ground);
-        // a gold that is too pale for a light ground deepens to the dark gold; anything else → ink / cream
-        const pick = lightGround && h >= 25 && h <= 60 && s >= 0.25 && contrast(P(T.goldDark), ground) >= 4.5 ? T.goldDark : (lightGround ? T.ink : T.cream);
+        const reads = col => contrast(P(col), ground) >= Math.max(min, 4.5);
+        const pick = lightGround
+            ? (h >= 25 && h <= 60 && s >= 0.25 && reads(T.goldDark) ? T.goldDark : s < 0.25 && reads(T.muted) ? T.muted : T.ink)
+            : (s < 0.25 && reads(LIGHT_SOFT) ? LIGHT_SOFT : T.cream);
         return pre + pick + (imp ? ' !important' : '');
     });
 }
+const LIGHT_SOFT = '#d9cebd';   // the quiet text colour on an ink ground
 
 // A link styled as a button (a fill or an outline, with padding) becomes the house button — crimson
 // fill, or the ink outline — keeping only how it sits (block / width / margin / alignment).
@@ -511,7 +553,7 @@ function headStyle(st, darkGround) {
  * restyle(html, { mode: 'legacy' | 'dark' | 'guard', ground })
  *   legacy  re-home the old palettes, fonts, corners and button links to the house style
  *   dark    translate the retired espresso palette to its cream twin
- *   guard   touch nothing but text that would not read on its ground (≥ 3:1)
+ *   guard   touch nothing but text that would not read on its ground (4.5:1; large text 3:1)
  * Walks the tags once with a stack of grounds (so light text on a band that became ink stays
  * light, and dark text in a box that became paper stays dark). Touches ONLY style="", bgcolor=""
  * and color="" values, plus a style on bare <h1–h4>, on <a> without a colour, and on <hr>.
@@ -566,7 +608,7 @@ function restyle(html, opts) {
             // readability: judge text against its own ground, else the nearest ground above it
             const gr = ownBg ? over(ownBg, groundColor || baseGround) : (g && g.image ? null : (groundColor ? over(groundColor, baseGround) : baseGround));
             const touched = st !== v || bgChanged || (g && g.changed) || mode === 'dark';
-            if (gr && !(g && g.image) && !image) st = guardText(st, gr, 3);
+            if (gr && !(g && g.image) && !image) st = guardText(st, gr, textMin(st));
             if (st === v) return a0;
             changed = true;
             const quote = v1 != null ? '"' : "'";
@@ -788,18 +830,41 @@ function unwrapSinglePanel(html) {
     if (/background\s*:\s*#191512|<img[^>]+(logo|wordmark)/i.test(p.inner.slice(0, 2000))) return null;
     return { body: p.tag === 'div' ? p.inner : p.src, lang: langOf(html), title: decodeBasic(titleOf(html)) };
 }
-// Content panels lose their own box (the card is the box now); the words stay put.
+// Content panels lose their own box (the card is the box now); the words stay put. A wrapper that
+// is only padding loses it too (the block already sets the column, so it would indent twice), and
+// a short serif title opening the content becomes the block's headline.
 function unboxPanels(body) {
+    let first = true;
     return topNodes(String(body).trim()).map(n => {
         if (!n.tag) return n.text != null ? n.text : n.comment;
+        const lead = first; first = false;
         if (n.tag === 'div') {
             const st = styleOf(n.open);
-            if (/background\s*:\s*#(fdfaf3|fff|ffffff)\b/i.test(st) || /border\s*:\s*1px solid/i.test(st)) {
-                return setStyle(n.open, keepDecls(st, 'font-size|line-height|color|text-align')) + n.inner + n.close;
-            }
+            const boxed = /background\s*:\s*#(fdfaf3|fff|ffffff)\b/i.test(st) || /border\s*:\s*1px solid/i.test(st);
+            const padOnly = !boxed && /(^|;)\s*padding\s*:/i.test(st) && !bgOfStyle(st) && !/border/i.test(st)
+                && !String(st).split(';').some(d => d.trim() && !/^(padding(-[a-z]+)?|font-size|line-height|color|text-align|font-family)\s*:/i.test(d.trim()));
+            if (boxed || padOnly) return setStyle(n.open, keepDecls(st, 'font-size|line-height|color|text-align')) + (lead ? titleToHeadline(n.inner) : n.inner) + n.close;
+            if (lead && isSerifTitle(n)) return titleToHeadline(n.src);
         }
         return n.src;
     }).join('');
+}
+// a short serif title (a Georgia 20px+ div or p, no links or tables) at the head of the content
+function isSerifTitle(e) {
+    const st = styleOf(e.open);
+    const fam = (/(?:^|;)\s*font-family\s*:\s*([^;]+)/i.exec(st) || /(?:^|;)\s*font\s*:\s*([^;]+)/i.exec(st) || [])[1] || '';
+    const serif = /georgia|fraunces|times|serif/i.test(fam) && !/sans-serif/i.test(fam);
+    const size = /font-size\s*:\s*([\d.]+)px/i.exec(st) || /font\s*:[^;]*?([\d.]+)px/i.exec(st);
+    return /^(div|p)$/.test(e.tag) && serif && size && +size[1] >= 20 && visibleText(e.inner).length <= 140 && !/<(table|a|img|ul|ol|div|p)\b/i.test(e.inner);
+}
+function titleToHeadline(html) {
+    const nodes = topNodes(String(html));
+    const i = nodes.findIndex(x => x.tag || (x.text != null && x.text.trim()));
+    if (i < 0 || !nodes[i].tag || !isSerifTitle(nodes[i])) return html;
+    const e = nodes[i];
+    const open = setStyle(e.open, HEADLINE_CSS + 'margin-bottom:16px;');
+    nodes[i] = { src: (/\sclass\s*=\s*"/i.test(open) ? open.replace(/(\sclass\s*=\s*")/i, '$1mx-h1 ') : open.replace(/^<([a-z0-9]+)/i, '<$1 class="mx-h1"')) + e.inner + e.close };
+    return nodes.map(x => x.src != null ? x.src : x.text != null ? x.text : x.comment).join('');
 }
 
 // A fragment wrapped in one max-width panel of its own (padding, a fill) — the card is the panel
@@ -851,14 +916,30 @@ function ensureBranded(html, meta) {
 
 /**
  * toText(html) — the text/plain alternative. Chrome marked <!--mx:skip--> (preheader, the
- * wordmark row, the social icons) is left out; links read "label (url)"; blocks become lines.
+ * wordmark row, the social icons) is left out, and so is any hidden preheader a body carries of
+ * its own, with its invisible filler (&zwnj;, &#847;, zero-width spaces); links read
+ * "label (url)"; blocks become lines.
  */
+const HIDDEN_FILLER = /&zwnj;|&#8204;|&#x200c;|&#847;|&#x34f;|&#8203;|&#x200b;|&#65279;|&#xfeff;|[\u200b\u200c\u034f\ufeff]/gi;
+// every display:none <div>/<span>, balanced (a hidden element keeps its nested tags to itself)
+function dropHidden(s) {
+    const re = /<(div|span)\b[^>]*display\s*:\s*none[^>]*>/gi;
+    let out = '', last = 0, m;
+    while ((m = re.exec(s))) {
+        const end = elementEnd(s, m.index);
+        if (end < 0) break;
+        out += s.slice(last, m.index) + ' ';
+        last = re.lastIndex = end;
+    }
+    return out + s.slice(last);
+}
 function toText(html) {
-    return String(html || '')
+    return dropHidden(String(html || '')
         .replace(/<head[\s\S]*?<\/head>/i, ' ')
         .replace(/<!--mx:skip-->[\s\S]*?<!--\/mx:skip-->/g, ' ')
         .replace(/<!--[\s\S]*?-->/g, ' ')
-        .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+        .replace(/<style[\s\S]*?<\/style>/gi, ' '))
+        .replace(HIDDEN_FILLER, '')
         .replace(/<a\s[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, (m, href, label) => {
             const l = label.replace(/<img[^>]*\salt="([^"]*)"[^>]*>/gi, '$1').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
             const h = href.replace(/&amp;/g, '&');

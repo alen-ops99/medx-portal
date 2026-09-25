@@ -378,8 +378,14 @@ ${paragraphs(body)}` }),
                     subject: first.subject || rows[0].subject || '(no subject)',
                     to: first.to || rows[0].recipient_email || null,
                     body_text: first.body_text || null,
-                    // exactly what the drainer will send: sendEmail() puts every message in the one layout
-                    html: (first.html || first.body_html || first.body) ? emailLayout.ensureBranded(first.html || first.body_html || first.body, { subject: first.subject || rows[0].subject || '' }) : null
+                    // exactly what the drainer will send: sendEmail() puts every message in the one layout.
+                    // A portal-channel row (channel 'portal' + user_id) goes to the in-portal inbox, never
+                    // by email, so it is shown as stored.
+                    html: (first.html || first.body_html || first.body)
+                        ? (first.channel === 'portal' && first.user_id
+                            ? (first.html || first.body_html || first.body)
+                            : emailLayout.ensureBranded(first.html || first.body_html || first.body, { subject: first.subject || rows[0].subject || '' }))
+                        : null
                 }
             });
         } catch (err) { fail(res, err, 'Could not load that batch.'); }

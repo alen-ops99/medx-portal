@@ -632,7 +632,7 @@ module.exports = function mountWallet(app, ctx) {
         const EL = emailLayout;
         const qrTile = `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:18px auto 0;"><tr><td style="background:#ffffff;border:1px solid rgba(25,21,18,.16);padding:8px;"><img src="${qrUrl}" alt="Check-in QR" width="120" height="120" style="display:block;border:0;width:120px;height:120px;"></td></tr></table>`;
         const body = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td class="mx-pad" style="padding:36px 40px 34px;">
-      <div style="${EL.microStyle(EL.T.gold, 10, '.18em')}">YOUR TICKET</div>
+      <div style="${EL.microStyle(EL.T.goldDark, 10, '.18em')}">YOUR TICKET</div>
       <h1 class="mx-h1" style="margin:10px 0 0;font-family:${EL.T.serif};font-weight:400;font-size:28px;line-height:1.18;color:${EL.T.ink};">${escapeHtml(item.title)} — <i>${item.amount > 0 ? 'seat confirmed' : 'you are in'}</i>.</h1>
       ${EL.facts([
             ['EVENT', escapeHtml(item.title)],

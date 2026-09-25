@@ -120,5 +120,54 @@ t('bulletproof frame: tables, a 600px card, the phone query, light colour-scheme
     assert.strictEqual((html.match(/<\/body>/g) || []).length, 1, 'hub code appends markers before </body>');
 });
 
+t('forced dark mode: the ink band keeps its ink three ways, so the white wordmark always reads', () => {
+    const html = EL.layout({ title: 't', body: '<p>x</p>' });
+    const head = /<td class="mx-head"([^>]*)>([\s\S]*?)<\/td><\/tr>\s*<tr><td height="2"/.exec(html);
+    assert.ok(head, 'the band cell');
+    assert.ok(/bgcolor="#191512"/.test(head[1]) && /background:#191512/.test(head[1]), 'bgcolor + background');
+    assert.ok(/background-image:linear-gradient\(#191512,#191512\)/.test(head[1]), 'a gradient image (Gmail iOS leaves images alone)');
+    assert.ok(/<!--\[if gte mso 9\]><v:rect[^>]*fillcolor="#191512"[\s\S]*<v:fill type="solid" color="#191512"/.test(head[2]) && /<\/v:textbox><\/v:rect><!\[endif\]-->/.test(head[2]), 'a VML fill for Outlook, opened and closed');
+    assert.ok(head[2].includes('logo-white.png'), 'the wordmark sits inside');
+    assert.ok(/<!--\[if mso\]><style>\*\{font-family:Arial/.test(html), 'Outlook gets a web-safe font, not Times');
+});
+
+t('small gold labels on cream use the dark gold (readable), the pale gold stays on the ink band', () => {
+    const b = EL.block({ eyebrow: 'THE FORUM', headline: 'x' });
+    assert.ok(/class="em-goldlab" style="[^"]*color:#6e5626/.test(b) && !/color:#c9a962/.test(b));
+});
+
+t('buttons: the same link and label everywhere, with the Outlook link-button spacers in mso comments only', () => {
+    const a = EL.btn('OPEN THE BOARD', PAY.replace(/&amp;/g, '&'));
+    assert.ok(a.includes(`href="${PAY}"`) && />OPEN THE BOARD</.test(a), 'the raw URL, escaped once');
+    assert.ok(/mso-padding-alt:0/.test(a) && /<!--\[if mso\]><i [^>]*mso-text-raise:30pt[^>]*hidden>&nbsp;<\/i><!\[endif\]-->/.test(a));
+    assert.deepStrictEqual(words(a), ['OPEN THE BOARD'], 'no visible text added');
+});
+
+t('readability: pale body text re-dressed at send time reads at 4.5:1; large text keeps 3:1', () => {
+    const out = EL.restyle('<p style="color:#94a3b8;font-size:14px;">Body copy</p><p style="color:#94a3b8;font-size:22px;">Big</p>');
+    const colours = [...out.matchAll(/color:(#[0-9a-f]{6})/gi)].map(m => m[1]);
+    const P = c => EL._internals.parseColor(c), cream = P('#f7f1e6');
+    assert.ok(EL._internals.contrast(P(colours[0]), cream) >= 4.5, 'body text ' + colours[0]);
+    assert.ok(EL._internals.contrast(P(colours[1]), cream) >= 3, 'large text ' + colours[1]);
+});
+
+t('plain-text twin: a body\'s own hidden preheader and its &zwnj; filler stay out', () => {
+    const body = '<div style="display:none;max-height:0px;overflow:hidden;mso-hide:all;">Saturday · 19:00&nbsp;&zwnj;&nbsp;&#8204;&#x200c;<span>x</span></div><p>Dear Ana,</p><p>See you&zwnj; there.</p>';
+    const txt = EL.toText(EL.ensureBranded(body, { subject: 'Reminder' }));
+    assert.ok(!/zwnj|&#8204;|&#x200c;|‌/i.test(txt), 'no filler');
+    assert.ok(!/Saturday · 19:00/.test(txt), 'no hidden preheader');
+    assert.ok(/Dear Ana,\nSee you there\./.test(txt), txt);
+});
+
+t('brand-lite at send time: a padding-only wrapper loses its indent, a leading Georgia title becomes the headline', () => {
+    const lite = `<!doctype html><html><body style="margin:0;background:#f7f1e6"><div style="max-width:600px;margin:0 auto">
+  <div style="background:#191512;color:#f7f1e6;padding:18px 24px"><div style="font-size:20px">Med&amp;X</div><div style="font:600 9px Arial">MONEY DESK</div></div>
+  <div style="padding:28px"><div style="font-family:Georgia,serif;font-size:21px;color:#191512">Invoice sent</div><p>Dear Ana, <a href="${PAY}">pay here</a>.</p></div></div></body></html>`;
+    const out = EL.ensureBranded(lite, { subject: 'Invoice' });
+    assert.ok(/<div class="mx-h1" style="margin:0;font-family:Fraunces[^"]*font-size:28px/.test(out), 'the title is the 28px Fraunces headline');
+    assert.ok(!/padding:28px/.test(out), 'no double indent');
+    assert.ok(out.includes(`href="${PAY}"`) && out.includes('Invoice sent') && out.includes('Dear Ana,'));
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

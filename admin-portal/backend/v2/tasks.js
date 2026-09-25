@@ -271,12 +271,12 @@ module.exports = function mountTasks(app, ctx) {
         const sans = "Inter,Helvetica,Arial,sans-serif", serif = "Fraunces,Georgia,'Times New Roman',serif";
         const body = `
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td class="mx-pad" style="padding:36px 40px 34px;">
-          <div style="font-family:${sans};font-weight:600;font-size:10px;letter-spacing:.2em;color:#c9a962;text-transform:uppercase;">THE TASK BOARD</div>
-          <div style="font-family:${serif};font-size:26px;line-height:1.18;color:#191512;margin-top:10px;">${headline}</div>
+          <div style="font-family:${sans};font-weight:600;font-size:10px;letter-spacing:.2em;color:${emailLayout.T.goldDark};text-transform:uppercase;">THE TASK BOARD</div>
+          <div class="mx-h1" style="font-family:${serif};font-size:26px;line-height:1.18;color:#191512;margin-top:10px;">${headline}</div>
           ${(lines || []).map(l => `<p style="font-family:${sans};font-size:15px;line-height:1.65;color:#4a4239;margin:14px 0 0;">${l}</p>`).join('')}
           ${quote ? `<div style="margin-top:18px;padding:16px 18px;background:#fdfaf3;border-left:2px solid #c9a962;font-family:${sans};font-size:14px;line-height:1.6;color:#191512;white-space:pre-wrap;">${quote}</div>` : ''}
           ${links && links.length ? `<div style="margin-top:14px;">${links.map(l => `<div style="font-family:${sans};font-size:14px;line-height:1.7;"><a href="${esc(l.url)}" style="color:#9b1b22;text-decoration:underline;">${esc(l.label || l.url)}</a></div>`).join('')}</div>` : ''}
-          <div style="margin-top:26px;"><a href="${esc(url)}" style="display:inline-block;padding:15px 34px;background:#9b1b22;color:#f7f1e6;font-family:${sans};font-weight:600;font-size:11px;letter-spacing:.16em;text-decoration:none;text-transform:uppercase;">${cta}</a></div>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding-top:26px;">${emailLayout.btn(cta, url)}</td></tr></table>
         </td></tr></table>`;
         return emailLayout.layout({
             title, label: 'ADMIN PORTAL', rule: 'crimson', body,
