@@ -4754,83 +4754,53 @@
                 }
             },
 
-            // Legal Modal - Show Privacy Policy or Terms of Service
+            // Legal Modal. One text for everyone (Miro's review, 25 Sept 2026): Terms and Privacy show the published
+            // /terms and /privacy pages fetched live, and Refund carries the medx.hr/refund text word for word.
+            // The old February drafts that lived here are gone, because checkout consent must point at the text in force.
             showLegalModal(type) {
-                const content = {
-                    privacy: {
-                        title: 'Privacy Policy',
-                        body: `
+                if (type === 'terms' || type === 'privacy') {
+                    const title = type === 'terms' ? 'Terms & Conditions' : 'Privacy Policy';
+                    const wrap = inner => `<div style="font-size: 14px; line-height: 1.7; color: var(--up-text, #334155);">${inner}</div>`;
+                    fetch('/' + type, { credentials: 'same-origin' })
+                        .then(r => r.ok ? r.text() : Promise.reject(new Error('HTTP ' + r.status)))
+                        .then(html => {
+                            const page = new DOMParser().parseFromString(html, 'text/html').querySelector('.container');
+                            if (!page) throw new Error('no legal text');
+                            page.querySelectorAll('h1, .footer-nav').forEach(n => n.remove());
+                            page.querySelectorAll('h2').forEach(h => { h.style.cssText = 'font-size: 16px; font-weight: 600; margin: 20px 0 8px;'; });
+                            page.querySelectorAll('p, li').forEach(n => { n.style.marginBottom = '12px'; });
+                            page.querySelectorAll('ul').forEach(n => { n.style.margin = '0 0 12px 20px'; });
+                            page.querySelectorAll('a').forEach(a => { a.style.color = 'var(--up-gold)'; });
+                            this.showModal(title, wrap(page.innerHTML));
+                        })
+                        .catch(() => this.showModal(title, wrap(`<p>Read the <a href="/${type}" target="_blank" rel="noopener" style="color: var(--up-gold);">${title}</a>.</p>`)));
+                    return;
+                }
+                if (type === 'refund') {
+                    this.showModal('Refund Policy', `
                             <div style="font-size: 14px; line-height: 1.7; color: var(--up-text, #334155);">
-                                <p style="margin-bottom: 12px; padding: 10px 12px; background: #fef3c7; border-left: 3px solid var(--gold); border-radius: 4px; font-size: 13px;"><strong>Draft &mdash; pending legal review.</strong> Croatian translation will be added. For questions contact <a href="mailto:pr@medx.hr" style="color: var(--up-gold);">pr@medx.hr</a>.</p>
-                                <p style="margin-bottom: 16px;"><strong>Last updated:</strong> February 2026</p>
-                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">1. Information We Collect</h3>
-                                <p style="margin-bottom: 12px;">We collect information you provide directly, including your name, email address, institution, country, and any other data submitted through forms on our platform. We also collect usage data such as pages visited, features used, and interaction patterns to improve our services.</p>
-                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">2. How We Use Your Information</h3>
-                                <p style="margin-bottom: 12px;">Your information is used to provide and improve the Med&X User Portal, manage event registrations, facilitate networking features, administer the rewards program, and communicate important updates about Med&X programs and events.</p>
-                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">3. Data Sharing</h3>
-                                <p style="margin-bottom: 12px;">We do not sell your personal information. Data may be shared with trusted service providers who assist in operating our platform, and as required by law. Event-specific data may be shared with relevant program organizers within Med&X.</p>
-                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">4. Data Security</h3>
-                                <p style="margin-bottom: 12px;">We implement industry-standard security measures to protect your personal information, including encryption in transit and at rest, secure authentication, and regular security audits.</p>
-                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">5. Your Rights</h3>
-                                <p style="margin-bottom: 12px;">You have the right to access, correct, or delete your personal data. You may also request data portability or withdraw consent at any time. To exercise these rights, contact us at <a href="mailto:pr@medx.hr" style="color: var(--up-gold);">pr@medx.hr</a>.</p>
-                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">6. Contact</h3>
-                                <p>For questions about this privacy policy, please contact <a href="mailto:pr@medx.hr" style="color: var(--up-gold);">pr@medx.hr</a>.</p>
-                            </div>
-                        `
-                    },
-                    terms: {
-                        title: 'Terms of Service',
-                        body: `
-                            <div style="font-size: 14px; line-height: 1.7; color: var(--up-text, #334155);">
-                                <p style="margin-bottom: 12px; padding: 10px 12px; background: #fef3c7; border-left: 3px solid var(--gold); border-radius: 4px; font-size: 13px;"><strong>Draft &mdash; pending legal review.</strong> Croatian translation will be added. For questions contact <a href="mailto:pr@medx.hr" style="color: var(--up-gold);">pr@medx.hr</a>.</p>
-                                <p style="margin-bottom: 16px;"><strong>Last updated:</strong> February 2026</p>
-                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">1. Acceptance of Terms</h3>
-                                <p style="margin-bottom: 12px;">By accessing or using the Med&X User Portal, you agree to be bound by these Terms of Service. If you do not agree, please do not use our platform.</p>
-                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">2. Account Responsibilities</h3>
-                                <p style="margin-bottom: 12px;">You are responsible for maintaining the confidentiality of your account credentials and for all activities that occur under your account. You agree to provide accurate and complete information during registration.</p>
-                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">3. Acceptable Use</h3>
-                                <p style="margin-bottom: 12px;">You agree to use the platform only for lawful purposes related to Med&X activities. You shall not misuse the platform, attempt unauthorized access, or interfere with other users' experience.</p>
-                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">4. Intellectual Property</h3>
-                                <p style="margin-bottom: 12px;">All content, trademarks, and intellectual property on the Med&X portal are owned by Med&X or its licensors. You may not reproduce, distribute, or create derivative works without prior written consent.</p>
-                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">5. Rewards Program</h3>
-                                <p style="margin-bottom: 12px;">Points earned through the Med&X Rewards program have no monetary value and cannot be transferred or exchanged for cash. Med&X reserves the right to modify the rewards program at any time.</p>
-                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">6. Limitation of Liability</h3>
-                                <p style="margin-bottom: 12px;">Med&X provides the portal on an "as is" basis. We shall not be liable for any indirect, incidental, or consequential damages arising from your use of the platform.</p>
-                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">7. Changes to Terms</h3>
-                                <p style="margin-bottom: 12px;">We may update these terms from time to time. Continued use of the platform after changes constitutes acceptance of the updated terms.</p>
-                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">8. Contact</h3>
-                                <p>For questions about these terms, please contact <a href="mailto:pr@medx.hr" style="color: var(--up-gold);">pr@medx.hr</a>.</p>
-                            </div>
-                        `
-                    },
-                    refund: {
-                        title: 'Refund Policy',
-                        body: `
-                            <div style="font-size: 14px; line-height: 1.7; color: var(--up-text, #334155);">
-                                <p style="margin-bottom: 16px;"><strong>Last updated:</strong> 4 July 2026</p>
-
+                                <p style="margin-bottom: 16px;"><strong>Last updated:</strong> 25 September 2026</p>
+                                <p style="margin-bottom: 12px;">This policy covers registrations and tickets for events organized by <strong>Med&amp;X Association (udruga)</strong>, covering the Plexus Conference, the Plexus Gala Evening, the Biomedical Forum, Building Bridges, and Med&amp;X Accelerator application fees. It sits alongside our <a style="color: var(--up-gold);" href="/terms" onclick="event.preventDefault(); UserPortal.showLegalModal('terms');">Terms</a>.</p>
                                 <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">1. Registration fees are non-refundable</h3>
-                                <p style="margin-bottom: 12px;">All registration and ticket fees for Med&X events — including the Plexus Conference, the Plexus Gala Evening, and the Biomedical Forum — are <strong>non-refundable</strong>. Accelerator application processing fees are likewise non-refundable.</p>
-
-                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">2. Transferring your place</h3>
-                                <p style="margin-bottom: 12px;">If you are unable to attend, you may transfer your place to another individual by emailing <a href="mailto:info@medx.hr" style="color: var(--up-gold);">info@medx.hr</a> at least 14 days before the event, subject to Med&X approval.</p>
-
-                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">3. If Med&amp;X cancels an event</h3>
-                                <p style="margin-bottom: 12px;">If Med&X cancels an event, paid registration fees are refunded in full within 30 days. If an event is postponed, your registration is applied to the rescheduled date, or refunded in full at your request. Med&X is not responsible for travel, accommodation, or other incidental costs.</p>
-
-                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">4. EU consumer rights</h3>
-                                <p style="margin-bottom: 12px;">For consumers in the European Union, the 14-day right of withdrawal under Directive 2011/83/EU does <strong>not</strong> apply to tickets for events tied to a specific date.</p>
-
-                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">5. Contact</h3>
-                                <p>For any questions about this policy, contact <a href="mailto:info@medx.hr" style="color: var(--up-gold);">info@medx.hr</a>.</p>
+                                <p style="margin-bottom: 12px;">All registration and ticket fees are <strong>non-refundable</strong>. Accelerator application processing fees are non-refundable as well. Please make sure you can attend before you pay.</p>
+                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">2. You can transfer your place</h3>
+                                <p style="margin-bottom: 12px;">If you cannot attend, you may pass your place to another person instead. Email <a style="color: var(--up-gold);" href="mailto:info@medx.hr">info@medx.hr</a> at least 14 days before the event with the new attendee's details, and we will move the registration over once we approve it. There is no charge to transfer, but a name change may not be possible in the final days before an event.</p>
+                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">3. If an event is cancelled or postponed</h3>
+                                <p style="margin-bottom: 12px;">If we cancel an event for any reason not covered below, we refund your paid fees in full within 30 days, to your original payment method. If we postpone it for such a reason, your registration carries over, and if you cannot attend the new date we refund you in full within 30 days of your request.</p>
+                                <p style="margin-bottom: 12px;">If circumstances outside our reasonable control prevent an event from going ahead as planned, we may postpone it, move it to another venue or online, or cancel it. Such circumstances include public-health restrictions, natural disasters, war or civil unrest, general or transport strikes, the venue becoming unusable through fire, flood or an order of the authorities, and other government action.</p>
+                                <ul style="margin: 0 0 12px 20px;">
+                                <li style="margin-bottom: 8px;">If we postpone or move it, your registration carries over to the new date or format. If you cannot take part, you may transfer your place (section 2). You may instead tell us at <a style="color: var(--up-gold);" href="mailto:info@medx.hr">info@medx.hr</a>, within 14 days of our email about the change, that you will not take part. You then receive the credit or refund described in the next point, and only the costs lost because of the postponement or move count toward your share.</li>
+                                <li style="margin-bottom: 8px;">If we cancel it, you receive a credit worth the full fee you paid. You can use it for any Med&amp;X event within 24 months of the cancellation, or pass it to another person. Until the credit is used or expires, you may ask for a refund instead. The refund is the fee you paid minus your share of the costs we have already paid for the event and cannot recover, such as the venue, catering, printing and payment-processing fees. Your share is those costs, less anything covered by insurance, sponsors or grants, divided among all paid registrations in proportion to the fees paid. It is never more than 30 percent of your fee. We send you the calculation and pay the refund within 60 days of your request. If the credit expires unused, we pay you this refund without a request.</li>
+                                </ul>
+                                <p style="margin-bottom: 12px;">If an event cannot go ahead because of circumstances outside our reasonable control, Med&amp;X is not responsible for travel, accommodation, or other costs you may have arranged.</p>
+                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">4. EU right of withdrawal</h3>
+                                <p style="margin-bottom: 12px;">For consumers in the European Union, the 14-day right of withdrawal under Directive 2011/83/EU does <strong>not</strong> apply to tickets for events tied to a specific date. Your options are the transfer and cancellation terms above.</p>
+                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">5. How refunds are paid</h3>
+                                <p style="margin-bottom: 12px;">Where a refund is due under section 3, it goes back to the card or account you paid from. Card refunds usually appear within about 10 business days. Bank-transfer refunds can take a little longer, depending on your bank.</p>
+                                <h3 style="font-size: 16px; font-weight: 600; margin: 20px 0 8px;">6. Questions</h3>
+                                <p style="margin-bottom: 12px;">For anything about this policy, or to arrange a transfer, email <a style="color: var(--up-gold);" href="mailto:info@medx.hr">info@medx.hr</a>.</p>
                             </div>
-                        `
-                    }
-                };
-
-                const legal = content[type];
-                if (legal) {
-                    this.showModal(legal.title, legal.body);
+                        `);
                 }
             },
 

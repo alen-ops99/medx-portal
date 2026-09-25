@@ -1050,7 +1050,7 @@ const _legalPageShell = (title, bodyHtml) => `<!DOCTYPE html>
 app.get('/terms', (req, res) => {
     res.send(_legalPageShell('Terms & Conditions', `
         <h1>Terms &amp; Conditions</h1>
-        <div class="updated">Last updated: 1 June 2026</div>
+        <div class="updated">Last updated: 25 September 2026</div>
 
         <p>These terms govern registration for events organized by <strong>Med&amp;X</strong>, a Croatian non-profit organization, including the Plexus Conference, the Plexus Gala Evening, the Annual Biomedical Forum, and other Med&amp;X-organized events.</p>
 
@@ -1058,7 +1058,7 @@ app.get('/terms', (req, res) => {
         <p>By submitting a registration form, you confirm that the information you provide is accurate and that you accept these terms. Paid registrations are processed via Stripe; receipt of payment confirms your registration. Complimentary (VIP) registrations are confirmed at the moment of form submission.</p>
 
         <h2>2. Refund Policy</h2>
-        <p>All registration fees are <strong>non-refundable</strong>. If you are unable to attend, you may transfer your place to another individual by emailing <a href="mailto:info@medx.hr">info@medx.hr</a> at least 14 days before the event, subject to Med&amp;X approval. In the event of cancellation by Med&amp;X, paid fees will be refunded in full within 30 days.</p>
+        <p>All registration fees are <strong>non-refundable</strong>. If you are unable to attend, you may transfer your place to another individual by emailing <a href="mailto:info@medx.hr">info@medx.hr</a> at least 14 days before the event, subject to Med&amp;X approval. If Med&amp;X cancels an event for any reason not covered by §7, paid fees are refunded in full within 30 days. If Med&amp;X postpones an event for such a reason, your registration carries over, and if you cannot attend the new date, Med&amp;X refunds you in full within 30 days of your request. If circumstances outside Med&amp;X's reasonable control prevent an event from going ahead as planned, §7 applies.</p>
 
         <h2>3. Event Attendance</h2>
         <ul>
@@ -1078,13 +1078,18 @@ app.get('/terms', (req, res) => {
         <p>Attendees are responsible for their own health, safety, and personal belongings during the event. Med&amp;X is not liable for any loss, damage, injury, or expense incurred by attendees except where caused by gross negligence or wilful misconduct on the part of Med&amp;X.</p>
 
         <h2>7. Force Majeure</h2>
-        <p>If Med&amp;X is prevented from holding the event by circumstances outside its reasonable control (including public-health restrictions, natural disasters, or government action), Med&amp;X may postpone or cancel the event. Registration fees may be applied to the rescheduled event or refunded at Med&amp;X's discretion.</p>
+        <p>If circumstances outside Med&amp;X's reasonable control prevent an event from going ahead as planned, Med&amp;X may postpone it, move it to another venue or online, or cancel it. Such circumstances include public-health restrictions, natural disasters, war or civil unrest, general or transport strikes, the venue becoming unusable through fire, flood or an order of the authorities, and other government action.</p>
+        <ul>
+            <li>If the event is postponed or moved, your registration carries over to the new date or format. If you cannot take part, you may transfer your place as described in §2. You may instead tell us at <a href="mailto:info@medx.hr">info@medx.hr</a>, within 14 days of our email about the change, that you will not take part. You then receive the credit or refund described in the next point, and only the costs lost because of the postponement or move count toward your share.</li>
+            <li>If the event is cancelled, Med&amp;X gives you a credit worth the full fee you paid. You can use it for any Med&amp;X event within 24 months of the cancellation, or pass it to another person. Until the credit is used or expires, you may ask for a refund instead. The refund is the fee you paid minus your share of the costs Med&amp;X has already paid for the event and cannot recover, such as the venue, catering, printing and payment-processing fees. Your share is those costs, less anything covered by insurance, sponsors or grants, divided among all paid registrations in proportion to the fees paid. It is never more than 30 percent of your fee. Med&amp;X sends you the calculation and pays the refund within 60 days of your request. If the credit expires unused, Med&amp;X pays you this refund without a request.</li>
+        </ul>
+        <p>In these circumstances Med&amp;X is not responsible for travel, accommodation or other costs you arranged for the event.</p>
 
         <h2>8. Data and Privacy</h2>
         <p>The personal data you provide is processed in accordance with our <a href="/privacy">Privacy Policy</a>.</p>
 
         <h2>9. Changes to These Terms</h2>
-        <p>Med&amp;X may amend these terms from time to time. The version in force is the one published on this page at the date of your registration.</p>
+        <p>Med&amp;X may update these terms when it adds or changes an event, a program or a feature of the portal, when the law or the authorities require it, or to make the terms clearer. The version published on this page applies to everyone, so please check it from time to time. Before a change that affects your rights takes effect, Med&amp;X tells members in the portal, or by email, at least 14 days ahead. A change the law requires can apply sooner. If you do not agree with a change, tell us at <a href="mailto:info@medx.hr">info@medx.hr</a>, or delete your account before the change takes effect. If you keep using the portal after that, you accept the updated terms. A change never makes the price, the refund terms (§2) or the cancellation terms (§7) worse for a registration you have already paid for.</p>
 
         <h2>10. Governing Law</h2>
         <p>These terms are governed by the laws of the Republic of Croatia. Any disputes arising shall be subject to the exclusive jurisdiction of the courts of Zagreb, Croatia.</p>
@@ -1097,7 +1102,7 @@ app.get('/terms', (req, res) => {
 app.get('/privacy', (req, res) => {
     res.send(_legalPageShell('Privacy Policy', `
         <h1>Privacy Policy</h1>
-        <div class="updated">Last updated: 1 June 2026</div>
+        <div class="updated">Last updated: 25 September 2026</div>
 
         <p><strong>Med&amp;X</strong>, a Croatian non-profit organization, is the controller of personal data collected through this portal. This policy explains what data we collect, why we collect it, how we use it, and your rights under the EU General Data Protection Regulation (GDPR) and the Croatian Personal Data Protection Act.</p>
 
@@ -1155,7 +1160,7 @@ app.get('/privacy', (req, res) => {
         <p>Some of our processors (e.g. Stripe, Google Workspace, Render) may transfer data outside the European Economic Area. All such transfers are protected by the EU Commission's Standard Contractual Clauses or by adequacy decisions.</p>
 
         <h2>8. Changes to This Policy</h2>
-        <p>We may update this policy from time to time. The version in force at the time of your registration is the one shown on this page on that date.</p>
+        <p>We may update this policy from time to time. The version published on this page applies from the date shown under "Last updated". Before a change that significantly affects how we use your personal data takes effect, we tell you by email, and members also see it in the portal. If we want to use your data for a new purpose that needs your consent, we ask for it first.</p>
 
         <h2>9. Contact</h2>
         <p>For any privacy questions, write to us at <a href="mailto:info@medx.hr">info@medx.hr</a>.</p>
