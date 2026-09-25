@@ -108,6 +108,12 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
 .mx-search-panel input { border: 0; border-bottom: 1px solid rgba(25,21,18,.16); background: transparent; padding: 18px 20px; font: 16px Inter, sans-serif; color: #191512; width: 100%; box-sizing: border-box; }
 .mx-search-panel input:focus { outline: 0; }
 .mx-search-panel input::-webkit-search-cancel-button, .mx-search-panel input::-webkit-search-decoration { -webkit-appearance: none; appearance: none; }
+/* the field row: a magnifier, the 16px field and a 44px close (the phone had no visible way out but the backdrop) */
+.mx-search-field { display: flex; align-items: center; gap: 10px; padding: 4px 4px 4px 18px; border-bottom: 1px solid rgba(25,21,18,.16); color: var(--soft); }
+.mx-search-field > .mx-ic { flex: none; }
+.mx-search-panel .mx-search-field input { flex: 1 1 auto; min-width: 0; width: auto; border-bottom: 0; padding: 14px 0; }
+.mx-pop-scrim { display: none; }
+@media (max-width: 500px) { .mx-pop-scrim { display: block; position: fixed; inset: 0; z-index: 34; background: rgba(25,21,18,.55); } }
 .mx-search-group { padding: 14px 20px 6px; font: 600 12px/16px Inter, sans-serif; letter-spacing: .12em; color: #6e5626; }
 /* SEARCH / ALERTS open with a short fade and a few pixels of travel; they fade out on close.
    chrome.js adds .mx-pop-in for the opening pass only (--pop-t continues it across a re-render). */
@@ -117,7 +123,8 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
   .mx-pop.mx-pop-in { animation: mx-fade var(--t-reveal) var(--ease-fade) backwards, mx-drop-t var(--t-settle) var(--ease-settle) backwards; animation-delay: var(--pop-t, 0ms); }
   .mx-search.mx-pop-in { animation: mx-fade var(--t-reveal) var(--ease-fade) backwards; animation-delay: var(--pop-t, 0ms); }
   .mx-search.mx-pop-in .mx-search-panel { animation: mx-fade var(--t-reveal) var(--ease-fade) backwards, mx-drop-t var(--t-settle) var(--ease-settle) backwards; animation-delay: var(--pop-t, 0ms); }
-  .mx-pop.mx-pop-out, .mx-search.mx-pop-out { animation: mx-fade-out var(--t-exit) var(--ease-exit) forwards; pointer-events: none; }
+  .mx-pop.mx-pop-out, .mx-search.mx-pop-out, .mx-pop-scrim.mx-pop-out { animation: mx-fade-out var(--t-exit) var(--ease-exit) forwards; pointer-events: none; }
+  .mx-pop-scrim { animation: mx-fade var(--t-reveal) var(--ease-fade) backwards; }
   .mx-pop.mx-pop-out, .mx-search.mx-pop-out .mx-search-panel { transform: translateY(-4px); transition: transform var(--t-exit) var(--ease-exit); }
 }
 /* the search panel: ↑ / ↓ move a visible active row (chrome.js › .is-active), Enter opens it */
@@ -739,7 +746,7 @@ img.mx-img-in { transition: opacity var(--t-reveal) var(--ease), transform var(-
 .mx-sh-n { flex: none; font: 400 15px/1 var(--font-display); color: var(--crimson); font-variant-numeric: lining-nums tabular-nums; }
 .mx-sh-t { flex: 1 1 auto; min-width: 0; margin: 0; font: 600 var(--fs-label)/16px var(--font-ui); letter-spacing: .12em; text-transform: uppercase;
   color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mx-sh-a { flex: none; margin: -12px 0 -12px auto; padding: 0 0 0 8px; min-height: 44px; display: inline-flex; align-items: center; gap: 4px;
+.mx-sh-a { flex: none; margin: -12px 0 -12px auto; padding: 0 0 0 8px; min-height: 44px; min-width: 44px; box-sizing: border-box; justify-content: flex-end; display: inline-flex; align-items: center; gap: 4px;
   font: 500 var(--fs-2nd)/20px var(--font-ui); color: var(--crimson); white-space: nowrap; text-decoration: none; cursor: pointer; }
 .mx-sh-sub { margin: -8px 0 var(--sp-16); font: 400 var(--fs-2nd)/20px var(--font-ui); color: var(--soft); }
 .mx-sh select, .mx-sh .mx-sh-ctl { flex: none; margin-left: auto; font: 500 var(--fs-2nd) var(--font-ui); min-height: 36px; border: 1px solid var(--hair); background-color: transparent; padding: 0 12px; color: var(--ink); }
@@ -752,7 +759,7 @@ img.mx-img-in { transition: opacity var(--t-reveal) var(--ease), transform var(-
 .mx-fact-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .mx-fact-v { font: 400 var(--fs-body)/24px var(--font-ui); color: var(--ink); }
 .mx-fact-s { font: 400 var(--fs-2nd)/20px var(--font-ui); color: var(--soft); }
-.mx-fact-go { flex: none; min-height: 44px; margin: -10px 0; padding-left: 8px; display: inline-flex; align-items: center; gap: 4px;
+.mx-fact-go { flex: none; min-height: 44px; min-width: 44px; box-sizing: border-box; justify-content: flex-end; margin: -10px 0; padding-left: 8px; display: inline-flex; align-items: center; gap: 4px;
   font: 500 var(--fs-2nd)/20px var(--font-ui); color: var(--crimson); white-space: nowrap; text-decoration: none; cursor: pointer; }
 a.mx-fact, .mx-fact[data-act] { cursor: pointer; transition: background-color var(--t-quick) var(--ease); }
 @media (hover: hover) { a.mx-fact:hover, .mx-fact[data-act]:hover { background: var(--row-hover); color: var(--ink); } }
@@ -783,6 +790,7 @@ a.mx-tl-row > .mx-ic, .mx-tl-row[data-act] > .mx-ic { align-self: center; color:
 .mx-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .mx-tiles--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 @media (min-width: 701px) { .mx-tiles, .mx-tiles--3 { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 16px; } }
+@media (min-width: 701px) and (max-width: 1000px) { .mx-tiles:not(.mx-tiles--3) { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .mx-tile { display: flex; flex-direction: column; justify-content: space-between; gap: 10px; padding: 16px; min-width: 0; min-height: 96px; box-sizing: border-box;
   background: var(--card); border: 1px solid var(--hair); color: var(--ink); text-decoration: none; }
 .mx-tile-n { font: 400 var(--fs-num)/1 var(--font-display); font-variant-numeric: tabular-nums lining-nums; color: var(--ink); white-space: nowrap; letter-spacing: -.01em; }
@@ -817,8 +825,12 @@ a.mx-person, button.mx-person, .mx-person[data-act] { cursor: pointer; }
 .mx-person-row:last-child { border-bottom: 1px solid var(--hair-soft); }
 .mx-person-rows { max-width: 720px; }
 .mx-person-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.mx-person-row .mx-person-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mx-person-row .mx-person-role { -webkit-line-clamp: 1; }
+/* a row's name may take two lines (a long name on a 320 phone read "Ellen …"), its role two (the institution is the
+   point of the line); the reason tag stays one line */
+.mx-person-row .mx-person-name { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: normal; }
+.mx-person-row .mx-person-role { -webkit-line-clamp: 2; }
+.mx-person-row .mx-person-tag { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 400px) { .mx-person-row { gap: 12px; } .mx-person-row .mx-person-tag { letter-spacing: .08em; } }
 .mx-person-row > .mx-ic { color: rgba(25,21,18,.32); }
 .mx-person-act { flex: none; display: flex; align-items: center; gap: 8px; }
 a.mx-person-row, .mx-person-row[data-act] { cursor: pointer; transition: background-color var(--t-quick) var(--ease); }
@@ -863,6 +875,12 @@ a.mx-person-row, .mx-person-row[data-act] { cursor: pointer; transition: backgro
   .mx-countdown { padding-left: max(36px, calc((100vw - 1180px) / 2 + 36px)); padding-right: max(36px, calc((100vw - 1180px) / 2 + 36px)); }
 }
 .mx-hero-eyebrow { font: 600 var(--fs-label)/16px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--gold); }
+/* over a photo the copy gets its own band of the scrim: it starts 96px above the eyebrow and is .78 ink by the
+   eyebrow's line, so the 12px gold label keeps 4.5:1 even over white chairs or a bright slide; the top of the
+   photo stays as light as before. The eyebrow takes the lighter gold on a photo. */
+.mx-hero:not(.mx-hero--ink):not(.mx-hero--cream) > .mx-hero-body::before { content: ""; position: absolute; z-index: -1; left: 0; right: 0; bottom: 0; top: -96px; pointer-events: none;
+  background: linear-gradient(180deg, rgba(25,21,18,0) 0, rgba(25,21,18,.78) 104px, rgba(25,21,18,.86) 100%); }
+.mx-hero:not(.mx-hero--ink):not(.mx-hero--cream) .mx-hero-eyebrow { color: var(--gold-hover); }
 .mx-hero-title { margin: 10px 0 0; font: 400 var(--fs-display)/38px var(--font-display); letter-spacing: -.01em; color: var(--cream); text-wrap: balance; }
 @media (min-width: 901px) { .mx-hero-title { font-size: 58px; line-height: 62px; } }
 .mx-hero-date { margin: 10px 0 0; font: 400 var(--fs-body)/24px var(--font-ui); color: rgba(247,241,230,.88); }
@@ -954,6 +972,9 @@ a.mx-person-row, .mx-person-row[data-act] { cursor: pointer; transition: backgro
   font: 500 var(--fs-2nd)/20px var(--font-ui); color: var(--soft); white-space: nowrap; text-decoration: none; background: none; border: 0; cursor: pointer;
   transition: background-color var(--t-quick) var(--ease), color var(--t-quick) var(--ease); }
 .mx-seg > .is-on, .mx-seg > [aria-current="page"] { background: var(--ink); color: var(--cream); }
+/* small phones: the items share the row (four fit at 320 without a sideways scroll; ui.js keeps the active one in view) */
+@media (max-width: 400px) { .mx-seg > a, .mx-seg > span, .mx-seg > button { flex: 1 1 auto; padding: 0 8px; } }
+@media (max-width: 360px) { .mx-seg > a, .mx-seg > span, .mx-seg > button { padding: 0 6px; font-size: 13px; } }
 @media (hover: hover) { .mx-seg > :not(.is-on):not([aria-current="page"]):hover { color: var(--ink); background: var(--row-hover); } }
 
 /* ---- icon button (44 × 44) ---- */
@@ -1055,6 +1076,7 @@ a.mx-person-row, .mx-person-row[data-act] { cursor: pointer; transition: backgro
   padding: 6px 2px 5px; box-sizing: border-box; color: rgba(247,241,230,.55); text-decoration: none; cursor: pointer; }
 #mx-tabbar .mx-tb-ic { position: relative; width: 28px; height: 26px; display: flex; align-items: center; justify-content: center; }
 #mx-tabbar .mx-tb-l { font: 500 12px/14px var(--font-ui); letter-spacing: 0; white-space: nowrap; }
+@media (max-width: 340px) { #mx-tabbar > a { padding-left: 0; padding-right: 0; } #mx-tabbar > a:last-child { flex-grow: 1.15; } #mx-tabbar .mx-tb-l { letter-spacing: -.01em; } }
 #mx-tabbar > a[aria-selected="true"] { color: var(--cream); }
 #mx-tabbar > a[aria-selected="true"] .mx-tb-ic { color: var(--gold); }
 #mx-tabbar > a[aria-selected="true"] .mx-ic { stroke-width: 1.85; }

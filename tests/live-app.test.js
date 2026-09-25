@@ -266,7 +266,7 @@ function stubApp() {
         assert.ok(/\.lv-att \{[^}]*min-height: 46px/.test(css) && /\.lv-tab \{[^}]*min-height: 48px/.test(css), '44 px+ targets');
         assert.ok(/--lv-w: 720px/.test(css), 'the 720 px column');
         assert.ok(/\.lv-tabs \{ position: sticky; top: 0/.test(css) && /\.lv-day \{ position: sticky; top: 48px/.test(css), 'sticky tabs + day headers');
-        assert.ok(/\.lv-card\.tbd \{ border-style: dashed/.test(css), 'TBD placeholders dashed');
+        assert.ok(/\.lv-card\.tbd \{ border-style: solid/.test(css), 'TBD placeholders: a solid faint hairline (DESIGN-RULES 2026-09-25: dashed read as broken)');
         assert.ok(/\.lv-att\.on \{[^}]*color: var\(--crimson\)/.test(css) && /\.lv-att\.on::before/.test(css), 'IN MY SCHEDULE reads crimson with a drawn check (a calm ON — registered events start ON)');
     });
 

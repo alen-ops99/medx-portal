@@ -31,7 +31,7 @@ table)** and **§7 (applying a design revision)**. Everything else is reference.
 frontend-v2/
 ├─ index.html                 the ONE shell: fonts, css, MEDX_CONFIG block, #chrome / #view, <script type=module src=/js/app.js>
 ├─ manifest.webmanifest       PWA manifest (name "Med&X", theme #191512, background #f7f1e6)
-├─ sw.js                      service worker — `const CACHE_NAME = 'medx-portal-v2-1'` (stamp-sw.sh appends the deploy SHA)
+├─ sw.js                      service worker — `const CACHE_NAME = 'medx-portal-v2-N'`, bumped BY HAND on every release that changes js/css (nothing stamps it; see §2)
 ├─ _redirects · netlify.toml  Netlify: proxy every server-rendered path + /api/* to the backend host, then /* → index.html
 ├─ config.staging.js · config.production.js   the two MEDX_CONFIG variants (scripts/apply-config.js stamps one into index.html)
 ├─ dev-server.js              local static server + proxy (BACKEND=http://localhost:3941)
@@ -75,7 +75,7 @@ node scripts/apply-config.js production                    # Render build for th
 ```
 
 `_redirects` uses the placeholder host `https://medx-staging.onrender.com` — `sed` it (or use `--host`). Order matters: server paths first (status 200 = proxy), `/* /index.html 200` last.
-`scripts/stamp-sw.sh` (repo root) rewrites `const CACHE_NAME = 'medx-portal-v2-1'` → `…-v2-1-<sha>`; keep that line shape.
+The v2 `CACHE_NAME` in `sw.js` is bumped **by hand** on every release that changes js or css (`medx-portal-v2-9` → `-v2-10`, with a dated comment). `scripts/stamp-sw.sh` (repo root) stamps only `user-portal/frontend` and `admin-portal/frontend`, and the Netlify build runs only `apply-config.js`, so nothing rolls this worker for you. JS and CSS are served cache-first: a release that forgets the bump leaves a returning visitor on the old `ui.js` under new views (2026-09-25: "This page didn't load", `ui.icon is not a function`). Keep the line shape `const CACHE_NAME = '…-vN';`, and keep SHELL listing every module the shell files import statically (ui.js › icons.js, home.js › projects.js, live.js › _portraits.js, chrome.js › _safety.js).
 
 Server-rendered paths (never client routes; one list in `js/config.js › serverPaths`, mirrored in `sw.js`, `dev-server.js`, `_redirects`):
 `/api /plexus /meetups /forum /apply /evaluate /pay /pass /invite /invite-success /invite-cancelled /reset-password /qr /calendar /verify-certificate /verify /r /unsubscribe /email-prefs /donate /uploads /f /speaker /building-bridges /donor-night /terms /privacy /health /__staging /__admin`.

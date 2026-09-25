@@ -192,15 +192,21 @@ function blockHero() { return `
   </div>
   <!-- /dc -->`; }
 
-// the one small action on a person row, from the live connection state (same data-act, same handlers as before)
+// the one small action on a person row, from the live connection state (same data-act, same handlers as before).
+// Its word is the button's name; on a phone of 400px or less the word steps aside for a 44px icon (network.css), so
+// a name keeps room to be read instead of "Alen Jugino…".
+function netBtn(attrs, cls, ic, label) {
+  return `<span ${attrs} aria-label="${label}" class="mx-net-btn${cls}">${ui.icon(ic, 20)}<span class="mx-net-btn-l">${label}</span></span>`;
+}
 function rowAction(m) {
   const s = cstate(m).state;
-  if (s === 'connected' && canMessage(m)) return `<span data-act="message" data-id="${esc(m.id)}" role="button" tabindex="0" class="mx-net-btn">${COPY.row.message}</span>`;
-  if (s === 'connected') return `<span class="mx-net-btn is-quiet" aria-disabled="true">${COPY.row.connected}</span>`;
-  if (s === 'pending_in') return `<span data-act="connect" data-id="${esc(m.id)}" data-cid="${esc(cstate(m).id)}" role="button" tabindex="0" class="mx-net-btn is-fill">${COPY.row.accept}</span>`;
-  if (s === 'pending_out') return `<span data-act="connect" data-id="${esc(m.id)}" role="button" tabindex="0" class="mx-net-btn is-quiet">${COPY.row.sent}</span>`;
-  if (s === 'declined' || s === 'declined_by_me') return `<span data-act="connect" data-id="${esc(m.id)}" role="button" tabindex="0" class="mx-net-btn is-quiet">${COPY.row.declined}</span>`;
-  return `<span data-act="connect" data-id="${esc(m.id)}" role="button" tabindex="0" class="mx-net-btn">${COPY.row.connect}</span>`;
+  const id = `data-id="${esc(m.id)}" role="button" tabindex="0"`;
+  if (s === 'connected' && canMessage(m)) return netBtn(`data-act="message" ${id}`, '', 'chat', COPY.row.message);
+  if (s === 'connected') return netBtn('aria-disabled="true"', ' is-quiet', 'check', COPY.row.connected);
+  if (s === 'pending_in') return netBtn(`data-act="connect" ${id} data-cid="${esc(cstate(m).id)}"`, ' is-fill', 'check', COPY.row.accept);
+  if (s === 'pending_out') return netBtn(`data-act="connect" ${id}`, ' is-quiet', 'clock', COPY.row.sent);
+  if (s === 'declined' || s === 'declined_by_me') return netBtn(`data-act="connect" ${id}`, ' is-quiet', 'x', COPY.row.declined);
+  return netBtn(`data-act="connect" ${id}`, '', 'user-plus', COPY.row.connect);
 }
 function reasonOf(m) {
   return m.why_label || (COPY.reasons[m.why] ? (typeof COPY.reasons[m.why] === 'function' ? COPY.reasons[m.why]((m.reasons && m.reasons[0] && m.reasons[0].n) || 1) : COPY.reasons[m.why]) : '');

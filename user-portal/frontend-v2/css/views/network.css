@@ -28,6 +28,15 @@
 .mx-net-btn.is-fill { background: var(--crimson); border-color: var(--crimson); color: var(--cream); }
 .mx-net-btn.is-quiet { border-color: transparent; color: var(--soft); padding: 0 8px; }
 .mx-net-btn[aria-disabled="true"] { cursor: default; }
+/* the row action: its word on a wider screen; on a phone of 400px or less a 44px icon (the word stays its name) */
+.mx-net-btn > .mx-ic { display: none; }
+@media (max-width: 400px) {
+  .mx-net-row .mx-person-act { gap: 0; }
+  .mx-net-row .mx-person-act .mx-net-btn { width: 44px; min-height: 44px; padding: 0; }
+  .mx-net-row .mx-person-act .mx-net-btn > .mx-ic { display: block; }
+  .mx-net-row .mx-person-act .mx-net-btn > .mx-net-btn-l { display: none; }
+  .mx-net-row .mx-person-act .mx-net-btn:not(.is-fill):not(.is-quiet) { color: var(--crimson); border-color: rgba(155,27,34,.4); }
+}
 /* a request: Accept / Ignore sit under the words, lined up with them */
 .mx-net-row.is-request { flex-wrap: wrap; row-gap: 4px; padding-bottom: 14px; }
 .mx-net-reqbtns { flex-basis: 100%; display: flex; gap: 8px; padding-left: 78px; }

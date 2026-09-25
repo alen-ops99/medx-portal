@@ -20,7 +20,7 @@ export const COPY = {
   lede: 'Five projects, one membership.',
   // name, photo (+ focal point), and the one line that says what it is
   cards: {
-    plexus: { name: 'Plexus Conference', img: 'photo-hall.jpg', pos: '50% 60%', line: 'Two days of talks, panels and people in Zagreb.' },
+    plexus: { name: 'Plexus Conference', img: 'photo-hall.jpg', pos: '50% 60%', line: 'Two days of talks, panels and people.' },
     gala: { name: 'Gala Evening', img: 'photo-ballroom.jpg', pos: '50% 55%', line: 'A black-tie dinner and the Med&amp;X Awards.' },
     accelerator: { name: 'The Accelerator', img: 'ax-hero-boston-2026.jpg', pos: '50% 72%', line: 'Summer placements in leading labs and clinics.' },
     forum: { name: 'Biomedical Forum', img: 'photo-candlelit.jpg', pos: '50% 40%', line: 'A circle of 200 leaders that meets every May.' },
@@ -28,7 +28,9 @@ export const COPY = {
   },
   // a member who already holds the ticket / the seat is never asked to register again (Home's cards agree)
   mine: { plexus: 'MY TICKET', gala: 'YOUR SEAT' },
-  free: 'Free', plexusWeek: 'Plexus Week'
+  free: 'Free', plexusWeek: 'Plexus Week', duringWeek: 'During Plexus Week',
+  // a chip is a status, never an action (the admin label "Reserve your seat" sat on the Gala photo like a button)
+  status: { gala: 'Seats limited', other: 'Registration open' }
 };
 
 // date · place · price for a card, from FACTS (the price of a Gala seat is the live one when a screen has read it)
@@ -38,13 +40,16 @@ function factsFor(key) {
   // the chip already says when applications open: the card names the summer the placements run
   if (key === 'accelerator') return { date: 'Summer ' + (Number(String(FACTS.accelerator.opens).slice(0, 4)) + 1), place: '', price: '' };
   if (key === 'forum') { const g = FACTS.forum.gathering; return { date: range(g.start, g.end) + ' ' + String(g.start).slice(0, 4), place: g.where, price: '' }; }
-  if (key === 'bridges') return { date: COPY.plexusWeek, place: '', price: COPY.free };
+  // Bridges meets during Plexus Week and its chip already names the city and the month: the line says when, with no
+  // calendar icon (the icon slot is for a date)
+  if (key === 'bridges') return { date: '', place: '', note: COPY.duringWeek, price: COPY.free };
   return { date: '', place: '', price: '' };
 }
 // the status chip: the admin's label, shortened to fit a card ("Applications open 15 November" → "Opens 15 Nov");
 // open = gold, soon = cream, info (by invitation, a place) = outline
-function tagFor(p) {
+function tagFor(p, key) {
   let text = String(p.status_label || '').trim();
+  if (/^(reserve|register|book|join|apply now|sign up)\b/i.test(text)) text = key === 'gala' ? COPY.status.gala : COPY.status.other;
   if (text.length > 22) {
     const m = text.match(/(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)/i);
     text = m ? `Opens ${m[1]} ${m[2].slice(0, 3)}` : text.slice(0, 21).trim() + '…';
@@ -57,10 +62,10 @@ export function projectCard(key, p = {}, held = {}) {
   const c = COPY.cards[key] || { name: key, img: 'photo-hall.jpg', pos: '50% 50%', line: '' };
   const cta = held[key] ? COPY.mine[key] : key === 'plexus' ? CTA.register : key === 'gala' ? CTA.reserve(fmt.eur(galaPriceNow())) : fmt.upper(p.cta_label || 'Open');
   const to = key === 'plexus' && held.plexus ? '/app/plexus/mine' : routeFor(p.cta_target || key, routeFor(key));
-  return Object.assign({ key, name: c.name, img: '/assets/' + c.img, pos: c.pos, line: c.line, tag: tagFor(p), cta, to }, factsFor(key));
+  return Object.assign({ key, name: c.name, img: '/assets/' + c.img, pos: c.pos, line: c.line, tag: tagFor(p, key), cta, to }, factsFor(key));
 }
 export function metaLine(f) {
-  return `${f.date ? `${ui.icon('calendar', 16)}<span>${esc(f.date)}</span>` : ''}${f.place ? `${f.date ? '<span class="mx-sep"></span>' : ''}${ui.icon('pin', 16)}<span>${esc(f.place)}</span>` : ''}${f.price ? `<span class="mx-pcard-price">${esc(f.price)}</span>` : ''}`;
+  return `${f.note ? `<span>${esc(f.note)}</span>` : ''}${f.date ? `${ui.icon('calendar', 16)}<span>${esc(f.date)}</span>` : ''}${f.place ? `${f.date ? '<span class="mx-sep"></span>' : ''}${ui.icon('pin', 16)}<span>${esc(f.place)}</span>` : ''}${f.price ? `<span class="mx-pcard-price">${esc(f.price)}</span>` : ''}`;
 }
 
 function card(f) {

@@ -20,7 +20,7 @@ export const COPY = {
     headline: 'Where Croatian medicine and science <i style="color:#c9a962">meet the world</i>.',
     blurb: 'The Med&amp;X network — Croatian scientists, physicians, and biomedical leaders from around the world, and everything they build together, in one place.',
     create: 'CREATE ACCOUNT →', signin: 'SIGN IN', createT: 'CREATE ACCOUNT',
-    blurbT: 'Croatian scientists, physicians and biomedical leaders worldwide, in one place.',
+    blurbT: 'Croatian scientists and physicians worldwide, in one place.',
     projects: ['PLEXUS CONFERENCE', 'GALA EVENING', 'THE ACCELERATOR', 'BIOMEDICAL FORUM', 'BUILDING BRIDGES']
   },
   panel: { quote: '“The room where Croatian medicine meets the world.”', tagline: 'ONE ACCOUNT · EVERY MED&X PROJECT · ONE WORLDWIDE NETWORK' },
@@ -137,7 +137,7 @@ function blockCreate() {
               ${field(c.fields.institution, 'institution', 'text', c.placeholders.institution)}
               ${field(c.fields.country, 'country', 'text', c.placeholders.country)}
             </div>
-            <div data-act="tgTerms" role="checkbox" aria-checked="${st.terms}" style="display:flex;gap:10px;align-items:flex-start;margin-top:16px;cursor:pointer">
+            <div data-act="tgTerms" role="checkbox" aria-checked="${st.terms}" style="display:flex;gap:10px;align-items:flex-start;margin-top:16px;min-height:44px;box-sizing:border-box;padding:2px 0;cursor:pointer">
               <span data-role="termsBox" class="mx-auth-box" style="width:20px;height:20px;border:1px solid ${st.terms ? '#9b1b22' : 'rgba(25,21,18,.35)'};background:${st.terms ? '#9b1b22' : 'transparent'};flex:none;display:inline-flex;align-items:center;justify-content:center;color:#f7f1e6;font-size:13px;margin-top:1px">${st.terms ? '✓' : ''}</span>
               <span style="font-size:14px;color:#4a4239;line-height:1.45">${c.terms}</span>
             </div>
@@ -253,8 +253,8 @@ function blockPanel(inner) {
 ${inner}
       </div>
       <!-- dc: Auth.dc.html › "Footer" -->
-      <div style="padding:0 24px;font-size:14px;color:rgba(74,66,57,.75);display:flex;gap:6px 16px;justify-content:center;flex-wrap:wrap">
-        <span style="white-space:nowrap">${COPY.footer.copyright}</span><a href="/privacy" style="color:rgba(74,66,57,.7)">${COPY.footer.privacy}</a><a href="/terms" style="color:rgba(74,66,57,.7)">${COPY.footer.terms}</a>
+      <div style="padding:0 24px;font-size:14px;color:#4a4239;display:flex;gap:6px 16px;justify-content:center;flex-wrap:wrap">
+        <span style="white-space:nowrap">${COPY.footer.copyright}</span><a href="/privacy" style="color:#4a4239">${COPY.footer.privacy}</a><a href="/terms" style="color:#4a4239">${COPY.footer.terms}</a>
       </div>
       <!-- /dc -->
     </div>

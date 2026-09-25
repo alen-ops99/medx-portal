@@ -72,7 +72,7 @@ export const COPY = {
     interestsOwn: 'OR TYPE YOUR OWN', interestsAllAdded: 'All suggestions added — type your own below.',
     projects: { plexus: 'Plexus Conference', gala: 'Gala Evening', accelerator: 'The Accelerator', forum: 'Biomedical Forum', bridges: 'Building Bridges' },
     suggestions: ['Neuroscience', 'Sleep Medicine', 'Oncology', 'Public Health', 'Biotech', 'AI in Medicine', 'Mental Health', 'Genetics'],
-    dir: { t: 'Directory visibility', s: 'Let other members find you and send connection requests.', sT: 'Members can find you',
+    dir: { t: 'Directory visibility', s: 'Let other members find you and send connection requests.', sT: 'Members can find you', sOffT: 'Hidden from the directory',
            // App Store 1.2 — shown instead of the line above while the Med&X team keeps the profile hidden
            modHidden: 'Your profile was hidden from the directory by the Med&amp;X team. Questions: <a href="mailto:info@medx.hr">info@medx.hr</a>',
            modHiddenToast: 'The Med&X team hid your profile from the directory. Questions: info@medx.hr' },
@@ -114,7 +114,9 @@ export const COPY = {
     note: 'You confirm in the next step. A deleted account cannot be restored.',
     modalEyebrow: 'DELETE ACCOUNT',
     modalTitle: 'Delete your Med&amp;X account?',
-    modalBody: 'Your profile, connections, messages and settings are erased, and you are signed out on every device. A deleted account cannot be restored.',
+    // the sheet opens on one sentence; what is erased leads the "What is deleted" accordion, word for word as before
+    modalBody: 'A deleted account cannot be restored.',
+    modalGone: 'Your profile, connections, messages and settings are erased, and you are signed out on every device.',
     modalKept: 'Event registrations, tickets and invoices stay on record as issued, together with program applications, questions asked at sessions, the moderation record and any block another member placed on you.',
     typeLabel: 'TYPE DELETE TO CONFIRM', word: 'DELETE',
     cancel: 'KEEP MY ACCOUNT', confirm: 'DELETE ACCOUNT', busy: 'DELETING…',
@@ -291,10 +293,12 @@ function setSwitch(el, on) {
   if (!el) return;
   el.setAttribute('aria-checked', String(on));
 }
+// the sub-line says what the switch says (it read "Members can find you" with the switch off)
+const dirLine = on => on ? COPY.account.dir.sT : COPY.account.dir.sOffT;
 function prefRows() {
   const d = D.draft, a = COPY.account, locked = !!D.modHidden;
   return `
-        <span class="mx-row">${ui.icon('globe')}<span class="mx-row-l">${a.dir.t}<span class="mx-row-s" data-role="dirLine">${locked ? a.dir.modHidden : a.dir.sT}</span></span>${toggle('tgDir', locked ? false : d.is_public_profile, a.dir.t, locked)}</span>${locked ? '<span id="mx-dir-locked" hidden>Hidden from the directory by the Med&amp;X team.</span>' : ''}
+        <span class="mx-row">${ui.icon('globe')}<span class="mx-row-l">${a.dir.t}<span class="mx-row-s" data-role="dirLine">${locked ? a.dir.modHidden : dirLine(d.is_public_profile)}</span></span>${toggle('tgDir', locked ? false : d.is_public_profile, a.dir.t, locked)}</span>${locked ? '<span id="mx-dir-locked" hidden>Hidden from the directory by the Med&amp;X team.</span>' : ''}
         <span class="mx-row">${ui.icon('bell')}<span class="mx-row-l">${a.upd.t}<span class="mx-row-s">${a.upd.sT}</span></span>${toggle('tgUpd', d.updates_opt_in, a.upd.t)}</span>`;
 }
 // the removable list inside the follow / interests sheet (the same handlers as before: followRm · followAdd · intRm · intAdd)
@@ -687,7 +691,7 @@ function openDeleteModal() {
     title: c.modalTitle,
     body: `<p style="margin:0 0 14px">${c.modalBody}</p>
       <div class="mx-accs mx-profile-delinfo">
-        <details class="mx-acc"><summary>${c.goneTT}</summary><div class="mx-acc-a"><ul class="mx-profile-gone">${c.gone.map(t => `<li>${t}</li>`).join('')}</ul></div></details>
+        <details class="mx-acc"><summary>${c.goneTT}</summary><div class="mx-acc-a"><p style="margin:0 0 10px">${c.modalGone}</p><ul class="mx-profile-gone">${c.gone.map(t => `<li>${t}</li>`).join('')}</ul></div></details>
         <details class="mx-acc"><summary>${c.keptTT}</summary><div class="mx-acc-a"><p style="margin:0">${c.kept}</p><p style="margin:10px 0 0;font-size:14px">${c.contact}</p></div></details>
       </div>
       <label style="display:block;margin-top:18px"><span class="label" style="display:block;margin-bottom:6px">${c.typeLabel}</span>
@@ -762,6 +766,7 @@ const handlers = {
   tgDir: (el) => {
     if (D.modHidden) return ui.toast(COPY.account.dir.modHiddenToast);     // locked while the team keeps the profile hidden
     D.draft.is_public_profile = !D.draft.is_public_profile; setSwitch(el, D.draft.is_public_profile); schedulePreview();
+    const line = q('[data-role="dirLine"]'); if (line) line.textContent = dirLine(D.draft.is_public_profile);
   },
   tgUpd: (el) => { D.draft.updates_opt_in = !D.draft.updates_opt_in; setSwitch(el, D.draft.updates_opt_in); schedulePreview(); },
   save: () => doSave(),

@@ -244,7 +244,7 @@ function alertsPanel() {
 function searchOverlay() {
   return `<div class="mx-search" data-act="closePop" tabindex="-1" role="dialog" aria-label="Search">
     <div class="mx-search-panel" data-stop="1">
-      <input data-role="q" type="search" placeholder="${esc(COPY.searchPanel.placeholder)}" aria-label="Search" autocomplete="off">
+      <div class="mx-search-field">${ui.icon('search', 20)}<input data-role="q" type="search" enterkeyhint="search" placeholder="${esc(COPY.searchPanel.placeholder)}" aria-label="Search" autocomplete="off"><span data-act="closePop" role="button" tabindex="0" aria-label="Close search" class="mx-pop-x">${ui.icon('x', 20)}</span></div>
       <div data-role="results" class="mx-pop-list"><div class="mx-pop-hint">${COPY.searchPanel.hint}</div></div>
     </div>
   </div>`;
@@ -311,7 +311,8 @@ function renderPopover() {
   els.chrome.querySelectorAll('[data-role="popover"], [data-role="popover-m"]').forEach(h => { h.innerHTML = ''; });
   const host = els.chrome.querySelector(phone ? '[data-role="popover-m"]' : '[data-role="popover"]');
   if (!host) return;
-  host.innerHTML = popover === 'alerts' ? alertsPanel() : popover === 'search' ? searchOverlay() : '';
+  // ALERTS on a phone dims the page like SEARCH does: a scrim after the panel (a tap on it closes, css shows it ≤500px)
+  host.innerHTML = popover === 'alerts' ? alertsPanel() + '<div class="mx-pop-scrim" data-act="closePop" aria-hidden="true"></div>' : popover === 'search' ? searchOverlay() : '';
   // The panel is re-drawn whenever its data lands (alerts refresh, chrome re-render). Only the opening
   // pass animates, and a re-draw during it picks the animation up where it was (negative delay).
   const panel = host.firstElementChild;
@@ -341,7 +342,7 @@ function closePopover({ refocus } = {}) {
       if (trigger) { try { trigger.focus({ preventScroll: true }); } catch (e) {} }
     }
   }
-  const live = els.chrome ? els.chrome.querySelectorAll('.mx-pop, .mx-search') : [];
+  const live = els.chrome ? els.chrome.querySelectorAll('.mx-pop, .mx-search, .mx-pop-scrim') : [];
   if (!live.length || ui.reducedMotion()) return renderPopover();
   live.forEach(n => { n.classList.remove('mx-pop-in'); n.classList.add('mx-pop-out'); });
   clearTimeout(popCloseTimer);
@@ -400,7 +401,7 @@ const handlers = {
     // the refreshed panel is a new node: keep focus in it (on its × unless the member already moved on)
     if (popover === 'alerts') { const a = document.activeElement; renderPopover(); if (!a || a === document.body || !a.isConnected) { const x = els.chrome.querySelector('.mx-pop [data-act="closePop"]'); if (x) { try { x.focus({ preventScroll: true }); } catch (e) {} } } }
   },
-  closePop: (el, e) => { if (e && e.target.closest && e.target.closest('[data-stop]')) return; closePopover({ refocus: true }); },
+  closePop: (el, e) => { if (e && e.target.closest && e.target.closest('[data-stop]') && !(el && el.closest && el.closest('[data-stop]'))) return; closePopover({ refocus: true }); },
   openInbox: () => { closePopover(); router.navigate('/app/messages'); },
   markAll: async () => { try { await api.put('/api/user-notifications/mark-all-read'); await chrome.refresh({ only: 'notifications' }); renderPopover(); ui.toast('All alerts marked as read.'); } catch (e) { ui.toast(e.message, { kind: 'error' }); } },
   openAlert: async (el) => {

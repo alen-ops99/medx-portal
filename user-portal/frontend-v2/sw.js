@@ -1,6 +1,6 @@
 // Med&X member portal v2 — service worker.
 // Keep the CACHE_NAME line shape: scripts/stamp-sw.sh rewrites '…-vN' → '…-vN-<sha>' on deploy.
-const CACHE_NAME = 'medx-portal-v2-9';   // bumped 2026-09-23 (smoothness pass): screen changes as view transitions, eased sheets and exits, touch press — cache-first JS must roll
+const CACHE_NAME = 'medx-portal-v2-10';   // bumped 2026-09-25 (phone calm pass): new kit (ui.icon, ui.portrait, icons.js) — an old cached ui.js under new views fails to render, so cache-first JS must roll
 
 // App shell (same-origin only — cross-origin entries make cache.addAll() reject and the SW never installs).
 // /js/views/live.js + /css/views/live.css are precached so a guest's second open of /live/<token> paints
@@ -10,6 +10,9 @@ const SHELL = [
   '/css/tokens.css', '/css/app.css', '/css/views/live.css',
   '/js/app.js', '/js/config.js', '/js/facts.js', '/js/state.js', '/js/api.js', '/js/ui.js', '/js/router.js', '/js/routes.js', '/js/chrome.js', '/js/member.js',
   '/js/views/home.js', '/js/views/auth.js', '/js/views/notfound.js', '/js/views/live.js',
+  // statically imported by the files above (ui.js › icons.js; home.js › projects.js; live.js › _portraits.js; chrome.js › _safety.js):
+  // a shell module whose import is not cached cannot load offline
+  '/js/icons.js', '/js/views/projects.js', '/js/views/_portraits.js', '/js/views/_safety.js',
   '/assets/logo.png', '/assets/logo-white.png', '/assets/mark-x.png', '/assets/icons/icon-192.png'
 ];
 // /live/<token> is a CLIENT route (not a server path): its navigation goes network-first like every

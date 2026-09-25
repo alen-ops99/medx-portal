@@ -55,7 +55,7 @@ export const COPY = {
   emptyDm: name => `Say hello — this is the start of your conversation with ${name}.`,
   you: 'YOU', read: 'READ', today: 'TODAY', yesterday: 'YESTERDAY', youT: 'You', readT: 'Read',
   back: '← INBOX',
-  archive: 'Archive', unarchive: 'Restore',
+  archive: 'Archive', unarchive: 'Restore', moreT: 'More options',
   archivedToast: 'Conversation archived — it comes back the moment something new arrives.',
   unarchivedToast: 'Conversation restored.',
   archivedTag: 'ARCHIVED',
@@ -200,7 +200,9 @@ function threadPic(t, size) {
   return ui.portrait({ name: memberName(t), src: src ? (String(src).startsWith('/') ? api.url(src) : src) : '', size, alt: '' });
 }
 function threadRow(t, i) {
-  const cur = t.key === st.cur;
+  // the stacked phone list shows no "current" row: the open thread is not beside it (a tint and a gold rail on
+  // the first row read as selected while nothing was open), and that row keeps its unread dot
+  const cur = t.key === st.cur && (!stacked() || !!st.mobileOpen);
   const unread = t.unread > 0 && !cur;
   const when = t.archived ? `<span class="mx-msg-arch">${COPY.archivedTag}</span>` : esc(whenLabel(t.last && t.last.created_at));
   return `
@@ -238,7 +240,7 @@ function blockList() {
 function dayDivider(label) { return `
         <div data-v2="day divider" style="display:flex;align-items:center;gap:10px;margin:2px 0">
           <span style="flex:1;height:1px;background:rgba(25,21,18,.1)"></span>
-          <span style="font:600 12px Inter,sans-serif;letter-spacing:.1em;color:#9b8f80">${esc(label)}</span>
+          <span style="font:600 12px Inter,sans-serif;letter-spacing:.1em;color:#6d6459">${esc(label)}</span>
           <span style="flex:1;height:1px;background:rgba(25,21,18,.1)"></span>
         </div>`; }
 
@@ -355,8 +357,10 @@ function blockConv() {
         <span class="mx-msg-head-name">${esc(threadName(t))}</span>
         <span class="mx-msg-head-sub">${esc(threadSub(t))}</span>
       </span>
-      ${t.virtual ? '' : `<span data-act="archive" role="button" tabindex="0" data-v2="archive = hide, never delete" class="mx-msg-link">${t.archived ? COPY.unarchive : COPY.archive}</span>`}
-      ${isTeam || (t.virtual && st.peer && st.peer.blocked) || !partnerResolved(t) ? '' : moreButton({ id: t.key, name: threadName(t), cls: 'mx-msg-more' })}
+      ${t.virtual ? '' : `<span data-act="archive" role="button" tabindex="0" data-v2="archive = hide, never delete" class="mx-msg-link mx-msg-archlink">${t.archived ? COPY.unarchive : COPY.archive}</span>`}
+      ${isTeam || (t.virtual && st.peer && st.peer.blocked) || !partnerResolved(t)
+        ? (t.virtual ? '' : `<span data-act="more" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false" aria-label="${COPY.moreT}" class="mx-iconbtn mx-msg-more mx-msg-more--phone" data-v2="phones: Archive lives in this menu (the header keeps back · photo · name · ⋯)">${ui.icon('more', 22)}</span>`)
+        : moreButton({ id: t.key, name: threadName(t), cls: 'mx-msg-more' })}
     </div>
     <div data-role="msgs" aria-live="polite" class="mx-msg-pane${st.msgsKey === t.key && st.shownKey !== t.key ? ' mx-msg-fresh' : ''}" style="flex:1;padding:20px;display:flex;flex-direction:column;gap:14px;overflow-y:auto">${convMessages(t)}</div>
     ${canWrite ? `<div class="mx-msg-compose-wrap">${isTeam ? topicChips() : ''}${attachChip}
@@ -384,7 +388,7 @@ function template() {
 <div data-screen-label="Messages" class="mx-msg-screen" style="font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh;display:flex;flex-direction:column">
   ${blockCrumb()}
   ${blockTabs()}
-  <div data-role="grid" class="mx-msg-grid${st.mobileOpen ? ' mx-msg-open' : ''}" style="display:grid;grid-template-columns:340px minmax(0,1fr);align-items:stretch;min-height:560px">
+  <div data-role="grid" class="mx-msg-grid${st.mobileOpen ? ' mx-msg-open' : ''}" style="display:grid;grid-template-columns:340px minmax(0,1fr);align-items:stretch">
     ${blockList()}
     ${blockConv()}
   </div>
@@ -442,7 +446,9 @@ function sizeGrid() {
   // the grid's DOCUMENT offset: render() runs before the router's scroll-to-top, so a viewport offset taken
   // from a screen left scrolled down came out hundreds of px short and pushed the composer under the tab bar
   const top = g.getBoundingClientRect().top + window.scrollY;
-  const h = Math.max(small ? 430 : 560, window.innerHeight - top - tabH);
+  // phones: the grid ends exactly at the tab bar, whatever the screen height (a 430 or 560 floor put the
+  // composer under the tab bar on a 568–667 px tall iPhone); only a tiny landscape phone gets a 240 floor
+  const h = Math.max(small ? 240 : 560, window.innerHeight - top - tabH);
   g.style.height = h + 'px';
 }
 
@@ -580,13 +586,16 @@ const handlers = {
     } catch (e) { ui.toast(e.message, { kind: 'error' }); }
   },
   // ⋯ in a member thread header → REPORT the person · BLOCK (a single message is reported from its own ⋯)
+  // (on a phone the ⋯ also carries Archive / Restore — the header has no room for the text link beside the name)
   more: (el) => {
-    const t = currentThread(); if (!partnerResolved(t)) return;
+    const t = currentThread(); if (!t) return;
     const name = threadName(t);
-    openMenu(el, [
+    const items = [];
+    if (stacked() && !t.virtual) items.push({ label: t.archived ? COPY.unarchive : COPY.archive, onPick: () => handlers.archive() });
+    if (partnerResolved(t)) items.push(
       { label: SAFETY.menu.report, onPick: () => reportSheet({ kind: 'member', targetId: t.key, name }) },
-      { label: SAFETY.menu.block, tone: 'danger', onPick: () => blockThread(t) }
-    ]);
+      { label: SAFETY.menu.block, tone: 'danger', onPick: () => blockThread(t) });
+    if (items.length) openMenu(el, items);
   },
   // ⋯ on a received bubble → the report sheet for THAT message
   msgMore: (el) => {

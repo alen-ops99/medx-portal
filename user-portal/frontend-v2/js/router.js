@@ -284,6 +284,12 @@ export const router = {
     }
     if (hooks.afterRender) hooks.afterRender({ route, params, query, layout, active, view, title });
     place();
+    // a segmented control too wide for a small phone scrolls sideways: its current item is brought into view
+    root.querySelectorAll('.mx-seg').forEach(seg => {
+      const on = seg.querySelector('.is-on, [aria-current="page"]');
+      if (!on || seg.scrollWidth <= seg.clientWidth + 1) return;
+      seg.scrollLeft += (on.getBoundingClientRect().left - seg.getBoundingClientRect().left) - (seg.clientWidth - on.offsetWidth) / 2;
+    });
     // sections below the fold rise in as they scroll into view — for the screens that ask for it
     const reveal = typeof view.reveal === 'function' ? view.reveal(ctx) : view.reveal;
     if (reveal && layout === 'portal' && !reread) ui.revealOnScroll(root);

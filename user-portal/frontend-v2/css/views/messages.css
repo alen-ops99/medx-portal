@@ -22,6 +22,15 @@
   .mx-msg-conv, .mx-msg-conv > * { min-width: 0; }
   .mx-msg-head .mx-msg-tag { display: none; }
 }
+/* the two-pane grid keeps a 560 floor on wide screens only; a phone's grid ends at the tab bar (sizeGrid) */
+@media (min-width: 701px) { .mx-msg-grid { min-height: 560px; } }
+/* phones: Archive moves into the header's ⋯ (back · photo · name · ⋯), so a name is not cut to "Med&X D…" */
+.mx-msg-more--phone { display: none !important; }
+@media (max-width: 700px) {
+  .mx-msg-screen { min-height: 0 !important; }      /* the inline 100vh added a scroll into blank cream under the grid */
+  .mx-msg-head .mx-msg-archlink { display: none !important; }
+  .mx-msg-more--phone { display: inline-flex !important; color: var(--soft); }
+}
 /* phones: the grid is sized to end exactly at the tab bar (messages.js › sizeGrid), so the view's own
    86 px tab-bar clearance would only add a scroll into blank cream under the composer */
 @media (max-width: 500px) {
@@ -62,7 +71,7 @@
 .mx-msg-search { padding: 4px 20px 12px; }
 .mx-msg-searchbox { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 12px; box-sizing: border-box; background: var(--card);
   border: 1px solid rgba(25,21,18,.18); color: var(--soft); cursor: text; }
-.mx-msg-searchbox input { flex: 1 1 auto; min-width: 0; border: 0 !important; outline: none !important; background: transparent; padding: 0; height: 42px; font: 400 16px var(--font-ui); color: var(--ink); }
+.mx-msg-searchbox input { flex: 1 1 auto; min-width: 0; border: 0 !important; outline: none !important; background: transparent; padding: 0; height: 44px; font: 400 16px var(--font-ui); color: var(--ink); }
 .mx-msg-searchbox:focus-within { border-color: var(--crimson); }
 .mx-msg-rows { flex: 1; overflow-y: auto; min-height: 0; }
 .mx-msg-row { display: flex; gap: 12px; align-items: center; min-height: 72px; padding: 12px 20px; box-sizing: border-box; cursor: pointer; position: relative; }

@@ -61,7 +61,8 @@ export const COPY = {
   updated: 'Program updated', offline: 'Offline — showing the last program you loaded.',
   offlineFoot: t => `Offline · showing the program${t ? ` from ${t}` : ' you loaded last'}`,
   badLink: 'That link is not one of ours — open the app from your ticket.',
-  noEvents: 'No tickets are linked to this account yet — register for Plexus Week and your events appear here.',
+  // the program's no-ticket notice is the compact empty state: one line, one sentence, one ghost action
+  noEvents: 'Register for Plexus Week and your events appear here.',
   noTickets: { line: 'No tickets on this account yet.', why: 'Register for Plexus Week and your events, and their sessions, appear here on their own.', cta: 'REGISTER FOR PLEXUS WEEK →' },
   sheet: { close: 'CLOSE', ics: 'ADD TO CALENDAR →', where: 'WHERE', about: 'ABOUT', with: 'WITH' },
   foot: (t) => `Med&X · Plexus Week Live${t ? ` · updated ${t}` : ''}`, refresh: 'REFRESH'
@@ -381,7 +382,7 @@ function tplSlots() {
 }
 const scheduleCount = () => (S.token && !S.mePending ? mySchedule().list.length : 0);
 function tplTabs({ n = scheduleCount(), bump = false } = {}) {
-  return TABS.map(t => `<span data-act="tab" data-tab="${t}" role="tab" aria-selected="${S.tab === t}" class="lv-tab${S.tab === t ? ' on' : ''}">${COPY.tabs[t]}${t === 'schedule' && n ? `<b class="lv-count${bump ? ' bump' : ''}">${n}</b>` : ''}</span>`).join('');
+  return TABS.map(t => `<span data-act="tab" data-tab="${t}" role="tab" aria-selected="${S.tab === t}" class="lv-tab${S.tab === t ? ' on' : ''}">${String(COPY.tabs[t]).replace(/^MY /, '<span class="lv-tab-my">MY </span>')}${t === 'schedule' && n ? `<b class="lv-count${bump ? ' bump' : ''}">${n}</b>` : ''}</span>`).join('');
 }
 function tplSpeakersRow(s) {
   const people = (s.speakers || []).filter(x => x && x.name);
@@ -444,7 +445,7 @@ function tplProgram() {
   const sessions = prog.sessions || [];
   if (!sessions.length) return `<div class="lv-empty"><span class="lv-rule"></span><span class="lv-empty-line">${COPY.program.empty}</span></div>`;
   const noTicket = S.person && !S.person.events.length && session.isAuthed;
-  const notice = S.token && S.mePending ? '' : noTicket ? `<div class="lv-note">${COPY.noEvents} <a href="/app/plexus/mine">${COPY.noTickets.cta}</a></div>`
+  const notice = S.token && S.mePending ? '' : noTicket ? `<div class="lv-note lv-note-empty"><span class="lv-note-line">${COPY.noTickets.line}</span><span class="lv-note-why">${COPY.noEvents}</span><a class="lv-att lv-note-go" href="/app/plexus/mine">${COPY.noTickets.cta}</a></div>`
     : S.token && !held(key) && !sessions.some(s => speaking(s.id)) ?`<div class="lv-note">${COPY.att.notHeld}</div>` : (!S.token ? `<div class="lv-note">${COPY.att.ticket}</div>` : '');
   // every day the event spans gets its head, a day whose sessions are not written yet included (the
   // conference's 5 December), so the program reads as the two days the header says

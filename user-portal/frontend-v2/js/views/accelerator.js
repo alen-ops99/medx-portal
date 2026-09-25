@@ -365,6 +365,11 @@ function details(inst) {
     }
   };
 }
+// the square mark holds at most four letters: a longer short name ("Stanford" clipped to "tanfor") becomes initials
+function markText(h) {
+  const a = String(h.abbr || '').trim();
+  return a && a.length <= 4 ? a : abbrOf(h.name || a);
+}
 function abbrOf(name) {
   const words = String(name || '').replace(/[^A-Za-z ]/g, '').split(/\s+/).filter(w => w && !/^(of|the|and)$/i.test(w));
   return (words.length >= 2 ? words.map(w => w[0]).join('').slice(0, 4) : String(name || '').slice(0, 4)).toUpperCase();
@@ -557,7 +562,7 @@ function hostRegion() {
 function hostCards() {
   const rows = D.hosts.map((h, i) => `
       <div data-act="pickHost" data-i="${i}" aria-expanded="${st.host === i}" class="mx-row mx-ax-host${st.host === i ? ' is-open' : ''}">
-        ${h.logo ? `<img class="mx-ax-hostmark" src="${esc(h.logo)}" alt="">` : `<span class="mx-ax-hostmark" aria-hidden="true">${esc(h.abbr)}</span>`}
+        ${h.logo ? `<img class="mx-ax-hostmark" src="${esc(h.logo)}" alt="">` : `<span class="mx-ax-hostmark" aria-hidden="true">${esc(markText(h))}</span>`}
         <span class="mx-row-l">${esc(h.name)}${h.city ? `<span class="mx-row-s">${esc(h.city)}</span>` : ''}</span>
         ${icon(st.host === i ? 'chevron-down' : 'chevron-right', 18)}
       </div>${st.host === i ? hostDetail(h) : ''}`).join('');

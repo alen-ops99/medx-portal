@@ -254,7 +254,7 @@ function blockProjects() {
       <a href="${f.to}" class="mx-shelf-item mx-home-proj">
         <span class="mx-media r-4x3"><img src="${esc(f.img)}" alt="" style="object-position:${f.pos}">${f.tag.text ? `<span class="mx-tag mx-tag--${f.tag.kind === 'line' ? 'ink' : f.tag.kind}">${esc(f.tag.text)}</span>` : ''}</span>
         <span class="mx-shelf-title">${esc(f.name)}</span>
-        <span class="mx-shelf-sub">${esc([f.date, f.place].filter(Boolean).join(' · '))}</span>
+        <span class="mx-shelf-sub">${esc([f.note, f.date, f.place].filter(Boolean).join(' · '))}</span>
       </a>`;
   };
   return `

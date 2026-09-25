@@ -136,7 +136,12 @@
 .lv-count { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; background: var(--crimson); color: var(--cream); font: 600 12px var(--font-ui); letter-spacing: 0; }
 .lv-count.bump { animation: lv-bump var(--lv-slow) var(--lv-ease) backwards; }
 @keyframes lv-bump { from { opacity: 0; transform: scale(.55); } to { opacity: 1; transform: none; } }
-@media (max-width: 360px) { .lv-tab { font-size: 12px; letter-spacing: .1em; } }
+/* small phones: the four tabs size to their words and share the row (equal quarters pushed INFO past a 320 screen) */
+@media (max-width: 380px) {
+  .lv-tabs { grid-template-columns: auto auto auto auto; }
+  .lv-tab { padding: 0 4px; letter-spacing: .06em; }
+}
+@media (max-width: 340px) { .lv-tab-my { display: none; } }
 
 /* ---- panels ---- */
 .lv-panels { padding: 0 0 24px; min-height: 60vh; }
@@ -146,6 +151,11 @@
 .lv-note { margin: 14px 20px 0; padding: 12px 14px; border: 1px solid rgba(201,169,98,.55); background: var(--banner); font-size: 14px; color: var(--soft); line-height: 1.5; }
 .lv-note.warn { border-color: rgba(155,27,34,.4); }
 .lv-note.soft { border-color: rgba(25,21,18,.12); background: transparent; font-size: 14px; }
+/* no tickets on this account: one Fraunces line, one sentence, one ghost action */
+.lv-note-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 16px; }
+.lv-note-line { font: italic 400 18px/24px var(--font-display); color: var(--ink); }
+.lv-note-why { font-size: 14px; line-height: 20px; color: var(--soft); }
+.lv-note-go { margin-top: 10px; text-decoration: none; }
 
 /* day header — sticky under the tabs */
 .lv-day { position: sticky; top: 48px; z-index: 11; display: flex; align-items: baseline; gap: 4px 12px; flex-wrap: wrap; padding: 14px 20px 8px; background: var(--cream); border-bottom: 1px solid var(--hair-soft); }
@@ -170,7 +180,7 @@
 .lv-card.going { border-left-color: var(--crimson); }
 .lv-card.mine { border-left-color: var(--gold); }
 .lv-card.light { background: transparent; border-left-width: 1px; border-left-color: var(--hair); }
-.lv-card.tbd { border-style: dashed; background: transparent; border-color: rgba(25,21,18,.16); }   /* a placeholder: the faintest hairline */
+.lv-card.tbd { border-style: solid; background: transparent; border-color: rgba(25,21,18,.16); }   /* a placeholder: a solid faint hairline on the page ground (dashed read as broken) */
 .lv-card.tbd:not(.going):not(.mine) { border-left-width: 1px; border-left-color: rgba(25,21,18,.35); }
 .lv-list .lv-card.lv-leaving { opacity: 0; transform: scale(.98); pointer-events: none; }   /* tapped out of MY SCHEDULE */
 .lv-card-body { padding: 14px 16px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 8px; }
@@ -272,12 +282,15 @@
 .lv-person-sub { font-size: 14px; color: var(--soft); line-height: 20px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 
 /* info */
-.lv-info-row { display: grid; grid-template-columns: 96px 1fr; gap: 14px; padding: 18px 20px; border-bottom: 1px solid var(--hair-soft); }
+.lv-info-row { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 14px; padding: 18px 20px; border-bottom: 1px solid var(--hair-soft); }
+@media (max-width: 360px) { .lv-info-row { grid-template-columns: 76px minmax(0, 1fr); gap: 12px; } }
 .lv-info-label { font: 600 12px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--gold-dark); padding-top: 4px; }
 .lv-info-body { font-size: 15px; line-height: 1.55; color: var(--soft); }
 .lv-info-body b { color: var(--ink); font-weight: 600; }
-.lv-links { display: flex; gap: 18px; margin-top: 8px; }
-.lv-links a { display: inline-flex; align-items: center; min-height: 40px; white-space: nowrap; font: 600 12px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; }
+/* the contact address is a 44px target without moving the line (negative margins keep the row's rhythm) */
+.lv-info-body a[href^="mailto:"] { display: inline-flex; align-items: center; min-height: 44px; margin: -10px 0; overflow-wrap: anywhere; }
+.lv-links { display: flex; flex-wrap: wrap; gap: 0 18px; margin-top: 8px; }
+.lv-links a { display: inline-flex; align-items: center; min-height: 44px; white-space: nowrap; font: 600 12px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; }
 
 /* footer */
 .lv-foot { display: flex; align-items: center; gap: 14px; padding: 18px 20px calc(24px + env(safe-area-inset-bottom)); border-top: 1px solid var(--hair); font: 600 12px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }

@@ -218,6 +218,11 @@ function qrBox(size, role) {
     ? `<img data-role="${role}" src="${src}" alt="Member QR" style="image-rendering:pixelated">`
     : `<span data-role="${role}" class="mx-me-qr-wait" aria-hidden="true">${ui.icon('qr', Math.round(size * .4))}</span>`}</div>`;
 }
+// "MEMBER CARD · 2026": on a 320 phone only the year stays (me.css), so the label never crosses the gold frame
+function cardLabel() {
+  const parts = String(COPY.card.label).split(' · ');
+  return parts.length > 1 ? `<span class="mx-me-card-label-a">${parts.slice(0, -1).join(' · ')} · </span>${parts[parts.length - 1]}` : COPY.card.label;
+}
 function cardInner() {
   const m = D.member || {};
   const meta = D.meta || {};
@@ -234,14 +239,14 @@ function cardInner() {
   return `
         <div class="mx-me-card-top">
           <img src="/assets/logo-white.png" alt="med&amp;X" style="height:20px;display:block">
-          <span class="mx-me-card-label">${COPY.card.label}</span>
+          <span class="mx-me-card-label">${cardLabel()}</span>
         </div>
         <div class="mx-me-card-mid">
           <div class="mx-me-card-who">
             <div class="mx-me-card-name">${esc(first || session.displayName())}${last ? ' <i>' + esc(last) + '</i>' : ''}</div>
             <div class="mx-me-card-sub">${esc(meta.member_type_label || m.type_label || 'Member')} · ${COPY.card.sinceT(since)}</div>
-            <span class="mx-me-card-standing">${esc(meta.standing_label || m.standing_label || 'Member in good standing')}</span>
           </div>
+          <span class="mx-me-card-standing">${esc(meta.standing_label || m.standing_label || 'Member in good standing')}</span>
           ${qrBox(88, 'qr-front')}
         </div>
         <div class="mx-me-card-foot">

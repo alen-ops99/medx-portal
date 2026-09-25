@@ -7,7 +7,7 @@
 //
 // Names: calendar clock pin tie ticket euro users user mail bell search home grid inbox card qr wallet download
 // external check plus chevron-right chevron-left chevron-down edit clip send award mic music globe
-// + x more compose lock cog help logout seal star sparkle arrow-right image heart shield
+// + x more compose lock cog help logout seal star sparkle arrow-right image heart shield user-plus chat
 
 export const ICONS = {
   calendar: '<rect x="3.75" y="5.25" width="16.5" height="15" rx="0"/><path d="M3.75 9.75h16.5M8.25 3v4.5M15.75 3v4.5"/>',
@@ -54,7 +54,9 @@ export const ICONS = {
   'arrow-right': '<path d="M4.5 12h15M13.5 6l6 6-6 6"/>',
   image: '<rect x="3.75" y="4.5" width="16.5" height="15"/><circle cx="9" cy="9.75" r="1.5"/><path d="m3.75 17.25 5.25-4.5 4.5 3.75 2.25-2.25 4.5 3.75"/>',
   heart: '<path d="M12 19.5s-7.5-4.5-7.5-10.1A3.9 3.9 0 0 1 12 7.2a3.9 3.9 0 0 1 7.5 2.2C19.5 15 12 19.5 12 19.5z"/>',
-  shield: '<path d="M12 3.75 19.5 6.75v5.25c0 4.5-3.2 7.5-7.5 8.25-4.3-.75-7.5-3.75-7.5-8.25V6.75z"/>'
+  shield: '<path d="M12 3.75 19.5 6.75v5.25c0 4.5-3.2 7.5-7.5 8.25-4.3-.75-7.5-3.75-7.5-8.25V6.75z"/>',
+  'user-plus': '<circle cx="9.75" cy="8.25" r="3.75"/><path d="M3 20.25c.75-4 3.4-6.25 6.75-6.25s6 2.25 6.75 6.25"/><path d="M18.75 6.75v6M15.75 9.75h6"/>',
+  chat: '<path d="M3.75 5.25h16.5v11.25H10.5l-4.5 3.75v-3.75H3.75z"/>'
 };
 
 // `size` in px; the stroke stays 1.5 units of the 24 grid (≈1.25 px at 20). Unknown names draw nothing.

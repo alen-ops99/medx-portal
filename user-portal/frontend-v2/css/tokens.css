@@ -17,7 +17,7 @@
   --gold-btn-hover: #b8994f;  /* gold filled button hover (artboards)             */
   --gold-dark: #6e5626;       /* dark-on-light gold text                          */
   --soft: #4a4239;            /* secondary text                                   */
-  --muted: #9b8f80;           /* dates / tertiary labels (Home news dates)        */
+  --muted: #6d6459;           /* dates / tertiary labels: 5.2:1 on cream (AA; the old #9b8f80 was 2.8:1) */
   --banner: #f1e8d3;          /* email-confirm banner ground                      */
   --hair: rgba(25,21,18,.16);        /* hairline on light                         */
   --hair-soft: rgba(25,21,18,.1);    /* row separators inside cards               */
