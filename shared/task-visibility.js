@@ -83,4 +83,82 @@ function visibleNagSql(alias, userId) {
 }
 const isTaskNag = kind => TASK_NAG_KINDS.includes(String(kind || ''));
 
-module.exports = { visibleTaskSql, visibleTaskRow, canSeeTask, visibleTaskFile, visibleNagSql, isTaskNag, TASK_NAG_KINDS };
+/**
+ * Tables whose rows carry task content (titles, descriptions, results, comments, files, Action
+ * Center task titles), and the demo-purge backups of them (_purged_<table>). Whole-table readers
+ * that cannot apply the rule row by row (the tech table browser and JSON export) never hand these out.
+ */
+const TASK_PRIVATE_TABLES = ['project_tasks', 'task_files', 'v2_task_comments', 'nag_items'];
+const baseTable = name => String(name || '').toLowerCase().replace(/^_purged_/, '');
+function isTaskPrivateTable(name) { return TASK_PRIVATE_TABLES.includes(baseTable(name)); }
+
+// ---- side channels: places outside project_tasks where task text used to land ----
+const checkAlias = (a) => { if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(a)) throw new Error('task-visibility: bad alias'); return a; };
+
+/**
+ * The Action Center nudge is a direct message sent as 'admin' (and a push). Every admin reader of
+ * direct_messages (Messages, a thread, the Inbox threads, the registrant timeline, the reply
+ * drafter) shows admin-sent rows to every admin, so a task nudge names no task (no title, no due
+ * date: the assignee opens their own board), and those readers return a nudge only to its sender
+ * and its receiver: even a neutral one says "this person was nudged about a task". Nudges sent
+ * before 25 Sept 2026 stored the task title; they are hidden at read time, never rewritten.
+ */
+const TASK_REMINDER_TITLE = 'Task reminder';
+const TASK_REMINDER_BODY = 'A task on your board needs your attention. Open your tasks in the Med&X admin portal to see which one.';
+
+/**
+ * SQL over direct_messages aliased `alias` that drops the task nudges `userId` is not a party to.
+ * With no user id it drops every task nudge (a Claude prompt never gets one).
+ */
+function taskReminderDmScope(alias, userId) {
+    const a = checkAlias(String(alias || 'direct_messages'));
+    const uid = userId == null ? '' : String(userId);
+    return {
+        sql: `NOT (COALESCE(${a}.sender_type,'') = 'admin' AND COALESCE(${a}.title,'') = ?
+                   AND (? = '' OR (COALESCE(${a}.sender_id,'') <> ? AND COALESCE(${a}.receiver_id,'') <> ?)))`,
+        params: [TASK_REMINDER_TITLE, uid, uid, uid]
+    };
+}
+
+/**
+ * The audit feed goes to every admin. A row about a task (task.*, and the Action Center's actions
+ * on a task item: new rows start with the item kind, older nudge rows named the assignee and older
+ * done rows said "(+task completed)") is returned only to the admin who did it. SQL over audit_log
+ * aliased `alias`; with no user id it drops every such row.
+ */
+function taskAuditScope(alias, userId) {
+    const a = checkAlias(String(alias || 'audit_log'));
+    const uid = userId == null ? '' : String(userId);
+    const about = `(COALESCE(${a}.action,'') LIKE 'task.%'
+                    OR (COALESCE(${a}.action,'') LIKE 'nag.%' AND (COALESCE(${a}.detail,'') LIKE 'task\\_%' ESCAPE '\\'
+                                                                  OR COALESCE(${a}.detail,'') LIKE '%(+task completed)%')))`;
+    return { sql: `NOT (${about} AND (? = '' OR COALESCE(${a}.actor_id,'') <> ?))`, params: [uid, uid] };
+}
+
+/**
+ * The tech DB tools (behind TECH_PASSWORD) read raw rows: a table of task content is never handed
+ * out (isTaskPrivateTable), and a table that holds task side-channel rows among everything else keeps
+ * only the caller's: their own nudges and pushes, their own daily digest, their own task audit rows.
+ * Returns { sql, params } for a WHERE over `alias`, or null when the table carries no task text.
+ * `user` is req.user ({ id, email }).
+ */
+function techRowScope(table, alias, user) {
+    const a = checkAlias(String(alias || 't'));
+    const uid = user && user.id ? String(user.id) : '';
+    const email = user && user.email ? String(user.email).trim().toLowerCase() : '';
+    switch (baseTable(table)) {
+        case 'direct_messages': return taskReminderDmScope(a, uid);
+        case 'push_outbox':
+            return { sql: `NOT (COALESCE(${a}.title,'') = ? AND (? = '' OR LOWER(COALESCE(${a}.target_email,'')) <> ?))`, params: [TASK_REMINDER_TITLE, email, email] };
+        case 'scheduled_emails':   // the daily digest is one person's own list
+            return { sql: `NOT (COALESCE(${a}.source_engine,'') = 'nag-digest' AND (? = '' OR LOWER(COALESCE(${a}.recipient_email,'')) <> ?))`, params: [email, email] };
+        case 'audit_log': return taskAuditScope(a, uid);
+        default: return null;
+    }
+}
+
+module.exports = {
+    visibleTaskSql, visibleTaskRow, canSeeTask, visibleTaskFile, visibleNagSql, isTaskNag, TASK_NAG_KINDS,
+    TASK_PRIVATE_TABLES, isTaskPrivateTable,
+    TASK_REMINDER_TITLE, TASK_REMINDER_BODY, taskReminderDmScope, taskAuditScope, techRowScope
+};

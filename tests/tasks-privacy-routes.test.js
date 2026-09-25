@@ -9,6 +9,10 @@
  *          POST /api/tasks/:id/files · DELETE /api/tasks/files/:fileId · POST /api/tasks/:id/toggle ·
  *          DELETE /api/tasks/:id · GET /api/search · GET /api/dashboard/summary · GET /api/dashboard/portal-stats ·
  *          GET /api/admin/nag/items (+ /act /done /dismiss /claim) · the daily digest · GET /api/admin/audit-log
+ *          and the side channels that used to copy task text where every admin reads it: the Action Center
+ *          nudge (direct_messages + push_outbox, read by /api/admin/messages[/:userId], /api/v2/inbox/threads,
+ *          the registrant timeline and draft-reply), a subtask nudge, the digest outbox preview and a digest
+ *          staged before a reassignment, POST /api/admin/nag/run counts, the audit feed, the tech DB tools
  *   member the same legacy /api/tasks* routes, GET /api/search and GET /api/dashboard/summary
  * A = creator · B = assignee · C = neither · D = gets it on reassignment. A non-participant must get the
  * same answer as for a missing task, and nothing may change.
@@ -50,8 +54,8 @@ const check = (name, cond, detail = '') => {
     results.push([name, !!cond]);
     console.log((cond ? 'PASS' : 'FAIL') + ' | ' + name + (detail ? ' | ' + String(detail).slice(0, 260) : ''));
 };
-const api = async (base, p, { method = 'GET', body, token, form } = {}) => {
-    const headers = {};
+const api = async (base, p, { method = 'GET', body, token, form, headers: extra } = {}) => {
+    const headers = Object.assign({}, extra || {});
     if (!form) headers['Content-Type'] = 'application/json';
     if (token) headers.Authorization = 'Bearer ' + token;
     const r = await fetch(base + p, { method, headers, body: form || (body === undefined ? undefined : JSON.stringify(body)) });
@@ -78,7 +82,7 @@ const waitUp = async (base, ms = 150000) => {
         DATABASE_PATH: dbPath, TURSO_DATABASE_URL: '', TURSO_AUTH_TOKEN: '',
         RESEND_API_KEY: '', SMTP_USER: '', SMTP_PASS: '', BREVO_API_KEY: '', STRIPE_SECRET_KEY: '', STRIPE_WEBHOOK_SECRET: '',
         FIRA_API_KEY: '', ANTHROPIC_API_KEY: '', GOOGLE_SHEETS_WEBHOOK: '', VAPID_PUBLIC_KEY: '', VAPID_PRIVATE_KEY: '',
-        JWT_SECRET: SECRET, NODE_ENV: 'test',
+        JWT_SECRET: SECRET, NODE_ENV: 'test', TECH_PASSWORD: 'tp-tech-pass',
     };
     for (const k of Object.keys(env)) if (k.startsWith('BB_S3_') || k.startsWith('RENDER')) delete env[k];
     const procs = [];
@@ -195,21 +199,116 @@ const waitUp = async (base, ms = 150000) => {
         }
         check('…and the task C tried to close from the Action Center is still open', g(`SELECT status FROM project_tasks WHERE id = 'tp-task'`).status === 'todo' && g(`SELECT status, claimed_by FROM nag_items WHERE id = ?`, [nag.id]).status === 'open');
 
-        // the digest: a task row filed under D's team row (stale assignee) must not reach D, who cannot see the task
+        // /nag/run answers with the caller's own counts (the global ones include task items C may not see)
+        r = await api(ADMIN, '/api/admin/nag/run', { method: 'POST', token: tok.C });
+        check('admin POST /api/admin/nag/run: C gets C\'s own open count, no global found/created numbers', r.status === 200 && r.d.open === ic.counts.open && !('found' in r.d) && !('created' in r.d), JSON.stringify(r.d).slice(0, 200));
+        const scanRow = g(`SELECT detail FROM audit_log WHERE action = 'nag.scan' ORDER BY created_at DESC, rowid DESC LIMIT 1`);
+        check('…and its audit row carries no counts', scanRow && !/\d/.test(scanRow.detail || ''), JSON.stringify(scanRow));
+
+        // a SUBTASK follows its parent: its own assignee (D, not on the parent) is never nudged with it
+        x(`INSERT INTO project_tasks (id, project, title, assigned_to, priority, status, due_date, created_by, parent_id) VALUES ('tp-sub-due', 'plexus', 'Qazwx subtask for D', ?, 'medium', 'todo', ?, ?, 'tp-task')`, [TM.D, yesterday, P.A]);
+        x(`INSERT INTO nag_items (id, kind, subject_id, title, action_kind, action_payload_json, assignee, status, created_at) VALUES ('tp-nag-sub', 'task_overdue', 'tp-sub-due', 'Overdue task: Qazwx subtask for D', 'nudge_assignee', ?, ?, 'open', datetime('now'))`,
+            [JSON.stringify({ who: 'QaD Tester', assignee_user_id: P.D, assignee_email: 'qa.taskprivacy+d@example.com', task_id: 'tp-sub-due', task_title: 'Qazwx subtask for D', due_date: yesterday }), TM.D]);
+        r = await api(ADMIN, '/api/admin/nag/items/tp-nag-sub/act', { method: 'POST', token: tok.A });
+        const dmsTo = uid => (g(`SELECT COUNT(*) AS c FROM direct_messages WHERE receiver_id = ?`, [uid]) || {}).c || 0;
+        check('admin POST /api/admin/nag/items/:id/act on a subtask item: refused (D cannot see the task), no message to D', r.status === 400 && dmsTo(P.D) === 0 && !g(`SELECT id FROM push_outbox WHERE body LIKE '%Qazwx%'`), JSON.stringify(r));
+        await api(ADMIN, '/api/admin/nag/run', { method: 'POST', token: tok.A });
+        check('the scan files no Action Center item for a subtask, and resolves one an older scan filed', !g(`SELECT id FROM nag_items WHERE subject_id = 'tp-sub-due' AND id <> 'tp-nag-sub'`) && g(`SELECT status FROM nag_items WHERE id = 'tp-nag-sub'`).status === 'done');
+        x(`DELETE FROM nag_items WHERE id = 'tp-nag-sub'`); x(`DELETE FROM project_tasks WHERE id = 'tp-sub-due'`);
+
+        // the nudge: A (creator) nudges B (assignee). It names no task, and only A and B see it anywhere.
+        const BODY = 'A task on your board needs your attention. Open your tasks in the Med&X admin portal to see which one.';
+        r = await api(ADMIN, `/api/admin/nag/items/${nag.id}/act`, { method: 'POST', token: tok.A });
+        const dm = g(`SELECT content, title FROM direct_messages WHERE receiver_id = ? AND sender_id = ?`, [P.B, P.A]);
+        const push = g(`SELECT body, target_email FROM push_outbox WHERE title = 'Task reminder' ORDER BY created_at DESC LIMIT 1`);
+        check('admin act nudge_assignee: B gets a direct message that names no task and no due date', r.status === 200 && r.d.action === 'nudge_sent' && dm && dm.content === BODY && !dm.content.includes(yesterday), JSON.stringify([r.d, dm]));
+        check('…and the push goes to B alone, with the same neutral text (a push with no target is a broadcast)', push && push.body === BODY && push.target_email === 'qa.taskprivacy+b@example.com', JSON.stringify(push));
+        // a nudge an older build stored WITH the title
+        x(`INSERT INTO direct_messages (id, sender_id, receiver_id, sender_type, receiver_type, title, content, is_read, created_at) VALUES ('tp-dm-old', ?, ?, 'admin', 'user', 'Task reminder', 'Reminder: "Qazwx dentist appointment" (due ${yesterday}) needs your attention.', 0, datetime('now'))`, [P.A, P.B]);
+        x(`INSERT INTO registrations (id, first_name, last_name, email, status, created_at) VALUES ('tp-reg-b', 'QaB', 'Tester', 'qa.taskprivacy+b@example.com', 'pending', datetime('now'))`);
+        const noNudge = d => { const j = JSON.stringify(d || null); return !j.includes('Task reminder') && !j.includes('Qazwx') && !j.includes('A task on your board'); };
+        const readers = [
+            ['GET /api/admin/messages', k => api(ADMIN, '/api/admin/messages', { token: tok[k] })],
+            ['GET /api/admin/messages/:userId', k => api(ADMIN, '/api/admin/messages/' + P.B, { token: tok[k] })],
+            ['GET /api/v2/inbox/threads', k => api(ADMIN, '/api/v2/inbox/threads', { token: tok[k] })],
+            ['GET /api/admin/registrant/:type/:id/activity', k => api(ADMIN, '/api/admin/registrant/plexus/tp-reg-b/activity', { token: tok[k] })],
+        ];
+        for (const [name, fn] of readers) {
+            const rc = await fn('C');
+            check(`admin ${name}: C (not on the task) never sees the nudge, new or old`, rc.status === 200 && noNudge(rc.d), JSON.stringify(rc.d).slice(0, 240));
+        }
+        for (const k of ['A', 'B']) {
+            const rk = await api(ADMIN, '/api/admin/messages', { token: tok[k] });
+            check(`admin GET /api/admin/messages: ${k} (sender / receiver) sees both nudges`, rk.status === 200 && (rk.d || []).filter(m => m.title === 'Task reminder').length === 2);
+        }
+        r = await api(ADMIN, '/api/admin/messages/' + P.B + '/draft-reply', { method: 'POST', token: tok.A });
+        check('admin POST /api/admin/messages/:userId/draft-reply: a nudge never becomes the drafting prompt (B\'s thread holds only nudges → nothing to draft)', r.status === 404, JSON.stringify(r));
+
+        // the audit feed: task rows and task Action Center rows only for the admin who acted
+        x(`INSERT INTO audit_log (id, actor_id, actor_email, action, detail, created_at) VALUES ('tp-audit-oldnudge', ?, 'a@example.com', 'nag.act', 'task_overdue -> assignee nudged (QaB Tester)', datetime('now'))`, [P.A]);
+        x(`INSERT INTO audit_log (id, actor_id, actor_email, action, detail, created_at) VALUES ('tp-audit-olddone', ?, 'a@example.com', 'nag.done', 'tp-x (+task completed)', datetime('now'))`, [P.A]);
+        const feedOf = async k => ((await api(ADMIN, '/api/admin/audit-log?limit=500', { token: tok[k] })).d || []);
+        const fc = await feedOf('C'), fa = await feedOf('A');
+        const aboutTask = a => /^task\./.test(a.action) || (/^nag\./.test(a.action) && (/^task_/.test(a.detail || '') || /\(\+task completed\)/.test(a.detail || '')));
+        check('admin GET /api/admin/audit-log: C sees no row about a task (no nudge, no assignee name, no "(+task completed)")', !fc.some(aboutTask) && !JSON.stringify(fc).includes('QaB Tester'), JSON.stringify(fc.filter(aboutTask)).slice(0, 240));
+        check('…A (who acted) sees its own, the new nudge row carrying only the item kind and id', fa.some(a => a.action === 'nag.act' && a.detail === `task_overdue item ${nag.id} -> assignee nudged`) && fa.some(a => a.detail === 'tp-x (+task completed)'), JSON.stringify(fa.filter(aboutTask)).slice(0, 300));
+
+        // the digest: staged rows sit in the outbox every admin can open, so a task is never named in one.
+        // A task row filed under D's team row (stale assignee) must not reach D, who cannot see the task,
+        // and a digest an older build staged WITH titles is withdrawn before it can be approved.
         x(`INSERT INTO nag_items (id, kind, subject_id, title, action_kind, action_payload_json, assignee, status, created_at) VALUES ('tp-nag-stale', 'task_due_soon', 'tp-task', 'Task due soon: Qazwx dentist appointment', 'open_link', '{}', ?, 'open', datetime('now'))`, [TM.D]);
         x(`DELETE FROM scheduled_emails WHERE source_engine = 'nag-digest'`);
+        x(`INSERT INTO scheduled_emails (id, status, batch_id, source_engine, template, payload_json, recipient_email, subject, created_by, created_at)
+           VALUES ('tp-digest-old', 'pending_approval', 'nagdigest-tp-old', 'nag-digest', 'daily_team_digest', ?, 'qa.taskprivacy+b@example.com', 'Your Med&X action items (1)', 'nag-engine', datetime('now'))`,
+            [JSON.stringify({ to: 'qa.taskprivacy+b@example.com', subject: 'Your Med&X action items (1)', html: '<li>Overdue task: Qazwx dentist appointment</li>' })]);
         r = await api(ADMIN, '/api/admin/nag/digest', { method: 'POST', token: tok.A });
-        const digestTo = email => g(`SELECT payload_json FROM scheduled_emails WHERE source_engine = 'nag-digest' AND recipient_email = ?`, [email]);
+        const digestTo = email => g(`SELECT payload_json, subject, batch_id FROM scheduled_emails WHERE source_engine = 'nag-digest' AND status = 'pending_approval' AND recipient_email = ?`, [email]);
         const dB = digestTo('qa.taskprivacy+b@example.com'), dD = digestTo('qa.taskprivacy+d@example.com');
-        check('digest: B (the assignee) is told about the task', r.status === 200 && !!dB && /dentist/.test(dB.payload_json), JSON.stringify(r.d));
-        check('digest: D (not on the task) is never sent its title', !dD || !/dentist/i.test(dD.payload_json), dD && dD.payload_json.slice(0, 200));
+        check('digest: an older staged digest that named the task is withdrawn (cancelled, never sent)', g(`SELECT status FROM scheduled_emails WHERE id = 'tp-digest-old'`).status === 'cancelled');
+        check('digest: B (the assignee) is told there is a task, with a link to the board, and not which one', r.status === 200 && !!dB && /1 of your task is overdue or due soon/.test(dB.payload_json) && /open your task board/.test(dB.payload_json) && !/dentist|Qazwx/i.test(dB.payload_json) && dB.subject === 'Your Med&X action items', JSON.stringify([r.d, dB && dB.payload_json.slice(0, 200)]));
+        check('digest: D (not on the task) is never sent its title', !dD || !/dentist|Qazwx/i.test(dD.payload_json), dD && dD.payload_json.slice(0, 200));
+        const prevC = await api(ADMIN, '/api/v2/inbox/outbox/' + dB.batch_id, { token: tok.C });
+        const prevB = await api(ADMIN, '/api/v2/inbox/outbox/' + dB.batch_id, { token: tok.B });
+        const prevOld = await api(ADMIN, '/api/v2/inbox/outbox/nagdigest-tp-old', { token: tok.C });
+        check('admin GET /api/v2/inbox/outbox/:batch (digest): C previews no one\'s digest, B previews B\'s own', prevC.status === 200 && !prevC.d.preview.html && !/task board|Qazwx/i.test(JSON.stringify(prevC.d.preview))
+            && prevB.d.preview.to === 'qa.taskprivacy+b@example.com' && /open your task board/.test(prevB.d.preview.html || ''), JSON.stringify([prevC.d && prevC.d.preview, prevB.d && prevB.d.preview && prevB.d.preview.to]));
+        check('…and the older digest that named the task previews to C without it', prevOld.status === 200 && !JSON.stringify(prevOld.d).includes('Qazwx'), JSON.stringify(prevOld.d).slice(0, 200));
         x(`DELETE FROM nag_items WHERE id = 'tp-nag-stale'`);
 
-        // the audit feed: a task action shows without its detail (old rows carried titles)
+        // the audit feed: a task action shows only to the admin who did it, and without its detail (old rows carried titles)
         x(`INSERT INTO audit_log (id, actor_id, actor_email, action, detail, created_at) VALUES ('tp-audit', ?, 'a@example.com', 'task.create', 'Qazwx dentist appointment → QaB Tester', datetime('now'))`, [P.A]);
         r = await api(ADMIN, '/api/admin/audit-log?limit=500', { token: tok.C });
-        const row = (r.d || []).find(a => a.action === 'task.create' && a.actor_email === 'a@example.com');
-        check('admin GET /api/admin/audit-log: a task row comes without its title', r.status === 200 && !!row && row.detail === null && !JSON.stringify(r.d).includes('Qazwx dentist'), JSON.stringify(row));
+        const ra = await api(ADMIN, '/api/admin/audit-log?limit=500', { token: tok.A });
+        const rowA = (ra.d || []).find(a => a.action === 'task.create' && a.actor_email === 'a@example.com');
+        check('admin GET /api/admin/audit-log: C does not get A\'s task row; A gets it without its title', r.status === 200 && !(r.d || []).some(a => a.action === 'task.create' && a.actor_email === 'a@example.com') && !JSON.stringify(r.d).includes('Qazwx dentist')
+            && !!rowA && rowA.detail === null && !JSON.stringify(ra.d).includes('Qazwx dentist'), JSON.stringify(rowA));
+
+        // the tech DB tools (TECH_PASSWORD): no override — task tables are never handed out, mixed tables keep the caller's own rows
+        const TP = { 'x-tech-password': 'tp-tech-pass' };
+        const tech = (k, p) => api(ADMIN, '/api/admin/tech/' + p, { token: tok[k], headers: TP });
+        r = await tech('C', 'tables');
+        const tnames = ((r.d && r.d.tables) || []).map(t => t.name);
+        check('admin GET /api/admin/tech/tables: the task tables are not listed', r.status === 200 && tnames.includes('registrations') && !['project_tasks', 'task_files', 'v2_task_comments', 'nag_items'].some(n => tnames.includes(n)), JSON.stringify(tnames.filter(n => /task|nag/.test(n))));
+        const tMissing = await tech('C', 'tables/tp_no_such_table');
+        for (const tname of ['project_tasks', 'task_files', 'v2_task_comments', 'nag_items']) {
+            const th = await tech('C', 'tables/' + tname);
+            check(`admin GET /api/admin/tech/tables/${tname}: the same 400 as a missing table`, th.status === 400 && same(th, tMissing), JSON.stringify(th));
+        }
+        const rowsOf = async (k, tname, qs = '') => (((await tech(k, `tables/${tname}?limit=500${qs}`)).d || {}).rows || []);
+        check('admin tech tables/direct_messages: C gets no nudge (nor by search); B gets both', !(await rowsOf('C', 'direct_messages')).some(m => m.title === 'Task reminder') && (await rowsOf('C', 'direct_messages', '&search=Qazwx')).length === 0
+            && (await rowsOf('B', 'direct_messages')).filter(m => m.title === 'Task reminder').length === 2);
+        check('admin tech tables/scheduled_emails: C gets no one\'s digest', !(await rowsOf('C', 'scheduled_emails')).some(e => e.source_engine === 'nag-digest'));
+        check('admin tech tables/push_outbox: C gets no nudge push', !(await rowsOf('C', 'push_outbox')).some(e => e.title === 'Task reminder'));
+        check('admin tech tables/audit_log: C gets no task row', !(await rowsOf('C', 'audit_log')).some(aboutTask));
+        r = await tech('C', 'export-all');
+        const dump = JSON.stringify(r.d || {});
+        check('admin GET /api/admin/tech/export-all: C\'s export holds no task table and no task text', r.status === 200 && r.d.tables && !('project_tasks' in r.d.tables) && !('nag_items' in r.d.tables) && !/Qazwx|dentist|Task reminder/.test(dump), (dump.match(/.{60}(Qazwx|dentist|Task reminder).{60}/) || [''])[0]);
+        r = await tech('C', 'db-download');
+        check('admin GET /api/admin/tech/db-download: refused to an admin who is not the founder (the raw file holds every task)', r.status === 403, JSON.stringify(r));
+        x(`UPDATE users SET is_founder = 1 WHERE id = ?`, [P.A]);
+        r = await tech('A', 'db-download');
+        check('…the founder\'s break-glass backup still downloads', r.status === 200, JSON.stringify(r));
+        x(`UPDATE users SET is_founder = 0 WHERE id = ?`, [P.A]);
 
         // ------------------------------------------------------------ reassign B → D (by the creator, through the member v1 route): B loses it, D gains it
         r = await api(USER, '/api/tasks/tp-task', { method: 'PUT', token: tok.A, body: { assigned_to: TM.D, due_date: yesterday } });
@@ -223,6 +322,15 @@ const waitUp = async (base, ms = 150000) => {
             const sb2 = (await api(base, '/api/search?q=dentist', { token: tok.B })).d || {};
             check(`${label} after reassignment: B's search no longer finds it`, !titlesIn(sb2.tasks).some(t => /dentist/.test(t)));
         }
+        // the Action Center item still names B until the next scan: nudging it now must not reach B
+        const bDms = dmsTo(P.B);
+        r = await api(ADMIN, `/api/admin/nag/items/${nag.id}/act`, { method: 'POST', token: tok.A });
+        check('admin act nudge_assignee after B → D (before a rescan): refused, nothing more to B', r.status === 400 && dmsTo(P.B) === bDms, JSON.stringify(r));
+        await api(ADMIN, '/api/admin/nag/run', { method: 'POST', token: tok.A });
+        r = await api(ADMIN, `/api/admin/nag/items/${nag.id}/act`, { method: 'POST', token: tok.A });
+        check('…after the scan the item names D, and the nudge goes to D', r.status === 200 && dmsTo(P.D) === 1 && dmsTo(P.B) === bDms, JSON.stringify(r));
+        const bDigest = g(`SELECT payload_json FROM scheduled_emails WHERE source_engine = 'nag-digest' AND recipient_email = 'qa.taskprivacy+b@example.com' AND status = 'pending_approval'`);
+        check('B\'s digest staged before the reassignment holds nothing of the task', !bDigest || !/Qazwx|dentist/i.test(bDigest.payload_json));
         r = await api(ADMIN, '/api/tasks/tp-task/toggle', { method: 'POST', token: tok.B });
         check('admin POST /api/tasks/:id/toggle: B (no longer on it) gets 404', r.status === 404);
         r = await api(ADMIN, '/api/tasks/tp-task/toggle', { method: 'POST', token: tok.D });

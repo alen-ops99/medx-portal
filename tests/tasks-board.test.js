@@ -310,6 +310,14 @@ const sys = id => q.all(`SELECT body, kind, author_name FROM v2_task_comments WH
         assert.strictEqual(bad.status, 401);
         const expired = await call('GET', '/api/v2/tasks/files/:fid', null, { params: { fid: fileId }, query: { exp: '1000', sig: u.searchParams.get('sig') } });
         assert.strictEqual(expired.status, 401);
+        // a signed link never mints a fresh one (?json=1 hands back the SAME link, so it runs out and a
+        // link held after a reassignment cannot renew itself)
+        // (a link minted 100 s earlier than a fresh one would be, so a renewal cannot pass by coincidence)
+        const exp2 = Number(u.searchParams.get('exp')) - 100;
+        const sig2 = require('node:crypto').createHmac('sha256', 'tasks-test-secret').update('task-file:' + fileId + ':' + exp2).digest('hex').slice(0, 32);
+        const again = await call('GET', '/api/v2/tasks/files/:fid', null, { params: { fid: fileId }, query: { exp: String(exp2), sig: sig2, json: '1' } });
+        assert.strictEqual(again.status, 200, JSON.stringify(again.body));
+        assert.strictEqual(again.body.url, `/api/v2/tasks/files/${encodeURIComponent(fileId)}?exp=${exp2}&sig=${sig2}`, 'the same exp + sig, not a renewal');
         // …and a Bearer session is always enough
         const withSession = await call('GET', '/api/v2/tasks/files/:fid', as.alen, { params: { fid: fileId }, query: { json: '1' } });
         assert.strictEqual(withSession.status, 200);
@@ -458,6 +466,26 @@ const sys = id => q.all(`SELECT body, kind, author_name FROM v2_task_comments WH
         const r = await call('POST', '/api/v2/tasks', as.alen, { body: { title: 'Petra task', assigned_to: 'tm-petra' } });
         assert.strictEqual(emails.length, 1); assert.strictEqual(emails[0].to, 'petra@medx.hr');
         await call('DELETE', '/api/admin/tasks/:id', as.alen, { params: { id: r.body.id } });
+    });
+
+    await t('PRIVACY: a team row that already carries a task is never linked by name (names are self-editable)', async () => {
+        // a task on the unlinked row "Ivan Nikolic" is seen only by its creator; an admin with no team row
+        // who renames themself "Ivan Nikolic" must not inherit it by opening the board
+        q.run(`INSERT INTO project_tasks (id, project, title, status, assigned_to, created_by, updated_at) VALUES ('ivan-task', 'general', 'Qzv Ivan private errand', 'todo', ?, ?, ?)`, [M.ivan, U.alen, new Date().toISOString()]);
+        q.run(`INSERT INTO users (id, email, first_name, last_name, is_admin) VALUES ('u-imp', 'imp@example.com', 'Ivan', 'Nikolic', 1)`);
+        const imp = { id: 'u-imp', email: 'imp@example.com', is_admin: 1 };
+        const r = await call('GET', '/api/v2/tasks', imp);
+        assert.strictEqual(r.status, 200);
+        assert.strictEqual(q.get(`SELECT user_id FROM team_members WHERE id = ?`, [M.ivan]).user_id, null, 'the row with a task stays unlinked');
+        assert.ok(!r.body.tasks.some(x => x.id === 'ivan-task'), 'the task is not on the renamed admin\'s board');
+        assert.strictEqual((await call('GET', '/api/v2/tasks/:id', imp, { params: { id: 'ivan-task' } })).status, 404);
+        assert.strictEqual((await call('POST', '/api/v2/tasks', imp, { body: { title: 'x', assigned_to: 'user:u-imp' } })).status, 200, 'assigning to them makes their OWN row');
+        assert.notStrictEqual(q.get(`SELECT id FROM team_members WHERE user_id = 'u-imp'`).id, M.ivan);
+        // the one earlier name link (Petra, no tasks on her row) was logged
+        assert.ok(q.get(`SELECT detail FROM audit_log WHERE action = 'team.link' AND detail LIKE '%tm-petra%'`), 'a name link leaves an audit row');
+        q.run(`DELETE FROM project_tasks WHERE id = 'ivan-task' OR created_by = 'u-imp'`);
+        q.run(`DELETE FROM team_members WHERE user_id = 'u-imp'`);
+        q.run(`DELETE FROM users WHERE id = 'u-imp'`);
     });
 
     await t('a stale unlinked team row beside a linked row of the same name is offered once (the live DB has two Laura rows)', async () => {
@@ -667,6 +695,22 @@ const sys = id => q.all(`SELECT body, kind, author_name FROM v2_task_comments WH
         const nags = uid => { const v = vis.visibleNagSql('nag_items', uid); return all2(`SELECT id FROM nag_items WHERE ${v.sql} ORDER BY id`, v.params).map(r => r.id); };
         assert.deepStrictEqual(nags('uB'), ['n1', 'n2'], 'the task nag for its assignee + every non-task nag');
         assert.deepStrictEqual(nags('uC'), ['n2'], 'a non-participant keeps the non-task nags only');
+        // side channels: a task nudge only for its two parties (none at all with no user: a prompt),
+        // a task audit row only for its actor, whole task tables never handed to the tech tools
+        d2.run(`CREATE TABLE direct_messages (id TEXT, sender_id TEXT, receiver_id TEXT, sender_type TEXT, title TEXT)`);
+        d2.run(`INSERT INTO direct_messages VALUES ('m1','uA','uB','admin','Task reminder'),('m2','uA','uB','admin','Hello'),('m3','uB','uA','user','Task reminder')`);
+        const dms = uid => { const v = vis.taskReminderDmScope('dm', uid); return all2(`SELECT id FROM direct_messages dm WHERE ${v.sql} ORDER BY id`, v.params).map(r => r.id); };
+        assert.deepStrictEqual(dms('uA'), ['m1', 'm2', 'm3']); assert.deepStrictEqual(dms('uB'), ['m1', 'm2', 'm3']);
+        assert.deepStrictEqual(dms('uC'), ['m2', 'm3'], 'a third admin never gets the nudge (a member-sent row with that title is not one)');
+        assert.deepStrictEqual(dms(null), ['m2', 'm3']);
+        d2.run(`CREATE TABLE audit_log (id TEXT, actor_id TEXT, action TEXT, detail TEXT)`);
+        d2.run(`INSERT INTO audit_log VALUES ('a1','uA','task.create','task t1'),('a2','uA','nag.act','task_overdue -> assignee nudged (B)'),('a3','uA','nag.done','n1 (+task completed)'),
+                ('a4','uA','nag.act','gala_unpaid -> reminder queued'),('a5','uA','nag.dismiss','n2'),('a6','uA','login',NULL)`);
+        const aud = uid => { const v = vis.taskAuditScope('al', uid); return all2(`SELECT id FROM audit_log al WHERE ${v.sql} ORDER BY id`, v.params).map(r => r.id); };
+        assert.deepStrictEqual(aud('uA'), ['a1', 'a2', 'a3', 'a4', 'a5', 'a6']);
+        assert.deepStrictEqual(aud('uC'), ['a4', 'a5', 'a6']);
+        assert.ok(vis.isTaskPrivateTable('project_tasks') && vis.isTaskPrivateTable('_purged_task_files') && vis.isTaskPrivateTable('V2_TASK_COMMENTS') && !vis.isTaskPrivateTable('registrations'));
+        assert.strictEqual(vis.techRowScope('registrations', 't', { id: 'uC' }), null);
         assert.throws(() => vis.visibleTaskSql('pt; DROP TABLE x', 'uA'));
     });
 
@@ -689,7 +733,11 @@ const sys = id => q.all(`SELECT body, kind, author_name FROM v2_task_comments WH
                 /app\.delete\('\/api\/tasks\/:id'[\s\S]{0,120}visTaskRow\(/, /app\.get\('\/api\/search'[\s\S]{0,400}taskVis\.visibleTaskSql\(/,
                 /app\.get\('\/api\/dashboard\/summary'[\s\S]{0,400}taskVis\.visibleTaskSql\(/, /const tvStats = taskVis\.visibleTaskSql\(/,
                 /app\.get\('\/api\/admin\/nag\/items'[\s\S]{0,300}taskVis\.visibleNagSql\(/, /const nagItemFor = [\s\S]{0,200}taskVis\.visibleNagSql\(/,
-                /const nv = taskVis\.visibleNagSql\('nag_items', m\.user_id\)/, /app\.get\('\/api\/admin\/audit-log'[\s\S]{0,400}\/\^task\\\.\//
+                /const nv = taskVis\.visibleNagSql\('nag_items', m\.user_id\)/, /app\.get\('\/api\/admin\/audit-log'[\s\S]{0,400}taskVis\.taskAuditScope\(/,
+                /app\.get\('\/api\/admin\/audit-log'[\s\S]{0,800}\/\^task\\\.\//, /app\.post\('\/api\/admin\/nag\/run'[\s\S]{0,300}taskVis\.visibleNagSql\(/,
+                /app\.get\('\/api\/admin\/messages', auth, adminOnly[\s\S]{0,700}taskVis\.taskReminderDmScope\(/, /app\.get\('\/api\/admin\/messages\/:userId'[\s\S]{0,400}taskVis\.taskReminderDmScope\(/,
+                /draft-reply'[\s\S]{0,400}taskVis\.taskReminderDmScope\('direct_messages', null\)/, /app\.get\('\/api\/admin\/tech\/tables\/:name'[\s\S]{0,500}taskVis\.isTaskPrivateTable\(/,
+                /app\.get\('\/api\/admin\/tech\/export-all'[\s\S]{0,400}taskVis\.techRowScope\(/
             ],
             'user-portal/backend/server.js': [
                 /app\.get\('\/api\/tasks\/:project'[\s\S]{0,400}visTasks\(req\)/, /app\.get\('\/api\/tasks', auth, adminOnly[\s\S]{0,120}visTasks\(req\)/,

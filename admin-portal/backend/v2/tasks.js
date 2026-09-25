@@ -147,9 +147,13 @@ module.exports = function mountTasks(app, ctx) {
     // An admin account and an unlinked team row with the same name are one person (the seed
     // creates Laura's user before her team row and the link never lands): join them once, here,
     // so she is offered once and her emails have an address.
+    // Names are self-editable, and a task is seen by its assignee's account (shared/task-visibility.js),
+    // so a row that already carries a task is never linked by name: an admin who renamed themself
+    // after it would inherit tasks that until now only their creators could see. Every link is logged.
     function healTeamLinks() {
         const admins = q.all('SELECT id, first_name, last_name, email FROM users WHERE is_admin = 1');
-        const loose = q.all('SELECT id, name FROM team_members WHERE user_id IS NULL OR user_id = \'\'');
+        const loose = q.all(`SELECT tm.id, tm.name FROM team_members tm WHERE (tm.user_id IS NULL OR tm.user_id = '')
+                               AND NOT EXISTS (SELECT 1 FROM project_tasks pt WHERE pt.assigned_to = tm.id)`);
         if (!admins.length || !loose.length) return;
         const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z ]/g, ' ').replace(/\s+/g, ' ').trim();
         const linked = new Set(q.all('SELECT user_id FROM team_members WHERE user_id IS NOT NULL').map(r => r.user_id));
@@ -158,7 +162,13 @@ module.exports = function mountTasks(app, ctx) {
             if (linked.has(u.id)) continue;
             const hit = loose.find(m => norm(m.name) && norm(m.name) === norm(nameOfUser(u)));
             if (!hit) continue;
-            try { q.run('UPDATE team_members SET user_id = ? WHERE id = ? AND (user_id IS NULL OR user_id = \'\')', [u.id, hit.id]); loose.splice(loose.indexOf(hit), 1); linked.add(u.id); changed = true; } catch (e) { /* unique clash — leave it */ }
+            try {
+                q.run(`UPDATE team_members SET user_id = ? WHERE id = ? AND (user_id IS NULL OR user_id = '')
+                         AND NOT EXISTS (SELECT 1 FROM project_tasks pt WHERE pt.assigned_to = team_members.id)`, [u.id, hit.id]);
+                loose.splice(loose.indexOf(hit), 1); linked.add(u.id); changed = true;
+                try { q.run('INSERT INTO audit_log (id, actor_id, actor_email, action, detail) VALUES (?,?,?,?,?)', [uuid(), null, 'system', 'team.link', `team row ${hit.id} linked to account ${u.id} (same name, no tasks on the row)`]); } catch (e) { /* best-effort */ }
+                log(`team row ${hit.id} linked to account ${u.id} by name`);
+            } catch (e) { /* unique clash — leave it */ }
         }
         if (changed) persist();
     }
@@ -300,7 +310,7 @@ module.exports = function mountTasks(app, ctx) {
   </tr></table></td></tr>
   <tr><td style="height:2px;font-size:0;line-height:0;background:#9b1b22;">&nbsp;</td></tr>
   <tr><td>${body}</td></tr>
-  <tr><td style="border-top:1px solid rgba(240,228,210,.16);padding:18px 40px 22px;font-family:${sans};font-size:11px;line-height:1.7;color:#cbbca7;">© Med&amp;X ${new Date().getFullYear()} · Split, Croatia<br>Sent by the Med&amp;X admin portal because a task on the shared board involves you.</td></tr>
+  <tr><td style="border-top:1px solid rgba(240,228,210,.16);padding:18px 40px 22px;font-family:${sans};font-size:11px;line-height:1.7;color:#cbbca7;">© Med&amp;X ${new Date().getFullYear()} · Split, Croatia<br>Sent by the Med&amp;X admin portal because a task you gave or were given was updated.</td></tr>
 </table></td></tr></table></body></html>`;
     }
     function teamEmailOf(userId) {
@@ -611,7 +621,9 @@ module.exports = function mountTasks(app, ctx) {
             }
             const local = f.file_path && fs.existsSync(f.file_path) ? f.file_path : path.join(LOCAL_DIR, f.filename || '');
             if (!f.filename || !fs.existsSync(local)) return res.status(404).json({ error: 'That file is no longer on this server.' });
-            if (wantJson) return res.json({ url: signedPath(f.id), name });
+            // a signed caller gets its own link back, never a fresh one (a link held after a reassignment
+            // must run out, not renew itself); a Bearer caller has just passed the task rule
+            if (wantJson) return res.json({ url: req.taskFileSigned ? `/api/v2/tasks/files/${encodeURIComponent(f.id)}?exp=${Number(req.query.exp)}&sig=${encodeURIComponent(String(req.query.sig))}` : signedPath(f.id), name });
             res.setHeader('Content-Type', 'application/octet-stream');
             res.setHeader('Content-Disposition', 'attachment; filename="' + name.replace(/["\\]/g, '_').replace(/[^\x20-\x7e]/g, '_') + '"; filename*=UTF-8\'\'' + encodeURIComponent(name));
             res.setHeader('X-Content-Type-Options', 'nosniff');
