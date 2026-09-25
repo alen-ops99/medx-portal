@@ -12,8 +12,8 @@
 // exists where it earns its space — the printed A4 landscape board behind EXPORT PDF.
 // Data: entries ARE /api/admin/year-calendar (add = POST, ✕ = DELETE with UNDO re-create);
 // NEXT UP + KEY DATES compose the /api/v2/calendar/key-dates union (entries · conferences ·
-// bridges · live gala early-bird prices); TEAM TASKS is the board's open list (/api/v2/tasks — the
-// same cards /tasks shows; 2026-09-20: the tick-list moved to the board, this card is its door)
+// bridges · live gala early-bird prices); YOUR TASKS is the board's open list (/api/v2/tasks — the
+// same cards /tasks shows, only the caller's own; 2026-09-20: the tick-list moved to the board, this card is its door)
 // (note 17 — ticking here completes for everyone). Header comes from js/chrome.js.
 import { api } from '../api.js';
 import { ui, esc, fmt } from '../ui.js';
@@ -40,7 +40,7 @@ export const COPY = {
     empty: 'Nothing dated yet — + ADD ENTRY puts the first thing on the calendar.'
   },
   tasks: {
-    title: 'TEAM TASKS', note: 'open cards on the board — tap one to open it', team: 'TEAM', empty: 'All clear — nothing open.',
+    title: 'YOUR TASKS', note: 'open cards you gave or were given — tap one to open it', team: 'NO ONE', empty: 'All clear — nothing open.',
     board: 'OPEN THE BOARD →', add: '+ NEW TASK', more: n => `+ ${n} more on the board`, doing: 'IN PROGRESS',
     overdue: n => `Overdue — ${fmt.plural(n, 'day')}`, dueToday: 'Due today', due: d => `Due ${fmt.dayShort(d)}`
   },

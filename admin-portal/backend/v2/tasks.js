@@ -17,8 +17,14 @@
  * team_members.id (as every legacy reader expects); an admin user without a team_members row can
  * still be picked (`user:<id>`) — the row is created on first assignment.
  *
- * Routes (all auth + adminOnly; /api/v2/tasks is deliberately NOT in SECTION_ROUTE_MAP — tasks
- * are for the whole team, like Today):
+ * WHO SEES A TASK (Alen, 25 Sept 2026 — "if Laura tags me I only see that task … some of it's gonna
+ * be personal"): only its creator and its assignee, through shared/task-visibility.js, on every route
+ * below — list, badge, search, detail, every write, comments, files and the legacy surface. Anyone
+ * else gets the same 404 / "That task is not here." as a missing task. No founder override.
+ * Reassigning moves the task: the old assignee loses it unless they created it.
+ *
+ * Routes (all auth + adminOnly; /api/v2/tasks is deliberately NOT in SECTION_ROUTE_MAP — every
+ * admin has a board, and each board holds only that admin's own tasks):
  *   GET    /api/v2/tasks                       ?assignee=<member id|me|all> &status= &q= &archived=1
  *                                              → { tasks, people, me }
  *   GET    /api/v2/tasks/badge                 → { done_unseen, assigned_open } for the caller
@@ -30,7 +36,7 @@
  *   POST   /api/v2/tasks/:id/archive · /unarchive
  *   GET    /api/v2/tasks/:id/comments · POST { body }
  *   GET    /api/v2/tasks/:id/files · POST multipart 'file' (≤ 25 MB, any type)
- *   GET    /api/v2/tasks/files/:fid            Bearer OR a signed ?exp=&sig= (the list hands out signed urls) — S3 302 / local stream
+ *   GET    /api/v2/tasks/files/:fid            Bearer (a participant) OR a signed ?exp=&sig= (only a participant is ever handed one) — S3 302 / local stream
  *   DELETE /api/v2/tasks/files/:fid
  *   + the LEGACY surface, re-homed here from server.js so Today/Calendar/v1 keep working on the same rows:
  *   GET/POST /api/admin/tasks · PUT/DELETE /api/admin/tasks/:id   (status reads 'done' for seen rows; archived rows hidden)
@@ -45,6 +51,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const taskVis = require('../../../shared/task-visibility');
 
 const STATUSES = ['todo', 'doing', 'done', 'seen'];
 const STATUS_LABEL = { todo: 'To do', doing: 'In progress', done: 'Done', seen: 'Seen' };
@@ -207,7 +214,12 @@ module.exports = function mountTasks(app, ctx) {
         LEFT JOIN users cu ON cu.id = pt.created_by
         LEFT JOIN users su ON su.id = pt.seen_by`;
     const TOP_LEVEL = `(pt.parent_id IS NULL OR pt.parent_id = '')`;
-    const taskRow = id => q.get(BASE_SELECT + ' WHERE pt.id = ?', [id]);
+    // the row when the caller may see it (creator or assignee), else null — hidden and missing look alike
+    const taskRow = (id, userId) => { const v = taskVis.visibleTaskSql('pt', userId); return q.get(BASE_SELECT + ` WHERE pt.id = ? AND ${v.sql}`, [id, ...v.params]); };
+    // the row regardless of who asks — server-side use only (notifications), never sent to a caller as is
+    const rawTaskRow = id => q.get(BASE_SELECT + ' WHERE pt.id = ?', [id]);
+    const uidOf = req => (req && req.user && req.user.id) || null;
+    const canSee = (req, id) => taskVis.canSeeTask(q.get, uidOf(req), id);
     function shape(r) {
         const creatorName = [r.creator_first_name, r.creator_last_name].filter(Boolean).join(' ') || (r.creator_email ? String(r.creator_email).split('@')[0] : '');
         const seenName = [r.seen_first_name, r.seen_last_name].filter(Boolean).join(' ');
@@ -254,12 +266,14 @@ module.exports = function mountTasks(app, ctx) {
         return { id: f.id, task_id: f.task_id, name: f.original_name || f.filename, size: Number(f.file_size || 0), mime: f.mime_type || '', uploaded_at: f.uploaded_at || null, url: signedPath(f.id) };
     }
     const filesOf = id => q.all('SELECT * FROM task_files WHERE task_id = ? ORDER BY uploaded_at, rowid', [id]).map(shapeFile);
-    // a signed link is as good as the Bearer the SPA holds (only an authenticated list hands one out)
+    // a signed link is as good as the Bearer the SPA holds (only a participant's detail/list hands one
+    // out, and it lives an hour); the Bearer path is checked against the task rule in the handler
     function fileGate(req, res, next) {
         const fid = String(req.params.fid || ''); const exp = Number(req.query && req.query.exp); const sig = String((req.query && req.query.sig) || '');
+        req.taskFileSigned = false;
         if (fid && exp && sig && exp > Math.floor(Date.now() / 1000) && sig.length === 32) {
             const want = signFile(fid, exp);
-            if (crypto.timingSafeEqual(Buffer.from(want), Buffer.from(sig))) return next();
+            if (crypto.timingSafeEqual(Buffer.from(want), Buffer.from(sig))) { req.taskFileSigned = true; return next(); }
         }
         return auth(req, res, () => adminOnly(req, res, next));
     }
@@ -344,34 +358,34 @@ module.exports = function mountTasks(app, ctx) {
             [id, project, title, description, who.id, priority, status, due, actor.id || null, now, now, status === 'done' || status === 'seen' ? now : null]);
         const member = memberInfo(who.id);
         activity(id, actor, `${actor.first} created the task` + (member ? ` and assigned it to ${member.first}` : ''));
-        audit(req, 'task.create', title + (member ? ' → ' + member.name : ''));
+        audit(req, 'task.create', 'task ' + id);   // ids only — the audit feed is read by every admin, a title is private
         persist();
-        const row = taskRow(id);
+        const row = rawTaskRow(id);   // the creator always sees what they just made
         notifyAssigned(shape(row), actor, member);
         return { status: 200, body: { success: true, id, task: shape(row) } };
     }
     // patch = { title?, description?, assigned_to?, due_date?, priority?, status? } — each key optional
     function updateTask(req, id, patch) {
         const actor = actorOf(req);
-        const cur = taskRow(id);
+        const cur = taskRow(id, actor.id);
         if (!cur) return { status: 404, body: { error: 'That task is not here.' } };
-        const sets = []; const vals = []; const notes = []; let newMember = null; let becameDone = false;
+        const sets = []; const vals = []; const notes = []; const fields = []; let newMember = null; let becameDone = false;
         if (patch.title !== undefined) {
             const t = cleanStr(patch.title, MAX_TITLE); if (!t) return { status: 400, body: { error: 'Give the task a title.' } };
-            if (t !== cur.title) { sets.push('title = ?'); vals.push(t); notes.push(`${actor.first} renamed it to “${t}”`); }
+            if (t !== cur.title) { sets.push('title = ?'); vals.push(t); notes.push(`${actor.first} renamed it to “${t}”`); fields.push('title'); }
         }
         if (patch.description !== undefined) {
             const d = cleanStr(patch.description, MAX_TEXT) || null;
-            if ((d || '') !== (cur.description || '')) { sets.push('description = ?'); vals.push(d); notes.push(`${actor.first} edited the notes`); }
+            if ((d || '') !== (cur.description || '')) { sets.push('description = ?'); vals.push(d); notes.push(`${actor.first} edited the notes`); fields.push('notes'); }
         }
         if (patch.due_date !== undefined) {
             const due = patch.due_date == null || patch.due_date === '' ? null : String(patch.due_date).slice(0, 10);
             if (due && !isYmd(due)) return { status: 400, body: { error: 'The due date must be YYYY-MM-DD.' } };
-            if ((due || '') !== String(cur.due_date || '').slice(0, 10)) { sets.push('due_date = ?'); vals.push(due); notes.push(due ? `${actor.first} set the due date to ${due}` : `${actor.first} cleared the due date`); }
+            if ((due || '') !== String(cur.due_date || '').slice(0, 10)) { sets.push('due_date = ?'); vals.push(due); notes.push(due ? `${actor.first} set the due date to ${due}` : `${actor.first} cleared the due date`); fields.push('due'); }
         }
         if (patch.priority !== undefined) {
             const p = String(patch.priority || 'medium').toLowerCase(); if (!PRIORITIES.includes(p)) return { status: 400, body: { error: 'Priority is low, medium or high.' } };
-            if (p !== (cur.priority || 'medium')) { sets.push('priority = ?'); vals.push(p); notes.push(`${actor.first} set priority to ${p}`); }
+            if (p !== (cur.priority || 'medium')) { sets.push('priority = ?'); vals.push(p); notes.push(`${actor.first} set priority to ${p}`); fields.push('priority'); }
         }
         if (patch.assigned_to !== undefined) {
             const who = resolveAssignee(patch.assigned_to); if (who.error) return { status: 400, body: { error: who.error } };
@@ -379,6 +393,7 @@ module.exports = function mountTasks(app, ctx) {
                 sets.push('assigned_to = ?'); vals.push(who.id);
                 newMember = memberInfo(who.id);
                 notes.push(newMember ? `${actor.first} assigned to ${newMember.first}` : `${actor.first} removed the assignee`);
+                fields.push('assignee');
             }
         }
         if (patch.status !== undefined) {
@@ -394,28 +409,34 @@ module.exports = function mountTasks(app, ctx) {
                 if (s === 'seen') notes.push(`${actor.first} marked it seen`);
                 else notes.push(`${actor.first} moved to ${STATUS_LABEL[s]}` + ((was === 'done' || was === 'seen') && (s === 'todo' || s === 'doing') ? ' (reopened)' : ''));
                 becameDone = s === 'done';
+                fields.push('status ' + s);
             }
         }
         if (!sets.length) return { status: 200, body: { success: true, task: shape(cur), unchanged: true } };
         sets.push('updated_at = ?'); vals.push(nowIso()); vals.push(id);
         q.run(`UPDATE project_tasks SET ${sets.join(', ')} WHERE id = ?`, vals);
         notes.forEach(n => activity(id, actor, n));
-        audit(req, 'task.update', `${cur.title}: ${notes.join(' · ')}`);
+        audit(req, 'task.update', `task ${id}: ${fields.join(', ')}`);
         persist();
-        const row = taskRow(id);
+        const row = rawTaskRow(id);
         if (newMember) notifyAssigned(shape(row), actor, newMember);
         if (becameDone) notifyDone(row, actor);
-        return { status: 200, body: { success: true, task: shape(row) } };
+        // handing a task you did not create to someone else takes it off your board: from here on only
+        // its creator and its new assignee see it, so the answer carries no card
+        const still = taskRow(id, actor.id);
+        if (!still) return { status: 200, body: { success: true, task: null, handed_off: true } };
+        return { status: 200, body: { success: true, task: shape(still) } };
     }
 
     // ================================================================ /api/v2/tasks
     app.get('/api/v2/tasks/badge', auth, adminOnly, (req, res) => {
         try {
             const me = actorOf(req);
-            const done_unseen = count(`SELECT COUNT(*) AS c FROM project_tasks pt WHERE ${TOP_LEVEL} AND pt.archived_at IS NULL AND pt.status = 'done' AND pt.created_by = ?`, [me.id || '']);
-            const assigned_open = me.member_id
-                ? count(`SELECT COUNT(*) AS c FROM project_tasks pt WHERE ${TOP_LEVEL} AND pt.archived_at IS NULL AND pt.status NOT IN ('done','seen') AND pt.assigned_to = ?`, [me.member_id])
-                : 0;
+            const v = taskVis.visibleTaskSql('pt', me.id);
+            const done_unseen = count(`SELECT COUNT(*) AS c FROM project_tasks pt WHERE ${TOP_LEVEL} AND pt.archived_at IS NULL AND pt.status = 'done' AND pt.created_by = ? AND ${v.sql}`, [me.id || '', ...v.params]);
+            // assigned to ANY team row of my account (user_id join — a second row for me still counts)
+            const assigned_open = count(`SELECT COUNT(*) AS c FROM project_tasks pt WHERE ${TOP_LEVEL} AND pt.archived_at IS NULL AND pt.status NOT IN ('done','seen')
+                    AND pt.assigned_to IN (SELECT id FROM team_members WHERE user_id = ?) AND ${v.sql}`, [me.id || '', ...v.params]);
             res.json({ done_unseen, assigned_open, member_id: me.member_id });
         } catch (e) { fail(res, e, 'badge'); }
     });
@@ -423,12 +444,13 @@ module.exports = function mountTasks(app, ctx) {
     app.get('/api/v2/tasks', auth, adminOnly, (req, res) => {
         try {
             const me = actorOf(req);
-            const where = [TOP_LEVEL]; const vals = [];
+            const vis = taskVis.visibleTaskSql('pt', me.id);
+            const where = [TOP_LEVEL, vis.sql]; const vals = [...vis.params];   // only the caller's own tasks — created or assigned
             const archived = String(req.query.archived || '') === '1';
             where.push(archived ? 'pt.archived_at IS NOT NULL' : 'pt.archived_at IS NULL');
             const assignee = String(req.query.assignee || '').trim();
             if (assignee && assignee !== 'all') {
-                if (assignee === 'me') { if (me.member_id) { where.push('pt.assigned_to = ?'); vals.push(me.member_id); } else where.push('0'); }
+                if (assignee === 'me') { if (me.id) { where.push('pt.assigned_to IN (SELECT id FROM team_members WHERE user_id = ?)'); vals.push(me.id); } else where.push('0'); }
                 else if (assignee === 'none') where.push("(pt.assigned_to IS NULL OR pt.assigned_to = '')");
                 else { const who = resolveAssignee(assignee); if (who.error) return res.status(400).json({ error: who.error }); where.push('pt.assigned_to = ?'); vals.push(who.id); }
             }
@@ -456,7 +478,7 @@ module.exports = function mountTasks(app, ctx) {
 
     app.get('/api/v2/tasks/:id', auth, adminOnly, (req, res) => {
         try {
-            const row = taskRow(String(req.params.id || ''));
+            const row = taskRow(String(req.params.id || ''), uidOf(req));
             if (!row) return res.status(404).json({ error: 'That task is not here.' });
             res.json({ task: shape(row), comments: commentsOf(row.id), files: filesOf(row.id) });
         } catch (e) { fail(res, e, 'detail'); }
@@ -468,7 +490,7 @@ module.exports = function mountTasks(app, ctx) {
 
     app.put('/api/v2/tasks/:id/result', auth, adminOnly, (req, res) => {
         try {
-            const id = String(req.params.id || ''); const cur = taskRow(id);
+            const id = String(req.params.id || ''); const cur = taskRow(id, uidOf(req));
             if (!cur) return res.status(404).json({ error: 'That task is not here.' });
             const b = req.body || {}; const actor = actorOf(req);
             const text = cleanStr(b.result_text, MAX_TEXT);
@@ -481,9 +503,9 @@ module.exports = function mountTasks(app, ctx) {
             sets.push('updated_at = ?'); vals.push(nowIso()); vals.push(id);
             q.run(`UPDATE project_tasks SET ${sets.join(', ')} WHERE id = ?`, vals);
             activity(id, actor, `${actor.first} ${cur.result_text || parseLinks(cur.result_links).length ? 'updated' : 'added'} the result`);
-            audit(req, 'task.result', cur.title);
+            audit(req, 'task.result', 'task ' + id);
             persist();
-            res.json({ success: true, task: shape(taskRow(id)) });
+            res.json({ success: true, task: shape(taskRow(id, uidOf(req))) });
         } catch (e) { fail(res, e, 'result'); }
     });
 
@@ -492,15 +514,15 @@ module.exports = function mountTasks(app, ctx) {
     });
 
     function setArchived(req, res, on) {
-        const id = String(req.params.id || ''); const cur = taskRow(id);
+        const id = String(req.params.id || ''); const cur = taskRow(id, uidOf(req));
         if (!cur) return res.status(404).json({ error: 'That task is not here.' });
         const actor = actorOf(req);
         if (!!cur.archived_at === on) return res.json({ success: true, task: shape(cur), unchanged: true });
         q.run('UPDATE project_tasks SET archived_at = ?, updated_at = ? WHERE id = ?', [on ? nowIso() : null, nowIso(), id]);
         activity(id, actor, on ? `${actor.first} archived it` : `${actor.first} brought it back from the archive`);
-        audit(req, on ? 'task.archive' : 'task.unarchive', cur.title);
+        audit(req, on ? 'task.archive' : 'task.unarchive', 'task ' + id);
         persist();
-        res.json({ success: true, task: shape(taskRow(id)) });
+        res.json({ success: true, task: shape(taskRow(id, uidOf(req))) });
     }
     app.post('/api/v2/tasks/:id/archive', auth, adminOnly, (req, res) => { try { setArchived(req, res, true); } catch (e) { fail(res, e, 'archive'); } });
     app.post('/api/v2/tasks/:id/unarchive', auth, adminOnly, (req, res) => { try { setArchived(req, res, false); } catch (e) { fail(res, e, 'unarchive'); } });
@@ -509,20 +531,20 @@ module.exports = function mountTasks(app, ctx) {
     app.get('/api/v2/tasks/:id/comments', auth, adminOnly, (req, res) => {
         try {
             const id = String(req.params.id || '');
-            if (!q.get('SELECT id FROM project_tasks WHERE id = ?', [id])) return res.status(404).json({ error: 'That task is not here.' });
+            if (!canSee(req, id)) return res.status(404).json({ error: 'That task is not here.' });
             res.json({ comments: commentsOf(id) });
         } catch (e) { fail(res, e, 'comments'); }
     });
     app.post('/api/v2/tasks/:id/comments', auth, adminOnly, (req, res) => {
         try {
-            const id = String(req.params.id || ''); const cur = q.get('SELECT id, title FROM project_tasks WHERE id = ?', [id]);
+            const id = String(req.params.id || ''); const cur = taskVis.visibleTaskRow(q.get, uidOf(req), id, 'pt.id, pt.title');
             if (!cur) return res.status(404).json({ error: 'That task is not here.' });
             const body = cleanStr((req.body || {}).body, MAX_COMMENT);
             if (!body) return res.status(400).json({ error: 'Write the comment first.' });
             const actor = actorOf(req);
             activity(id, actor, body, 'comment');
             touch(id);
-            audit(req, 'task.comment', cur.title);
+            audit(req, 'task.comment', 'task ' + id);
             persist();
             res.json({ success: true, comments: commentsOf(id) });
         } catch (e) { fail(res, e, 'comment'); }
@@ -532,13 +554,13 @@ module.exports = function mountTasks(app, ctx) {
     app.get('/api/v2/tasks/:id/files', auth, adminOnly, (req, res) => {
         try {
             const id = String(req.params.id || '');
-            if (!q.get('SELECT id FROM project_tasks WHERE id = ?', [id])) return res.status(404).json({ error: 'That task is not here.' });
+            if (!canSee(req, id)) return res.status(404).json({ error: 'That task is not here.' });
             res.json({ files: filesOf(id), storage: s3Ready() ? 's3' : 'local' });
         } catch (e) { fail(res, e, 'files'); }
     });
     app.post('/api/v2/tasks/:id/files', auth, adminOnly, uploadParser, async (req, res) => {
         try {
-            const id = String(req.params.id || ''); const cur = q.get('SELECT id, title FROM project_tasks WHERE id = ?', [id]);
+            const id = String(req.params.id || ''); const cur = taskVis.visibleTaskRow(q.get, uidOf(req), id, 'pt.id, pt.title');
             if (!cur) return res.status(404).json({ error: 'That task is not here.' });
             const file = req.file;
             if (!file || !file.buffer || !file.buffer.length) return res.status(400).json({ error: 'Choose a file first — anything up to 25 MB.' });
@@ -567,14 +589,16 @@ module.exports = function mountTasks(app, ctx) {
             const actor = actorOf(req);
             activity(id, actor, `${actor.first} attached ${name}`);
             touch(id);
-            audit(req, 'task.file.upload', `${cur.title}: ${name} (${file.buffer.length} bytes)`);
+            audit(req, 'task.file.upload', `task ${id}: file ${fid} (${file.buffer.length} bytes)`);
             persist();
             res.json({ success: true, file: shapeFile(q.get('SELECT * FROM task_files WHERE id = ?', [fid])), files: filesOf(id) });
         } catch (e) { log('upload failed:', e.message); res.status(502).json({ error: 'The upload did not go through — try again.' }); }
     });
     app.get('/api/v2/tasks/files/:fid', fileGate, (req, res) => {
         try {
-            const f = q.get('SELECT * FROM task_files WHERE id = ?', [String(req.params.fid || '')]);
+            const fid = String(req.params.fid || '');
+            // a valid signature was minted for a participant; a Bearer caller must be one right now
+            const f = req.taskFileSigned ? q.get('SELECT * FROM task_files WHERE id = ?', [fid]) : taskVis.visibleTaskFile(q.get, uidOf(req), fid);
             if (!f) return res.status(404).json({ error: 'That file is not here.' });
             const name = f.original_name || f.filename || 'file';
             const wantJson = String((req.query && req.query.json) || '') === '1';
@@ -598,14 +622,14 @@ module.exports = function mountTasks(app, ctx) {
     });
     app.delete('/api/v2/tasks/files/:fid', auth, adminOnly, (req, res) => {
         try {
-            const f = q.get('SELECT * FROM task_files WHERE id = ?', [String(req.params.fid || '')]);
+            const f = taskVis.visibleTaskFile(q.get, uidOf(req), String(req.params.fid || ''));
             if (!f) return res.status(404).json({ error: 'That file is not here.' });
             q.run('DELETE FROM task_files WHERE id = ?', [f.id]);
             if (f.file_path && !String(f.file_path).startsWith('s3:')) { try { fs.unlinkSync(f.file_path); } catch (e) { /* already gone */ } }
             const actor = actorOf(req);
             activity(f.task_id, actor, `${actor.first} removed ${f.original_name || f.filename}`);
             touch(f.task_id);
-            audit(req, 'task.file.remove', f.original_name || f.id);
+            audit(req, 'task.file.remove', `task ${f.task_id}: file ${f.id}`);
             persist();
             res.json({ success: true, files: filesOf(f.task_id) });
         } catch (e) { fail(res, e, 'file remove'); }
@@ -619,7 +643,8 @@ module.exports = function mountTasks(app, ctx) {
     // decides "open" by `status !== 'done'` (the true board status rides along as board_status).
     app.get('/api/admin/tasks', auth, adminOnly, (req, res) => {
         try {
-            const where = [TOP_LEVEL, 'pt.archived_at IS NULL']; const vals = [];
+            const vis = taskVis.visibleTaskSql('pt', uidOf(req));
+            const where = [TOP_LEVEL, 'pt.archived_at IS NULL', vis.sql]; const vals = [...vis.params];
             const project = String(req.query.project || '').trim();
             if (project) { where.push('pt.project = ?'); vals.push(project); }
             const rows = q.all(`${BASE_SELECT} WHERE ${where.join(' AND ')} ORDER BY (pt.status IN ('done','seen')), (pt.due_date IS NULL), pt.due_date, pt.created_at`, vals)
@@ -635,24 +660,24 @@ module.exports = function mountTasks(app, ctx) {
             const b = req.body || {}; const patch = {};
             for (const k of ['title', 'assigned_to', 'due_date', 'description', 'priority']) if (b[k] !== undefined) patch[k] = b[k];
             if (b.done !== undefined) {
-                const cur = q.get('SELECT status FROM project_tasks WHERE id = ?', [String(req.params.id || '')]);
+                const cur = taskVis.visibleTaskRow(q.get, uidOf(req), String(req.params.id || ''), 'pt.status');
                 const truthy = b.done === true || b.done === 1 || b.done === '1' || b.done === 'true';
                 if (truthy) { if (!cur || !['done', 'seen'].includes(normStatus(cur.status))) patch.status = 'done'; }
                 else patch.status = 'todo';
             } else if (b.status !== undefined) patch.status = b.status;
-            const r = updateTask(req, String(req.params.id || ''), patch);
+            const r = updateTask(req, String(req.params.id || ''), patch);   // gated inside: a non-participant gets the 404
             res.status(r.status).json(r.status === 200 ? { success: true } : r.body);
         } catch (e) { fail(res, e, 'legacy update'); }
     });
     app.delete('/api/admin/tasks/:id', auth, adminOnly, (req, res) => {
         try {
-            const id = String(req.params.id || ''); const cur = q.get('SELECT id, title FROM project_tasks WHERE id = ?', [id]);
+            const id = String(req.params.id || ''); const cur = taskVis.visibleTaskRow(q.get, uidOf(req), id, 'pt.id, pt.title');
             if (!cur) return res.status(404).json({ error: 'Task not found' });
             q.run('DELETE FROM v2_task_comments WHERE task_id = ?', [id]);
             q.all('SELECT * FROM task_files WHERE task_id = ?', [id]).forEach(f => { if (f.file_path && !String(f.file_path).startsWith('s3:')) { try { fs.unlinkSync(f.file_path); } catch (e) {} } });
             q.run('DELETE FROM task_files WHERE task_id = ?', [id]);
             q.run('DELETE FROM project_tasks WHERE id = ?', [id]);
-            audit(req, 'task.delete', cur.title);
+            audit(req, 'task.delete', 'task ' + id);
             persist();
             res.json({ success: true });
         } catch (e) { fail(res, e, 'legacy delete'); }

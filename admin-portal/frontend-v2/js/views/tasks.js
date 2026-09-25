@@ -10,6 +10,9 @@
 // Visual language: the admin workspace (Inter micro-labels, Fraunces titles, ink/crimson, white
 // cards on paper, hairlines) — the same vocabulary as bridges.js / links.js; css/views/tasks.css
 // carries layout, drag states, the drawer and the ≤760px stack (columns stack, drawer full-screen).
+// Who sees a card (Alen, 25 Sept 2026): only the person who made it and the person it is for — the
+// server filters every list, search and count; this view says so once in the add bar and once in the
+// drawer, and a card handed to someone else leaves the hander's board unless they made it.
 import { api } from '../api.js';
 import { ui, esc, fmt } from '../ui.js';
 import { session } from '../state.js';
@@ -21,7 +24,12 @@ export const COPY = {
   title: 'Tasks', titleHtml: 'The <i>board</i>',
   sub: 'Add it, work it, finish it with the result on the card — so nothing lives in a text message again.',
   add: { placeholder: 'What needs doing?', btn: 'ADD', due: 'Due', noOne: 'No one yet', typeFirst: 'TYPE THE TASK FIRST', added: who => who ? `ADDED — ${who.toUpperCase()} HAS IT` : 'ADDED TO THE BOARD' },
-  filters: { mine: 'MINE', other: who => `${who.toUpperCase()}’S`, all: 'EVERYONE', archived: 'ARCHIVED', search: 'Search titles, notes, results, comments…' },
+  filters: { mine: 'MINE', other: who => `FOR ${who.toUpperCase()}`, all: 'ALL MY TASKS', archived: 'ARCHIVED', search: 'Search titles, notes, results, comments…' },
+  // one quiet line in the add bar and the drawer: a task is seen only by who made it and who has it
+  privacy: {
+    add: who => who ? `Only you and ${who} will see this task.` : 'Only you will see this task until you give it to someone.',
+    drawer: names => names.length ? `Only you and ${names.join(' and ')} can see this task.` : 'Only you can see this task.'
+  },
   cols: { todo: 'TO DO', doing: 'IN PROGRESS', done: who => who ? `DONE — FOR ${who.toUpperCase()}` : 'DONE — TO SEE', seen: 'SEEN' },
   card: { overdue: d => `${d}D OVERDUE`, today: 'TODAY', due: d => d, unassigned: 'NO ONE', files: n => `${n} file${n === 1 ? '' : 's'}`, comments: n => `${n}` },
   empty: {
@@ -44,9 +52,16 @@ export const COPY = {
     saved: 'SAVED', resultSaved: 'RESULT SAVED — IT STAYS ON THE CARD', linkAdded: 'LINK ADDED', linkBad: 'PASTE A FULL LINK — STARTING WITH HTTPS://',
     uploaded: n => `${n.toUpperCase()} ATTACHED`, uploading: 'UPLOADING…', fileRemoved: 'FILE REMOVED', tooBig: 'THAT FILE IS OVER 25 MB — SHARE A LINK TO IT INSTEAD',
     commented: 'POSTED', commentEmpty: 'WRITE THE COMMENT FIRST', archived: 'ARCHIVED — FIND IT UNDER ARCHIVED', unarchived: 'BACK ON THE BOARD', deleted: 'DELETED',
-    assigned: who => who ? `${who.toUpperCase()} HAS IT NOW` : 'NO ONE ASSIGNED'
+    assigned: who => who ? `${who.toUpperCase()} HAS IT NOW` : 'NO ONE ASSIGNED',
+    handedOff: who => who ? `${who.toUpperCase()} HAS IT NOW — IT HAS LEFT YOUR BOARD` : 'IT HAS LEFT YOUR BOARD'
   },
-  confirm: { del: { title: 'Delete this task?', body: 'The card, its result, comments and files go with it. Archiving keeps everything and just tucks it away — that is usually the better door.', ok: 'DELETE', cancel: 'KEEP' } }
+  confirm: {
+    del: { title: 'Delete this task?', body: 'The card, its result, comments and files go with it. Archiving keeps everything and just tucks it away — that is usually the better door.', ok: 'DELETE', cancel: 'KEEP' },
+    // the assignee (not the creator) passing a card on loses it: only its creator and the new person see it
+    handOff: (to, creator) => to
+      ? { title: `Give this task to ${to}?`, body: `It leaves your board. From then on only ${to}${creator && creator !== to ? ' and ' + creator : ''} can see it.`, ok: 'GIVE IT', cancel: 'KEEP IT' }
+      : { title: 'Take yourself off this task?', body: `It leaves your board. From then on only ${creator || 'the person who made it'} can see it.`, ok: 'TAKE ME OFF', cancel: 'KEEP IT' }
+  }
 };
 
 const STATUSES = ['todo', 'doing', 'done', 'seen'];
@@ -108,6 +123,17 @@ function counterpart() {
   return (amFounder ? (laura || founder) : (founder || laura)) || people[0] || null;
 }
 const firstName = p => (p && p.first) || (p && p.name ? String(p.name).split(/\s+/)[0] : '');
+// is a picker value (team row id or user:<id>) me?
+const isMyPick = id => !!id && (id === me().member_id || id === 'user:' + me().id || !!((D.people || []).find(p => p.id === id && p.user_id && p.user_id === me().id)));
+function addPrivacyText(who) { const p = who && !isMyPick(who) ? personById(who) : null; return COPY.privacy.add(p ? firstName(p) : ''); }
+// the drawer's line: the other people on this card (its creator and its assignee), never me
+function drawerPrivacyText(t) {
+  const names = [];
+  if (t.created_by && t.created_by !== me().id && t.creator_first) names.push(t.creator_first);
+  const assigneeIsMe = (t.assignee_user_id && t.assignee_user_id === me().id) || (t.assigned_to && t.assigned_to === me().member_id);
+  if (t.assigned_to && !assigneeIsMe && t.assignee_first && !names.includes(t.assignee_first)) names.push(t.assignee_first);
+  return COPY.privacy.drawer(names);
+}
 
 // ---------------------------------------------------------------- blocks
 function blockTitle() {
@@ -132,6 +158,7 @@ function blockAdd() {
     </select>
     <label style="display:flex;align-items:center;gap:6px;font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459;flex:0 0 auto"><span>${COPY.add.due.toUpperCase()}</span><input data-role="addDue" type="date" value="${esc(st.addDue)}" aria-label="Due date" style="border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:8px 8px;font:400 12px Inter,sans-serif;color:#201b16"></label>
     <span data-act="add" role="button" style="padding:10px 16px;background:#9b1b22;color:#fff;font:600 10px Inter,sans-serif;letter-spacing:.14em;cursor:pointer;white-space:nowrap;flex:0 0 auto" data-hover="background:#7e151b">${COPY.add.btn}</span>
+    <div data-role="addPrivacy" style="flex:1 1 100%;font-size:11px;color:#6d6459;line-height:1.4">${esc(addPrivacyText(who))}</div>
   </div>`;
 }
 function blockFilters() {
@@ -297,6 +324,7 @@ function drawer() {
           <div><span style="${label}">${b.priority}</span>
             <select data-role="priority" data-save="priority" aria-label="${b.priority}" style="${input}">${b.priorities.map(([k, l]) => `<option value="${k}"${t.priority === k ? ' selected' : ''}>${l}</option>`).join('')}</select></div>
         </div>
+        <div data-role="privacy" style="font-size:11px;color:#6d6459;line-height:1.4;margin-top:-8px">${esc(drawerPrivacyText(t))}</div>
         <div><span style="${label}">${b.notes}</span><textarea data-role="notes" data-save="description" rows="3" placeholder="${esc(b.notesPh)}" aria-label="${b.notes}" style="${input};resize:vertical;min-height:64px;line-height:1.5">${esc(t.description || '')}</textarea></div>
 
         <div data-role="resultBox" style="border:1px solid rgba(32,27,22,.14);border-left:3px solid ${t.status === 'done' || t.status === 'seen' ? '#9b1b22' : '#c9a962'};background:#fdfbf6;padding:14px 16px;display:flex;flex-direction:column;gap:10px">
@@ -442,6 +470,12 @@ async function saveField(field, value) {
   const t = st.detail.task;
   const cur = field === 'due_date' ? (t.due_date || '') : field === 'assigned_to' ? (t.assigned_to || '') : String(t[field] == null ? '' : t[field]);
   if (String(value) === cur) return;
+  // passing on a card I did not make takes it off my board — ask once
+  if (field === 'assigned_to' && t.created_by !== me().id && !isMyPick(value)) {
+    const to = value ? firstName(personById(value)) : '';
+    const ok = await ui.confirm(Object.assign({ eyebrow: 'PLEASE CONFIRM' }, COPY.confirm.handOff(to, t.creator_first || '')));
+    if (!ok) { const sel = rootEl && rootEl.querySelector('[data-role="who"]'); if (sel) sel.value = t.assigned_to || ''; return; }
+  }
   try {
     if (field === 'result_text') {
       const r = await api.put('/api/v2/tasks/' + encodeURIComponent(t.id) + '/result', { result_text: value });
@@ -450,6 +484,13 @@ async function saveField(field, value) {
     } else {
       if (field === 'title' && !String(value).trim()) { ui.toast(COPY.add.typeFirst); return; }
       const r = await api.put('/api/v2/tasks/' + encodeURIComponent(t.id), { [field]: value });
+      if (r && r.handed_off) {
+        // it is someone else's now and no longer mine to see: close it and drop it from the board
+        ui.toast(COPY.toast.handedOff(value ? firstName(personById(value)) : ''));
+        D.tasks = D.tasks.filter(x => x.id !== t.id);
+        closeDrawer(); await refetch(); chrome.refresh();
+        return;
+      }
       if (r && r.task) patchLocal(r.task);
       if (field === 'assigned_to') { ui.toast(COPY.toast.assigned(r && r.task ? r.task.assignee_first : '')); chrome.refresh(); }
       else ui.toast(COPY.toast.saved);
@@ -574,6 +615,7 @@ function bindRootListeners(root) {
   const onChange = e => {
     const t = e.target; if (!t || !t.matches) return;
     if (t.matches('[data-role="file"]')) { uploadFiles(t.files); return; }
+    if (t.matches('[data-role="addWho"]')) { st.addWho = t.value; const line = root.querySelector('[data-role="addPrivacy"]'); if (line) line.textContent = addPrivacyText(t.value); return; }
     if (t.matches('select[data-save], input[type="date"][data-save]')) saveField(t.dataset.save, t.value);
   };
   const onBlur = e => {

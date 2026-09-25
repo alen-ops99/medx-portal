@@ -165,7 +165,7 @@ async function load(days) {
     money: api.get('/api/v2/money/summary?year=' + new Date().getFullYear()),   // COLLECTED THIS YEAR = Money's own figure
     confIns: api.get('/api/v2/program/conference/insight'),   // CONFERENCE REGISTERED = the people Registrations and the Program editor count
     nag: api.get('/api/admin/nag/items'),
-    tasks: api.get('/api/v2/tasks'),                  // the board: every live card + who I am on it
+    tasks: api.get('/api/v2/tasks'),                  // the board: my live cards (made by me or given to me) + who I am on it
     tasksBadge: api.get('/api/v2/tasks/badge'),      // done-unseen for me · my open count
     notes: api.get('/api/v2/notes/summary?today=' + fmt.ymd(new Date())),   // the NOTES tile: today's count, the last line, the event of the day
     outbox: api.get('/api/admin/outbox?status=pending_approval'),

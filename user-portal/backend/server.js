@@ -13,6 +13,7 @@ const Database = require('libsql');
 const { createDatabase } = require('../../shared/db');
 const { aiDraft } = require('../../shared/ai');
 const caMerge = require('../../shared/ca-merge'); // merged duplicate /plexus registrations follow their survivor
+const taskVis = require('../../shared/task-visibility'); // WHO SEES A TASK (25 Sept 2026): only its creator and its assignee
 const wallet = require('../../shared/wallet'); // Google Wallet event-ticket passes (env-gated; no-op until configured)
 const safetyCore = require('../../shared/safety-core'); // REPORT / BLOCK / moderation / content filter (App Store 1.2)
 const faqKb = require('./faq-kb'); // Member FAQ Assistant grounding corpus + deterministic retrieval (queue 5a6)
@@ -19998,12 +19999,13 @@ By applying to this program, I provide the following consents:
     app.get('/api/dashboard/summary', auth, adminOnly, (req, res) => {
         const conf = activePlexusConf();
         const program = query.get('SELECT id FROM accelerator_programs WHERE is_active = 1');
+        const tv = taskVis.visibleTaskSql('pt', req.user && req.user.id);   // task counts are the caller's own tasks
 
         const summary = {
             plexus: {
                 registrations: query.get('SELECT COUNT(*) as c FROM registrations WHERE conference_id = ?', [conf?.id])?.c || 0,
                 speakers: query.get('SELECT COUNT(*) as c FROM speakers WHERE conference_id = ?', [conf?.id])?.c || 0,
-                pending_tasks: query.get("SELECT COUNT(*) as c FROM project_tasks WHERE project = 'plexus' AND status != 'done'")?.c || 0
+                pending_tasks: query.get("SELECT COUNT(*) as c FROM project_tasks pt WHERE project = 'plexus' AND status != 'done' AND " + tv.sql, tv.params)?.c || 0
             },
             accelerator: {
                 applications: query.get('SELECT COUNT(*) as c FROM accelerator_applications WHERE program_id = ?', [program?.id])?.c || 0,
@@ -20019,8 +20021,8 @@ By applying to this program, I provide the following consents:
                 events: 4
             },
             tasks: {
-                total: query.get("SELECT COUNT(*) as c FROM project_tasks WHERE status != 'done'")?.c || 0,
-                urgent: query.get("SELECT COUNT(*) as c FROM project_tasks WHERE status != 'done' AND priority = 'high'")?.c || 0
+                total: query.get("SELECT COUNT(*) as c FROM project_tasks pt WHERE status != 'done' AND " + tv.sql, tv.params)?.c || 0,
+                urgent: query.get("SELECT COUNT(*) as c FROM project_tasks pt WHERE status != 'done' AND priority = 'high' AND " + tv.sql, tv.params)?.c || 0
             }
         };
 
@@ -20028,16 +20030,23 @@ By applying to this program, I provide the following consents:
     });
 
     // ========== PROJECT TASKS ROUTES ==========
+    // The v1 SPA's per-project task lists (the same rows the admin board uses — one Turso DB). Every
+    // route here follows the task rule (only the creator and the assignee see a task —
+    // shared/task-visibility.js): lists and summaries hold only the caller's own tasks, and a task the
+    // caller may not see answers exactly like a missing one.
+    const visTasks = (req, alias) => taskVis.visibleTaskSql(alias || 'pt', req.user && req.user.id);
+    const visTaskRow = (req, id, cols) => taskVis.visibleTaskRow(query.get.bind(query), req.user && req.user.id, id, cols);
 
     // Get tasks for a project
     app.get('/api/tasks/:project', auth, adminOnly, (req, res) => {
         // Get parent tasks (no parent_id)
-        const tasks = query.all("SELECT * FROM project_tasks WHERE project = ? AND (parent_id IS NULL OR parent_id = '') ORDER BY sort_order, created_at DESC",
-            [req.params.project]);
-        // Attach files and subtasks to each task
+        const v = visTasks(req);
+        const tasks = query.all(`SELECT pt.* FROM project_tasks pt WHERE pt.project = ? AND (pt.parent_id IS NULL OR pt.parent_id = '') AND ${v.sql} ORDER BY pt.sort_order, pt.created_at DESC`,
+            [req.params.project, ...v.params]);
+        // Attach files and subtasks to each task (a subtask follows its parent)
         tasks.forEach(task => {
             task.files = query.all('SELECT id, filename, original_name, file_size FROM task_files WHERE task_id = ?', [task.id]);
-            task.subtasks = query.all('SELECT * FROM project_tasks WHERE parent_id = ? ORDER BY sort_order, created_at', [task.id]);
+            task.subtasks = query.all(`SELECT pt.* FROM project_tasks pt WHERE pt.parent_id = ? AND ${v.sql} ORDER BY pt.sort_order, pt.created_at`, [task.id, ...v.params]);
             task.subtasks.forEach(st => {
                 st.files = query.all('SELECT id, filename, original_name, file_size FROM task_files WHERE task_id = ?', [st.id]);
             });
@@ -20047,7 +20056,8 @@ By applying to this program, I provide the following consents:
 
     // Get all tasks summary
     app.get('/api/tasks', auth, adminOnly, (req, res) => {
-        const tasks = query.all('SELECT * FROM project_tasks ORDER BY due_date, priority DESC');
+        const v = visTasks(req);
+        const tasks = query.all(`SELECT pt.* FROM project_tasks pt WHERE ${v.sql} ORDER BY pt.due_date, pt.priority DESC`, v.params);
         const summary = {
             total: tasks.length,
             todo: tasks.filter(t => t.status === 'todo').length,
@@ -20064,7 +20074,14 @@ By applying to this program, I provide the following consents:
 
     // Create task
     app.post('/api/tasks', auth, adminOnly, (req, res) => {
-        const { project, title, description, assigned_to, priority, due_date, parent_id } = req.body;
+        const { project, title, description, assigned_to, priority, due_date } = req.body;
+        let parent_id = req.body.parent_id || null;
+        if (parent_id) {
+            // a subtask hangs on a task the caller can see, and always on its top-level task
+            const parent = visTaskRow(req, parent_id, 'pt.id, pt.parent_id');
+            if (!parent) return res.status(404).json({ error: 'Task not found' });
+            parent_id = parent.parent_id || parent.id;
+        }
         const id = uuidv4();
         db.run(`INSERT INTO project_tasks (id, project, title, description, assigned_to, priority, due_date, created_by, parent_id)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -20075,6 +20092,7 @@ By applying to this program, I provide the following consents:
 
     // Update task
     app.put('/api/tasks/:id', auth, adminOnly, (req, res) => {
+        if (!visTaskRow(req, req.params.id, 'pt.id')) return res.status(404).json({ error: 'Task not found' });
         const { title, description, assigned_to, priority, status, due_date, project } = req.body;
         db.run(`UPDATE project_tasks SET
             title = COALESCE(?, title),
@@ -20092,12 +20110,15 @@ By applying to this program, I provide the following consents:
     });
 
     // Upload file to task
-    app.post('/api/tasks/:id/files', auth, upload.single('file'), (req, res) => {
+    app.post('/api/tasks/:id/files', auth, adminOnly, upload.single('file'), (req, res) => {
+        const task = visTaskRow(req, req.params.id, 'pt.id');
+        if (!task) {
+            if (req.file && req.file.path) { try { fs.unlinkSync(req.file.path); } catch (e) { /* already gone */ } }
+            return res.status(404).json({ error: 'Task not found' });
+        }
         if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
         const fileId = uuidv4();
-        const task = query.get('SELECT id FROM project_tasks WHERE id = ?', [req.params.id]);
-        if (!task) return res.status(404).json({ error: 'Task not found' });
 
         // Move file to tasks folder
         const newPath = path.join(uploadsDir, 'tasks', req.file.filename);
@@ -20116,7 +20137,7 @@ By applying to this program, I provide the following consents:
 
     // Delete task file
     app.delete('/api/tasks/files/:fileId', auth, adminOnly, (req, res) => {
-        const file = query.get('SELECT * FROM task_files WHERE id = ?', [req.params.fileId]);
+        const file = taskVis.visibleTaskFile(query.get.bind(query), req.user && req.user.id, req.params.fileId);
         if (!file) return res.status(404).json({ error: 'File not found' });
 
         // Delete physical file
@@ -20131,7 +20152,7 @@ By applying to this program, I provide the following consents:
 
     // Quick toggle task status
     app.post('/api/tasks/:id/toggle', auth, adminOnly, (req, res) => {
-        const task = query.get('SELECT status FROM project_tasks WHERE id = ?', [req.params.id]);
+        const task = visTaskRow(req, req.params.id, 'pt.status');
         if (!task) return res.status(404).json({ error: 'Task not found' });
 
         const nextStatus = task.status === 'todo' ? 'in_progress' : task.status === 'in_progress' ? 'done' : 'todo';
@@ -20143,6 +20164,7 @@ By applying to this program, I provide the following consents:
 
     // Delete task
     app.delete('/api/tasks/:id', auth, adminOnly, (req, res) => {
+        if (!visTaskRow(req, req.params.id, 'pt.id')) return res.status(404).json({ error: 'Task not found' });
         db.run('DELETE FROM project_tasks WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });
@@ -20421,8 +20443,10 @@ By applying to this program, I provide the following consents:
         if (!q || q.length < 2) return res.json({ tasks: [], files: [], folders: [] });
 
         const searchTerm = `%${q}%`;
-        const tasks = query.all(`SELECT * FROM project_tasks WHERE title LIKE ? OR description LIKE ? LIMIT 10`,
-            [searchTerm, searchTerm]);
+        // tasks: only the caller's own (creator or assignee — shared/task-visibility.js)
+        const tv = taskVis.visibleTaskSql('pt', req.user && req.user.id);
+        const tasks = query.all(`SELECT pt.* FROM project_tasks pt WHERE (pt.title LIKE ? OR pt.description LIKE ?) AND ${tv.sql} LIMIT 10`,
+            [searchTerm, searchTerm, ...tv.params]);
         const files = query.all(`SELECT * FROM project_files WHERE original_name LIKE ? LIMIT 10`,
             [searchTerm]);
         const folders = query.all(`SELECT * FROM project_folders WHERE name LIKE ? LIMIT 10`,

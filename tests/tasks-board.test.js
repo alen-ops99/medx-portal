@@ -13,7 +13,10 @@
  * and unarchive · files (upload, signed download link, gate, delete) · the assign / done emails
  * (team only, never the actor, never a guest) · the legacy /api/admin/tasks surface still working
  * on the same rows · legacy status normalisation at mount · the permission wiring (unmapped =
- * every signed-in admin).
+ * every signed-in admin reaches the routes) · the PRIVACY rule of 25 Sept 2026 (a task is seen only by
+ * its creator and its assignee: a non-participant gets the same 404 as a missing task on every route
+ * and finds it in no list, search or badge; reassignment moves it; no founder override; the shared
+ * helper's SQL; the board copy). The server.js readers are covered by tests/tasks-privacy-routes.test.js.
  *
  * Run:  node tests/tasks-board.test.js      (exit code = number of FAILs)
  */
@@ -388,8 +391,9 @@ const sys = id => q.all(`SELECT body, kind, author_name FROM v2_task_comments WH
     });
 
     await t('archive hides it from the default list and the badge; archived=1 shows it; unarchive brings it back', async () => {
-        // make it "done, unseen" first so the badge has something to lose
-        await call('PUT', `/api/v2/tasks/:id`, as.laura, { params: { id: taskId }, body: { assigned_to: M.laura } });
+        // make it "done, unseen" first so the badge has something to lose. Alen (the creator) hands it
+        // back to Laura — at this point it sits on Alen's own row, so Laura cannot see it (the 25 Sept rule)
+        await call('PUT', `/api/v2/tasks/:id`, as.alen, { params: { id: taskId }, body: { assigned_to: M.laura } });
         await call('PUT', `/api/v2/tasks/:id`, as.laura, { params: { id: taskId }, body: { status: 'done' } });
         assert.strictEqual((await call('GET', '/api/v2/tasks/badge', as.alen)).body.done_unseen, 1);
         const a = await call('POST', `/api/v2/tasks/:id/archive`, as.alen, { params: { id: taskId } });
@@ -468,6 +472,239 @@ const sys = id => q.all(`SELECT body, kind, author_name FROM v2_task_comments WH
         const row = (await call('GET', '/api/v2/tasks', as.alen)).body.tasks.find(x => x.id === 'stale-task');
         assert.strictEqual(row.assignee_first, 'Laura');
         q.run(`DELETE FROM project_tasks WHERE id = 'stale-task'`);
+    });
+
+    // ================================================================ PRIVACY (Alen, 25 Sept 2026)
+    // "if Laura tags me I only see that task … some of it's gonna be personal": a task is seen ONLY by its
+    // creator and its assignee. A = Laura (creates) · B = Alen (assignee, and the founder — no override)
+    // · C = Miro (neither) · D = Dora (gets it on reassignment).
+    q.run(`INSERT INTO users (id, email, first_name, last_name, is_admin) VALUES ('u-dora', 'dora@medx.hr', 'Dora', 'Kovac', 1)`);
+    q.run(`INSERT INTO team_members (id, user_id, name, role) VALUES ('tm-dora', 'u-dora', 'Dora Kovac', 'Team')`);
+    as.dora = { id: 'u-dora', email: 'dora@medx.hr', is_admin: 1 };
+    let pid = null, pfid = null, pfurl = null;
+    const MISSING = 'no-such-task-000';
+    const listIds = async (user, query) => (await call('GET', '/api/v2/tasks', user, { query: query || {} })).body.tasks.map(x => x.id);
+    const legacyIds = async user => (await call('GET', '/api/admin/tasks', user)).body.map(x => x.id);
+    // every task route, as one caller, for one id → [status, body] — so a hidden task can be compared with a missing one
+    const everyRoute = async (user, id) => {
+        const pdf = () => ({ originalname: 'x.pdf', mimetype: 'application/pdf', buffer: Buffer.from('%PDF-1.7 x'), size: 10 });
+        const out = {};
+        const hit = async (k, m, p, opts) => { const r = await call(m, p, user, Object.assign({ params: { id } }, opts || {})); out[k] = [r.status, r.body]; };
+        await hit('detail', 'GET', '/api/v2/tasks/:id');
+        await hit('put', 'PUT', '/api/v2/tasks/:id', { body: { title: 'Hijacked', status: 'done', assigned_to: 'tm-miro-x' } });
+        await hit('putStatus', 'PUT', '/api/v2/tasks/:id', { body: { status: 'done' } });
+        await hit('result', 'PUT', '/api/v2/tasks/:id/result', { body: { result_text: 'overwritten' } });
+        await hit('seen', 'POST', '/api/v2/tasks/:id/seen');
+        await hit('archive', 'POST', '/api/v2/tasks/:id/archive');
+        await hit('unarchive', 'POST', '/api/v2/tasks/:id/unarchive');
+        await hit('commentsGet', 'GET', '/api/v2/tasks/:id/comments');
+        await hit('commentsPost', 'POST', '/api/v2/tasks/:id/comments', { body: { body: 'peeking' } });
+        await hit('filesGet', 'GET', '/api/v2/tasks/:id/files');
+        await hit('filesPost', 'POST', '/api/v2/tasks/:id/files', { file: pdf() });
+        await hit('legacyTick', 'PUT', '/api/admin/tasks/:id', { body: { done: true } });
+        await hit('legacyEdit', 'PUT', '/api/admin/tasks/:id', { body: { title: 'Hijacked' } });
+        await hit('legacyDelete', 'DELETE', '/api/admin/tasks/:id');
+        return out;
+    };
+
+    await t('PRIVACY: Laura gives Alen a task (with a comment and a file) → one email, to Alen only', async () => {
+        emails.length = 0;
+        const r = await call('POST', '/api/v2/tasks', as.laura, { body: { title: 'Dentist on Tuesday — move the call', description: 'personal', assigned_to: M.alen, due_date: '2026-09-01', priority: 'high' } });
+        assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+        pid = r.body.id;
+        assert.strictEqual((await call('POST', '/api/v2/tasks/:id/comments', as.laura, { params: { id: pid }, body: { body: 'the 10:00 one' } })).status, 200);
+        const buf = Buffer.from('%PDF-1.7\nappointment\n%%EOF');
+        const up = await call('POST', '/api/v2/tasks/:id/files', as.laura, { params: { id: pid }, file: { originalname: 'appointment.pdf', mimetype: 'application/pdf', buffer: buf, size: buf.length } });
+        assert.strictEqual(up.status, 200, JSON.stringify(up.body));
+        pfid = up.body.file.id; pfurl = up.body.file.url;
+        assert.deepStrictEqual(emails.map(e => e.to), ['juginovic.alen@gmail.com'], 'the assign email goes to the assignee and nobody else');
+    });
+
+    await t('PRIVACY: Miro (neither creator nor assignee) gets the SAME 404 as a missing task on every route, and nothing changes', async () => {
+        const before = q.get('SELECT title, status, archived_at, result_text, assigned_to FROM project_tasks WHERE id = ?', [pid]);
+        const nComments = q.get('SELECT COUNT(*) AS c FROM v2_task_comments WHERE task_id = ?', [pid]).c;
+        const nFiles = q.get('SELECT COUNT(*) AS c FROM task_files WHERE task_id = ?', [pid]).c;
+        emails.length = 0;
+        const hidden = await everyRoute(as.miro, pid);
+        const missing = await everyRoute(as.miro, MISSING);
+        for (const k of Object.keys(hidden)) {
+            assert.strictEqual(hidden[k][0], 404, k + ' must be 404, got ' + hidden[k][0] + ' ' + JSON.stringify(hidden[k][1]));
+            assert.deepStrictEqual(hidden[k], missing[k], k + ': a hidden task must answer exactly like a missing one');
+        }
+        // the file routes by file id: a Bearer that is not a participant gets the same 404 as a missing file
+        const dl = await call('GET', '/api/v2/tasks/files/:fid', as.miro, { params: { fid: pfid }, query: { json: '1' } });
+        const dlMissing = await call('GET', '/api/v2/tasks/files/:fid', as.miro, { params: { fid: 'no-such-file' }, query: { json: '1' } });
+        assert.strictEqual(dl.status, 404); assert.deepStrictEqual([dl.status, dl.body], [dlMissing.status, dlMissing.body]);
+        const rm = await call('DELETE', '/api/v2/tasks/files/:fid', as.miro, { params: { fid: pfid } });
+        const rmMissing = await call('DELETE', '/api/v2/tasks/files/:fid', as.miro, { params: { fid: 'no-such-file' } });
+        assert.strictEqual(rm.status, 404); assert.deepStrictEqual([rm.status, rm.body], [rmMissing.status, rmMissing.body]);
+        // nothing moved
+        assert.deepStrictEqual(q.get('SELECT title, status, archived_at, result_text, assigned_to FROM project_tasks WHERE id = ?', [pid]), before);
+        assert.strictEqual(q.get('SELECT COUNT(*) AS c FROM v2_task_comments WHERE task_id = ?', [pid]).c, nComments);
+        assert.strictEqual(q.get('SELECT COUNT(*) AS c FROM task_files WHERE task_id = ?', [pid]).c, nFiles);
+        assert.strictEqual(emails.length, 0);
+    });
+
+    await t('PRIVACY: Miro finds it nowhere — board (every filter), search, badge, legacy list', async () => {
+        for (const query of [{}, { assignee: 'all' }, { assignee: M.alen }, { assignee: 'me' }, { status: 'todo' }, { archived: '1' }, { q: 'dentist' }, { q: 'appointment' }, { q: '10:00' }]) {
+            assert.ok(!(await listIds(as.miro, query)).includes(pid), 'visible to Miro with ' + JSON.stringify(query));
+        }
+        assert.ok(!(await legacyIds(as.miro)).includes(pid));
+        const b = (await call('GET', '/api/v2/tasks/badge', as.miro)).body;
+        assert.strictEqual(b.assigned_open, 0); assert.strictEqual(b.done_unseen, 0);
+        // Miro sees only his own: nothing he made, nothing given to him that is still his
+        const mine = await listIds(as.miro);
+        for (const id of mine) {
+            const r = q.get(`SELECT created_by, assigned_to FROM project_tasks WHERE id = ?`, [id]);
+            const his = q.get(`SELECT id FROM team_members WHERE user_id = ?`, [U.miro]);
+            assert.ok(r.created_by === U.miro || (his && r.assigned_to === his.id), 'Miro sees a task that is not his: ' + id);
+        }
+    });
+
+    await t('PRIVACY: Alen (the assignee) sees it everywhere — detail, board, MINE, search, badge, legacy list, the file by Bearer', async () => {
+        const d = await call('GET', '/api/v2/tasks/:id', as.alen, { params: { id: pid } });
+        assert.strictEqual(d.status, 200);
+        assert.strictEqual(d.body.task.creator_first, 'Laura');
+        assert.strictEqual(d.body.files.length, 1);
+        assert.ok((await listIds(as.alen)).includes(pid));
+        assert.ok((await listIds(as.alen, { assignee: 'me' })).includes(pid));
+        assert.ok((await listIds(as.alen, { q: 'dentist' })).includes(pid));
+        assert.ok((await legacyIds(as.alen)).includes(pid));
+        assert.ok((await call('GET', '/api/v2/tasks/badge', as.alen)).body.assigned_open >= 1);
+        const dl = await call('GET', '/api/v2/tasks/files/:fid', as.alen, { params: { fid: pfid }, query: { json: '1' } });
+        assert.strictEqual(dl.status, 200); assert.strictEqual(dl.body.name, 'appointment.pdf');
+    });
+
+    await t('PRIVACY: no founder override — a task Laura keeps for herself is a 404 for Alen and missing from his board', async () => {
+        const own = await call('POST', '/api/v2/tasks', as.laura, { body: { title: 'Laura personal errand', assigned_to: M.laura } });
+        assert.strictEqual(own.status, 200);
+        const hidden = await call('GET', '/api/v2/tasks/:id', as.alen, { params: { id: own.body.id } });
+        const missing = await call('GET', '/api/v2/tasks/:id', as.alen, { params: { id: MISSING } });
+        assert.deepStrictEqual([hidden.status, hidden.body], [missing.status, missing.body]);
+        assert.strictEqual(hidden.status, 404);
+        assert.ok(!(await listIds(as.alen)).includes(own.body.id));
+        assert.ok(!(await legacyIds(as.alen)).includes(own.body.id));
+        assert.ok((await listIds(as.laura)).includes(own.body.id));
+        await call('DELETE', '/api/admin/tasks/:id', as.laura, { params: { id: own.body.id } });
+    });
+
+    await t('PRIVACY: reassign B→D — Alen hands it to Dora: the answer carries no card, Alen loses it, Dora gains it, Laura keeps it', async () => {
+        emails.length = 0;
+        const r = await call('PUT', '/api/v2/tasks/:id', as.alen, { params: { id: pid }, body: { assigned_to: 'tm-dora' } });
+        assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+        assert.strictEqual(r.body.handed_off, true);
+        assert.strictEqual(r.body.task, null, 'the one who handed it off gets no copy of the card back');
+        assert.deepStrictEqual(emails.map(e => e.to), ['dora@medx.hr'], 'the new assignee is told, nobody else');
+        // Alen: gone everywhere, same 404 as a missing task
+        const a = await call('GET', '/api/v2/tasks/:id', as.alen, { params: { id: pid } });
+        assert.strictEqual(a.status, 404);
+        assert.ok(!(await listIds(as.alen)).includes(pid));
+        assert.ok(!(await legacyIds(as.alen)).includes(pid));
+        assert.strictEqual((await call('GET', '/api/v2/tasks/files/:fid', as.alen, { params: { fid: pfid }, query: { json: '1' } })).status, 404);
+        // Dora: there, with its history
+        const d = await call('GET', '/api/v2/tasks/:id', as.dora, { params: { id: pid } });
+        assert.strictEqual(d.status, 200);
+        assert.ok((await listIds(as.dora, { assignee: 'me' })).includes(pid));
+        assert.strictEqual((await call('GET', '/api/v2/tasks/badge', as.dora)).body.assigned_open, 1);
+        assert.strictEqual((await call('GET', '/api/v2/tasks/:id/comments', as.dora, { params: { id: pid } })).status, 200);
+        // Laura (creator): always
+        assert.strictEqual((await call('GET', '/api/v2/tasks/:id', as.laura, { params: { id: pid } })).status, 200);
+        assert.ok((await listIds(as.laura)).includes(pid));
+        // Miro: still nothing
+        assert.strictEqual((await call('GET', '/api/v2/tasks/:id', as.miro, { params: { id: pid } })).status, 404);
+    });
+
+    await t('PRIVACY: the creator always sees it — Laura unassigns it: Dora loses it, Laura still has it (and can finish it)', async () => {
+        const r = await call('PUT', '/api/v2/tasks/:id', as.laura, { params: { id: pid }, body: { assigned_to: '' } });
+        assert.strictEqual(r.status, 200); assert.ok(r.body.task && r.body.task.id === pid, 'the creator keeps the card');
+        assert.strictEqual((await call('GET', '/api/v2/tasks/:id', as.dora, { params: { id: pid } })).status, 404);
+        assert.ok(!(await listIds(as.dora)).includes(pid));
+        assert.strictEqual((await call('PUT', '/api/v2/tasks/:id', as.laura, { params: { id: pid }, body: { status: 'done' } })).status, 200);
+    });
+
+    await t('PRIVACY: a signed file link (handed only to a participant) still opens without a session', async () => {
+        const u = new URL('https://x' + pfurl);
+        const r = await call('GET', '/api/v2/tasks/files/:fid', null, { params: { fid: pfid }, query: { exp: u.searchParams.get('exp'), sig: u.searchParams.get('sig') } });
+        assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+    });
+
+    await t('PRIVACY: the audit trail carries task ids, never a title (the audit feed is read by every admin)', () => {
+        const leaked = q.all(`SELECT action, detail FROM audit_log WHERE action LIKE 'task.%' AND (detail LIKE '%Dentist%' OR detail LIKE '%appointment%' OR detail LIKE '%personal errand%')`);
+        assert.deepStrictEqual(leaked, []);
+        assert.ok(q.get(`SELECT COUNT(*) AS c FROM audit_log WHERE action = 'task.create' AND detail = ?`, ['task ' + pid]).c === 1);
+    });
+
+    await t('PRIVACY: the helper itself — duplicate team rows, subtasks follow the parent, orphans and deeper chains fail closed, no user sees nothing', () => {
+        const vis = require(path.join(ROOT, 'shared/task-visibility.js'));
+        const d2 = createDatabase(Database, { localPath: ':memory:' });
+        // no UNIQUE on user_id here: an account with TWO team rows must match through either one
+        d2.run(`CREATE TABLE team_members (id TEXT PRIMARY KEY, user_id TEXT, name TEXT)`);
+        d2.run(`CREATE TABLE project_tasks (id TEXT PRIMARY KEY, title TEXT, created_by TEXT, assigned_to TEXT, parent_id TEXT)`);
+        d2.run(`CREATE TABLE task_files (id TEXT PRIMARY KEY, task_id TEXT)`);
+        d2.run(`CREATE TABLE nag_items (id TEXT PRIMARY KEY, kind TEXT, subject_id TEXT)`);
+        const g2 = (sql, p) => { const st = d2.prepare(sql); st.bind(p || []); const r = st.step() ? st.getAsObject() : null; st.free(); return r; };
+        const all2 = (sql, p) => { const st = d2.prepare(sql); st.bind(p || []); const o = []; while (st.step()) o.push(st.getAsObject()); st.free(); return o; };
+        d2.run(`INSERT INTO team_members VALUES ('tmB1','uB','B'),('tmB2','uB','B again'),('tmD','uD','D'),('tmLoose',NULL,'B stale')`);
+        d2.run(`INSERT INTO project_tasks VALUES
+            ('t1','for B on row 2','uA','tmB2',NULL),
+            ('s1','subtask of t1 by D','uD',NULL,'t1'),
+            ('ss1','sub-subtask','uA',NULL,'s1'),
+            ('orph','orphan subtask','uA',NULL,'gone'),
+            ('nobody','seed row, no creator no assignee',NULL,NULL,NULL),
+            ('loose','on a team row with no account','uA','tmLoose',''),
+            ('empty','created_by empty string','',NULL,NULL)`);
+        d2.run(`INSERT INTO task_files VALUES ('f1','t1'),('f2','orph')`);
+        d2.run(`INSERT INTO nag_items VALUES ('n1','task_overdue','t1'),('n2','gala_unpaid','g1'),('n3','task_due_soon','nobody')`);
+        const sees = uid => { const v = vis.visibleTaskSql('pt', uid); return all2(`SELECT pt.id FROM project_tasks pt WHERE ${v.sql} ORDER BY pt.id`, v.params).map(r => r.id); };
+        assert.deepStrictEqual(sees('uA'), ['loose', 's1', 't1'], 'creator A: its tasks and their subtasks (never the orphan or the deeper chain)');
+        assert.deepStrictEqual(sees('uB'), ['s1', 't1'], 'B through its SECOND team row, plus the subtask that follows the parent');
+        assert.deepStrictEqual(sees('uD'), [], 'D made the subtask, but a subtask follows its parent — D is not on t1');
+        assert.deepStrictEqual(sees('uC'), []);
+        assert.deepStrictEqual(sees(''), [], 'no user id never matches the empty-string creator');
+        assert.deepStrictEqual(sees(null), []);
+        assert.ok(vis.canSeeTask(g2, 'uB', 't1') && !vis.canSeeTask(g2, 'uC', 't1') && !vis.canSeeTask(g2, 'uA', 'no-such'));
+        assert.ok(vis.visibleTaskFile(g2, 'uB', 'f1') && !vis.visibleTaskFile(g2, 'uC', 'f1') && !vis.visibleTaskFile(g2, 'uA', 'f2'));
+        const nags = uid => { const v = vis.visibleNagSql('nag_items', uid); return all2(`SELECT id FROM nag_items WHERE ${v.sql} ORDER BY id`, v.params).map(r => r.id); };
+        assert.deepStrictEqual(nags('uB'), ['n1', 'n2'], 'the task nag for its assignee + every non-task nag');
+        assert.deepStrictEqual(nags('uC'), ['n2'], 'a non-participant keeps the non-task nags only');
+        assert.throws(() => vis.visibleTaskSql('pt; DROP TABLE x', 'uA'));
+    });
+
+    await t('PRIVACY: the board never promises "everyone" and says who can see a card (add bar + drawer)', () => {
+        const src = fs.readFileSync(path.join(ROOT, 'admin-portal/frontend-v2/js/views/tasks.js'), 'utf8');
+        assert.ok(!/'EVERYONE'/.test(src), 'no EVERYONE filter');
+        assert.ok(/Only you and \$\{who\} will see this task\./.test(src), 'the add bar line');
+        assert.ok(/data-role="addPrivacy"/.test(src) && /data-role="privacy"/.test(src), 'both lines are rendered');
+        assert.ok(!/\bhonest|\bplainly/i.test(src), 'house style');
+        const chrome = fs.readFileSync(path.join(ROOT, 'admin-portal/frontend-v2/js/chrome.js'), 'utf8');
+        assert.ok(!/the shared board/.test(chrome));
+    });
+
+    await t('PRIVACY: every server.js task reader goes through the one helper (both portals)', () => {
+        const need = {
+            'admin-portal/backend/server.js': [
+                /app\.get\('\/api\/tasks\/:project'[\s\S]{0,400}visTasks\(req\)/, /app\.get\('\/api\/tasks', auth, adminOnly[\s\S]{0,120}visTasks\(req\)/,
+                /app\.put\('\/api\/tasks\/:id'[\s\S]{0,120}visTaskRow\(/, /app\.post\('\/api\/tasks\/:id\/files', auth, adminOnly, upload[\s\S]{0,120}visTaskRow\(/,
+                /app\.delete\('\/api\/tasks\/files\/:fileId'[\s\S]{0,120}taskVis\.visibleTaskFile\(/, /app\.post\('\/api\/tasks\/:id\/toggle'[\s\S]{0,120}visTaskRow\(/,
+                /app\.delete\('\/api\/tasks\/:id'[\s\S]{0,120}visTaskRow\(/, /app\.get\('\/api\/search'[\s\S]{0,400}taskVis\.visibleTaskSql\(/,
+                /app\.get\('\/api\/dashboard\/summary'[\s\S]{0,400}taskVis\.visibleTaskSql\(/, /const tvStats = taskVis\.visibleTaskSql\(/,
+                /app\.get\('\/api\/admin\/nag\/items'[\s\S]{0,300}taskVis\.visibleNagSql\(/, /const nagItemFor = [\s\S]{0,200}taskVis\.visibleNagSql\(/,
+                /const nv = taskVis\.visibleNagSql\('nag_items', m\.user_id\)/, /app\.get\('\/api\/admin\/audit-log'[\s\S]{0,400}\/\^task\\\.\//
+            ],
+            'user-portal/backend/server.js': [
+                /app\.get\('\/api\/tasks\/:project'[\s\S]{0,400}visTasks\(req\)/, /app\.get\('\/api\/tasks', auth, adminOnly[\s\S]{0,120}visTasks\(req\)/,
+                /app\.put\('\/api\/tasks\/:id'[\s\S]{0,120}visTaskRow\(/, /app\.post\('\/api\/tasks\/:id\/files', auth, adminOnly, upload[\s\S]{0,120}visTaskRow\(/,
+                /app\.delete\('\/api\/tasks\/files\/:fileId'[\s\S]{0,120}taskVis\.visibleTaskFile\(/, /app\.post\('\/api\/tasks\/:id\/toggle'[\s\S]{0,120}visTaskRow\(/,
+                /app\.delete\('\/api\/tasks\/:id'[\s\S]{0,120}visTaskRow\(/, /app\.get\('\/api\/search'[\s\S]{0,400}taskVis\.visibleTaskSql\(/,
+                /app\.get\('\/api\/dashboard\/summary'[\s\S]{0,400}taskVis\.visibleTaskSql\(/
+            ]
+        };
+        for (const [file, res] of Object.entries(need)) {
+            const src = fs.readFileSync(path.join(ROOT, file), 'utf8');
+            res.forEach(re => assert.ok(re.test(src), file + ' is missing ' + re));
+            // no ungated read of a single task by id is left
+            assert.ok(!/query\.get\('SELECT (id|status) FROM project_tasks WHERE id = \?'/.test(src), file + ' still reads a task by id without the rule');
+        }
     });
 
     await t('every write left an audit row', () => {
