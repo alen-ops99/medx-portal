@@ -59,9 +59,12 @@
 }
 
 /* tickets */
-.mx-me-seg { flex: none; margin-left: auto; display: inline-flex; border: 1px solid var(--hair); background: var(--card); }
-.mx-me-tab { min-height: 36px; display: inline-flex; align-items: center; padding: 0 12px; font: 500 14px/20px var(--font-ui); color: var(--soft); cursor: pointer; white-space: nowrap; }
-.mx-me-tab.is-on { background: var(--ink); color: var(--cream); }
+/* Upcoming / Past: a segmented control in the glass language (GLASS-RULES §1.9.6): a capsule track, the selected item a
+   raised cream capsule */
+.mx-me-seg { flex: none; margin-left: auto; display: inline-flex; gap: 2px; padding: 4px; border-radius: 999px;
+  background: rgba(25,21,18,.06); box-shadow: inset 0 0 0 .5px rgba(25,21,18,.08); }
+.mx-me-tab { min-height: 36px; display: inline-flex; align-items: center; padding: 0 14px; border-radius: 999px; font: 500 14px/20px var(--font-ui); color: #4a4239; cursor: pointer; white-space: nowrap; }
+.mx-me-tab.is-on { background: #fffdf8; color: var(--ink); font-weight: 600; box-shadow: 0 1px 3px rgba(25,21,18,.16); }
 .mx-me-ticket { display: flex; flex-direction: column; gap: 12px; padding: 16px; box-sizing: border-box; background: var(--card); border: 1px solid var(--hair); min-height: 100%; }
 .mx-me-ticket.is-gala { border-color: rgba(201,169,98,.6); }
 .mx-me-ticket-top { display: flex; gap: 12px; align-items: flex-start; }
@@ -78,6 +81,15 @@
 .mx-me-tact.is-strong { font-weight: 600; }
 .mx-me-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; padding: 20px 16px 24px; background: var(--card); border: 1px solid var(--hair); }
 .mx-me-empty .mx-ghost-ticket { margin-bottom: 8px; }
+/* tickets empty (glass quiet pass, GLASS-RULES §3.6 › My Med&X): one compact block, a ticket icon beside the italic line,
+   the ghost Register for Plexus under the line (Past shows the line only) */
+.mx-me-empty.is-compact { display: grid; grid-template-columns: 44px minmax(0, 1fr); align-items: center; column-gap: 14px; row-gap: 12px;
+  text-align: left; padding: 16px; }
+.mx-me-empty.is-compact .mx-me-btn { grid-column: 2; justify-self: start; }
+.mx-me-empty-ic { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; box-sizing: border-box;
+  background: var(--cream); color: var(--gold-dark); border: 1px solid var(--hair-soft); }
+/* the card's corner: a small QR glyph says the card turns over to the code (the words "Tap for your QR" went) */
+.mx-me-card-flip { display: inline-flex; color: var(--gold); }
 .mx-me-pastlist { border-top: 1px solid var(--hair-soft); }
 .mx-me-past { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 10px 0; border-bottom: 1px solid var(--hair-soft); }
 .mx-me-past-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -171,7 +183,7 @@
   .mx-me-link:hover { color: #191512 !important; }
   /* the member card flips on a click: under the pointer it answers — the shadow deepens and a gold hairline rises */
   .mx-me-card:hover { box-shadow: 0 26px 50px -20px rgba(25,21,18,.75), 0 0 0 1px rgba(201,169,98,.4); }
-  .mx-me-tab[aria-selected="false"]:hover { color: #191512; background: var(--row-hover); }
+  .mx-me-tab[aria-selected="false"]:hover { color: #191512; background: rgba(25,21,18,.05); }
   .mx-me-tact:hover { color: var(--ink); }
   /* crimson CTAs without an artboard hover darken like every other crimson button */
   .mx-me-btn[style*="background:#9b1b22"]:hover { background: #7e151b !important; color: #f7f1e6 !important; }

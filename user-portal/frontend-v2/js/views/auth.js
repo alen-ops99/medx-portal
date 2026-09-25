@@ -31,26 +31,26 @@ export const COPY = {
     blurbT: 'One account for every Med&amp;X project.',
     fields: { first: 'FIRST NAME *', last: 'LAST NAME *', email: 'EMAIL *', password: 'PASSWORD *', institution: 'INSTITUTION', country: 'COUNTRY *' },
     placeholders: { first: 'Ana', last: 'Horvat', email: 'you@institution.edu', password: 'Min 8 characters', institution: 'University / company', country: 'Croatia' },
-    terms: 'I agree to the <a href="/terms" target="_blank" rel="noopener" style="color:#9b1b22;text-decoration:underline">Terms and Privacy Policy</a>. We never share your data.',
+    terms: 'I agree to the <a href="/terms" target="_blank" rel="noopener" style="color:#9b1b22;text-decoration:underline">Terms and Privacy Policy</a>.',
     submit: 'CREATE ACCOUNT →', busy: 'CREATING…', already: 'Already a member? ', signin: 'Sign in', back: '← Back',
     errors: { first: 'Add your first name.', last: 'Add your last name.', email: 'Enter a valid email address.', password: 'Use at least 8 characters.', country: 'Add your country.', terms: 'Please accept the Terms and Privacy Policy.', exists: 'That email already has an account — sign in instead.' }
   },
   verify: {
     headline: 'Check your <i>email</i>.',
-    sent: email => `We sent a confirmation link to <strong style="color:#191512">${email}</strong>. Open it to confirm your account.`,
+    sent: email => `We sent a link to <strong style="color:#191512">${email}</strong>.`,
     // the address is unknown (the page opened on its own, a new device): the sentence stands without it
-    sentNoEmail: 'We sent you a confirmation link. Open it to confirm your account.',
-    noteT: "Can't find it? Check spam; it can take a minute.",
+    sentNoEmail: 'We sent you a confirmation link.',
+    noteT: 'Not there? Check spam.',
     continue: 'CONTINUE TO MED&amp;X →', resend: 'RESEND LINK', resent: 'Link sent — check your inbox (and spam).',
-    note: "Can't find it? Check spam or promotions — it can take a minute. You can start exploring right away; a gentle reminder stays at the top until your email is confirmed.",
+    note: 'Not there? Check spam or promotions. You can start exploring now, a reminder stays at the top until you confirm.',
     devLink: 'Email delivery is off in this environment — open your confirmation link here:'
   },
   signin: {
     headline: 'Welcome <i>back</i>.', blurb: 'Your projects, tickets, and people are where you left them.',
     email: 'EMAIL', password: 'PASSWORD', forgot: 'FORGOT?', forgotT: 'Forgot?', submit: 'SIGN IN', busy: 'SIGNING IN…',
     placeholders: { email: 'you@institution.edu', password: '••••••••' },
-    newHere: 'New to Med&amp;X? ', create: 'Create an account', invited: 'Invited to the Biomedical Forum? ', code: 'Enter your code',
-    verified: 'Email confirmed — sign in to continue.', welcome: name => `Welcome back, ${name}.`,
+    newHere: 'New to Med&amp;X? ', create: 'Create an account', invited: 'Invited to the Biomedical Forum? ', code: 'Enter your code', codeT: 'Forum invitation code',
+    verified: 'Email confirmed. Sign in to continue.', welcome: name => `Welcome back, ${name}.`,
     errors: { empty: 'Enter your email and password.', bad: "That email and password don't match.", unverified: 'Confirm your email first — we can resend the link.', resend: 'RESEND LINK',
       suspended: 'This account is suspended. Write to info@medx.hr.' }
   },
@@ -62,8 +62,8 @@ export const COPY = {
   },
   code: {
     tag: 'BIOMEDICAL FORUM · BY INVITATION', tagT: 'BY INVITATION', headline: 'Enter your <i>invitation code</i>.',
-    blurbT: 'It arrived by email with your invitation to the Biomedical Forum.',
-    noteT: 'No account yet? The code works either way.',
+    blurbT: 'It came with your Forum invitation email.',
+    noteT: 'No account yet? The code still works.',
     blurb: 'Your code arrived by email with your invitation. It joins you to the Forum network and unlocks registration for the annual gathering.',
     label: 'INVITATION CODE', placeholder: 'FRM-XXXX-XXXX', submit: 'VERIFY CODE →', busy: 'CHECKING…',
     note: "No account yet? The code works either way — we'll create your account in the next step.", back: '← Back to sign in',
@@ -97,9 +97,7 @@ function blockWelcome() {
     </div>
     <div class="mx-auth-rise" style="position:relative;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px 36px 70px;color:#f7f1e6">
       <img src="/assets/logo-white.png" alt="med&amp;X" style="height:34px;display:block">
-      <span style="font:600 12px Inter,sans-serif;letter-spacing:.14em;color:#c9a962;margin-top:20px">${COPY.welcome.kicker}</span>
-      <div style="font-family:Fraunces,serif;font-size:clamp(32px,6vw,48px);line-height:1.12;max-width:680px;margin-top:16px;text-wrap:balance">${COPY.welcome.headline}</div>
-      <div style="font-size:16px;line-height:1.5;color:rgba(247,241,230,.82);max-width:440px;margin-top:16px">${COPY.welcome.blurbT}</div>
+      <div style="font-family:Fraunces,serif;font-size:clamp(32px,6vw,48px);line-height:1.12;max-width:680px;margin-top:24px;text-wrap:balance">${COPY.welcome.headline}</div>
       <div class="mx-auth-welcome-cta" style="display:flex;gap:12px;margin-top:32px;flex-wrap:wrap;justify-content:center;width:100%;max-width:420px">
         <a href="/app/auth/signup" class="mx-auth-btn" style="flex:1 1 180px;padding:16px 24px;background:#9b1b22;color:#f7f1e6;font:600 13px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;white-space:nowrap;text-align:center" data-hover="background:#7e151b">${COPY.welcome.createT}</a>
         <a href="/app/auth/signin" class="mx-auth-btn" style="flex:1 1 180px;padding:16px 24px;border:1px solid rgba(247,241,230,.45);color:#f7f1e6;font:600 13px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;white-space:nowrap;text-align:center" data-hover="border-color:#f7f1e6">${COPY.welcome.signin}</a>
@@ -109,12 +107,12 @@ function blockWelcome() {
   <!-- /dc -->`;
 }
 
-function stepper(stage) { // stage 1 = DETAILS, 2 = CONFIRM EMAIL — one line: three segments and the step's name
+// stage 1 = DETAILS, 2 = CONFIRM EMAIL: three segments (glass quiet pass: the caps step label went, VoiceOver still reads it)
+function stepper(stage) {
   const names = [COPY.steps.details, COPY.steps.confirm, COPY.steps.done];
   return `
-            <div class="mx-auth-steps" aria-label="Step ${stage} of 3">
+            <div class="mx-auth-steps" role="img" aria-label="Step ${stage} of 3, ${esc(names[stage - 1].charAt(0) + names[stage - 1].slice(1).toLowerCase())}">
               <span class="mx-auth-seg">${[1, 2, 3].map(n => `<i class="${n < stage ? 'is-done' : n === stage ? 'is-on' : ''}${n === stage - 1 ? ' mx-auth-step-done' : ''}"></i>`).join('')}</span>
-              <span style="${LABEL}">${String(stage).padStart(2, '0')} · ${names[stage - 1]}</span>
             </div>`;
 }
 const field = (label, name, type, placeholder, extra = '', style = INPUT) => `<span style="display:flex;flex-direction:column;gap:6px${extra}"><span style="${LABEL}">${label}</span><input name="${name}" type="${type}" placeholder="${esc(placeholder)}" aria-label="${esc(label)}" autocomplete="${name === 'password' ? (currentView === 'signup' ? 'new-password' : 'current-password') : name === 'email' ? 'email' : name === 'first_name' ? 'given-name' : name === 'last_name' ? 'family-name' : name === 'institution' ? 'organization' : name === 'country' ? 'country-name' : 'off'}" style="${style}"></span>`;
@@ -126,7 +124,6 @@ function blockCreate() {
           <form data-form="signup" novalidate style="display:contents">
             ${stepper(1)}
             <div style="font-family:Fraunces,serif;font-size:clamp(26px,7vw,33px);line-height:1.12;margin-top:22px">${c.headline}</div>
-            <div style="font-size:16px;color:#4a4239;line-height:1.5;margin-top:10px">${c.blurbT}</div>
             <div class="mx-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:22px">
               ${field(c.fields.first, 'first_name', 'text', c.placeholders.first)}
               ${field(c.fields.last, 'last_name', 'text', c.placeholders.last)}
@@ -179,7 +176,6 @@ function blockSignin(query) {
           <!-- dc: Auth.dc.html › "Sign in" -->
           <form data-form="signin" novalidate style="display:contents">
             <div style="font-family:Fraunces,serif;font-size:clamp(28px,7vw,33px);line-height:1.12">${s.headline}</div>
-            <div style="font-size:16px;color:#4a4239;margin-top:8px;line-height:1.5">${s.blurb}</div>
             ${query.notice === 'verified' ? `<div style="font-size:14px;color:#6e5626;line-height:1.5;margin-top:14px;border:1px solid rgba(201,169,98,.65);background:#fdfaf3;padding:10px 12px">${s.verified}</div>` : ''}
             ${field(s.email, 'email', 'email', s.placeholders.email, ';margin-top:24px', INPUT12)}
             <span style="display:flex;flex-direction:column;gap:6px;margin-top:12px"><span style="display:flex;align-items:center"><span style="${LABEL}">${s.password}</span><span style="flex:1"></span><a href="/app/auth/reset" style="font:500 14px Inter,sans-serif;color:#9b1b22;cursor:pointer">${s.forgotT}</a></span><input name="password" type="password" placeholder="${s.placeholders.password}" aria-label="Password" autocomplete="current-password" style="${INPUT12}"></span>
@@ -187,7 +183,7 @@ function blockSignin(query) {
             <div data-role="resendRow" style="display:none;margin-top:10px"><span data-act="resendLogin" class="mx-auth-link" style="font:600 12px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;cursor:pointer;white-space:nowrap;min-height:44px;display:inline-flex;align-items:center">${s.errors.resend}</span></div>
             <button type="submit" data-act="signin" class="mx-auth-btn" style="${PRIMARY};width:100%;border:0" data-hover="background:#7e151b">${s.submit}</button>
             <div style="margin-top:20px;text-align:center;font-size:14px;color:#4a4239">${s.newHere}<a href="/app/auth/signup" style="color:#9b1b22;font-weight:600;cursor:pointer;white-space:nowrap">${s.create}</a></div>
-            <div style="margin-top:10px;text-align:center;font-size:14px;color:#4a4239">${s.invited}<a href="/app/auth/forum-code" style="color:#9b1b22;font-weight:600;cursor:pointer;white-space:nowrap">${s.code}</a></div>
+            <div style="margin-top:10px;text-align:center;font-size:14px;color:#4a4239"><a href="/app/auth/forum-code" style="color:#9b1b22;font-weight:600;cursor:pointer;white-space:nowrap">${s.codeT}</a></div>
           </form>
           <!-- /dc -->`;
 }
@@ -198,7 +194,6 @@ function blockReset() {
           <form data-form="reset" novalidate style="display:contents">
             <div style="font-family:Fraunces,serif;font-size:clamp(28px,7vw,33px);line-height:1.12">${r.headline}</div>
             ${!st.sent ? `
-              <div style="font-size:16px;color:#4a4239;line-height:1.5;margin-top:10px">${r.blurbT}</div>
               ${field(r.email, 'email', 'email', COPY.signin.placeholders.email, ';margin-top:22px', INPUT12)}
               ${errorLine('error')}
               <button type="submit" data-act="sendReset" class="mx-auth-btn" style="${PRIMARY};width:100%;border:0" data-hover="background:#7e151b">${r.submit}</button>` : `
@@ -219,8 +214,7 @@ function blockCode() {
   return `
           <!-- dc: Auth.dc.html › "Invitation code" -->
           <form data-form="code" novalidate style="display:contents">
-            <span style="padding:4px 10px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 12px Inter,sans-serif;letter-spacing:.1em;align-self:flex-start;white-space:nowrap">${c.tagT}</span>
-            <div style="font-family:Fraunces,serif;font-size:clamp(28px,7vw,33px);line-height:1.12;margin-top:18px">${c.headline}</div>
+            <div style="font-family:Fraunces,serif;font-size:clamp(28px,7vw,33px);line-height:1.12">${c.headline}</div>
             <div style="font-size:16px;color:#4a4239;line-height:1.5;margin-top:10px">${c.blurbT}</div>
             <span style="display:flex;flex-direction:column;gap:6px;margin-top:22px"><span style="${LABEL}">${c.label}</span><input name="code" type="text" placeholder="${c.placeholder}" aria-label="${c.label}" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" style="border:1px solid rgba(25,21,18,.25);background:#fdfaf3;padding:14px;min-height:52px;font:600 18px Inter,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:.14em;color:#191512;width:100%;box-sizing:border-box;text-align:center"></span>
             ${errorLine('error')}

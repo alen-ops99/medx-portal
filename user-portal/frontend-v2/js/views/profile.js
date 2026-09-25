@@ -53,7 +53,7 @@ export const COPY = {
     titleT: 'About', addBtnT: 'Add', addPlaceholderT: 'Add your own, e.g. Sleep medicine', bioPlaceholderT: 'Your work, in two or three sentences.'
   },
   account: {
-    n: '03', title: 'ACCOUNT &amp; PREFERENCES', titleT: 'Account &amp; preferences', resendT: 'Resend', nonShort: 'None',
+    n: '03', title: 'ACCOUNT &amp; PREFERENCES', titleT: 'Account', resendT: 'Resend', nonShort: 'None',
     saveNoteT: 'Visible across the portal and the directory.', saveNoteOffT: 'Visible across the portal, hidden from the directory.',
     email: 'Email', notConfirmed: 'not yet confirmed', confirmed: 'confirmed', resend: 'RESEND LINK',
     resent: 'Link sent — check your inbox (and spam).',
@@ -195,6 +195,9 @@ const photoSrc = () => (D.photoPreview ? D.photoPreview : (D.profile.photo_url ?
 // Hooks kept: .mx-profile-sec around [data-block="prefs"] and [data-block="deleteAccount"] (the iOS shell inserts its
 // "On this iPhone" section, drawn with these kit rows, right above Delete account),
 // data-act="deleteAccount", every data-act / data-field / data-role the handlers read.
+// Glass quiet pass (2026-09-25, GLASS-RULES §3.6 › Profile): no section numerals, "Account", the completion row reads
+// "Profile 35%" (the steps count moves into its accordion), no describing sub-lines under the switches or Delete
+// account, no note under Save (a refused save still says why there), sheets without eyebrows.
 const specLabel = v => { const t = String(v || ''); return t === t.toUpperCase() ? t.charAt(0) + t.slice(1).toLowerCase() : t; };
 function blockCrumbs() {
   return `
@@ -241,7 +244,8 @@ function countrySelect() {
             </select>
           </label>`;
 }
-function sh(n, title) { return `<div class="mx-sh"><span class="mx-sh-n">${n}</span><h2 class="mx-sh-t">${title}</h2></div>`; }
+// no section numerals (GLASS-RULES Q2): `n` stays in the signature so the callers keep their shape
+function sh(n, title) { return `<div class="mx-sh"><h2 class="mx-sh-t">${title}</h2></div>`; }
 function blockIdentity() {
   const f = COPY.identity.fields, ph = COPY.identity.placeholders, d = D.draft;
   return `
@@ -299,8 +303,8 @@ const dirLine = on => on ? COPY.account.dir.sT : COPY.account.dir.sOffT;
 function prefRows() {
   const d = D.draft, a = COPY.account, locked = !!D.modHidden;
   return `
-        <span class="mx-row">${ui.icon('globe')}<span class="mx-row-l">${a.dir.t}<span class="mx-row-s" data-role="dirLine">${locked ? a.dir.modHidden : dirLine(d.is_public_profile)}</span></span>${toggle('tgDir', locked ? false : d.is_public_profile, a.dir.t, locked)}</span>${locked ? '<span id="mx-dir-locked" hidden>Hidden from the directory by the Med&amp;X team.</span>' : ''}
-        <span class="mx-row">${ui.icon('bell')}<span class="mx-row-l">${a.upd.t}<span class="mx-row-s">${a.upd.sT}</span></span>${toggle('tgUpd', d.updates_opt_in, a.upd.t)}</span>`;
+        <span class="mx-row">${ui.icon('globe')}<span class="mx-row-l">${a.dir.t}${locked ? `<span class="mx-row-s">${a.dir.modHidden}</span>` : ''}</span>${toggle('tgDir', locked ? false : d.is_public_profile, a.dir.t, locked)}</span>${locked ? '<span id="mx-dir-locked" hidden>Hidden from the directory by the Med&amp;X team.</span>' : ''}
+        <span class="mx-row">${ui.icon('bell')}<span class="mx-row-l">${a.upd.t}</span>${toggle('tgUpd', d.updates_opt_in, a.upd.t)}</span>`;
 }
 // the removable list inside the follow / interests sheet (the same handlers as before: followRm · followAdd · intRm · intAdd)
 function settingChips(list, rmAct, addAct, addLabel, noneLabel) {
@@ -326,7 +330,7 @@ function saveRow() {
   const label = D.saving ? a.saving : (D.saved ? a.saved : a.save);
   return `
         <span data-act="save" role="button" tabindex="0"${D.saving ? ' aria-disabled="true"' : ''} class="btn-primary btn-block mx-profile-btn">${label}</span>
-        ${D.saveError ? `<p data-role="saveErr" role="alert" class="mx-profile-savenote is-err">${esc(D.saveError)}</p>` : `<p class="mx-profile-savenote" data-role="saveNote">${saveNote()}</p>`}`;
+        ${D.saveError ? `<p data-role="saveErr" role="alert" class="mx-profile-savenote is-err">${esc(D.saveError)}</p>` : ''}`;
 }
 function blockAccount() {
   const a = COPY.account, p = D.profile;
@@ -352,7 +356,7 @@ function blockDelete() {
   return `
       <section data-block="deleteAccount" class="mx-sec mx-profile-del" aria-label="${c.titleT}">
         <div class="mx-list">
-          <span data-act="deleteAccount" role="button" tabindex="0" aria-haspopup="dialog" class="mx-row is-danger">${ui.icon('logout')}<span class="mx-row-l">${c.titleT}<span class="mx-row-s">${c.rowS}</span></span>${ui.icon('chevron-right', 18)}</span>
+          <span data-act="deleteAccount" role="button" tabindex="0" aria-haspopup="dialog" class="mx-row is-danger">${ui.icon('logout')}<span class="mx-row-l">${c.titleT}</span>${ui.icon('chevron-right', 18)}</span>
         </div>
       </section>`;
 }
@@ -371,10 +375,10 @@ function completionCard(intro, open) {
   return `
         <details class="mx-acc mx-profile-meter"${open ? ' open' : ''}>
           <summary>
-            <span class="mx-profile-meter-top"><span>${COPY.completion.titleT} <b data-role="pct">${pct}</b>${c ? ` · ${COPY.completion.of(done, c.items.length)}` : ''}</span>
+            <span class="mx-profile-meter-top"><span>${COPY.completion.titleT} <b data-role="pct">${pct}</b></span>
             <span class="mx-profile-meter-bar"><span class="mx-profile-bar${intro ? ' mx-profile-bar-in' : ''}" style="transform:scaleX(${c ? Math.max(0, Math.min(100, c.percent)) / 100 : 0})"></span></span></span>
           </summary>
-          <div class="mx-acc-a"><ul class="mx-profile-checks">${rows}</ul></div>
+          <div class="mx-acc-a">${c ? `<p class="mx-profile-meter-of">${COPY.completion.of(done, c.items.length)}</p>` : ''}<ul class="mx-profile-checks">${rows}</ul></div>
         </details>`;
 }
 function previewCard() {
@@ -587,7 +591,7 @@ function modalInput(label, name, type, value, ph) {
 function openPasswordModal() {
   const a = COPY.account;
   const m = ui.modal({
-    eyebrow: 'SETTINGS · PASSWORD', title: a.pwTitle,
+    eyebrow: '', title: a.pwTitle,
     body: `${modalInput(a.pwCur, 'cur', 'password')}${modalInput(a.pwNew, 'nw', 'password', '', a.pwHint)}${modalInput(a.pwNew2, 'nw2', 'password')}<p data-role="error" style="color:#9b1b22;font-size:14px;min-height:18px;margin:8px 0 0"></p>`,
     actions: [{ label: 'CANCEL' }, {
       label: 'SAVE', kind: 'primary', onClick: () => {
@@ -609,7 +613,7 @@ function openFollowModal(onDone) {
   const left = Object.keys(a.projects).filter(k => !(D.topics || []).includes(k));
   if (!left.length) return ui.toast(a.followAll);
   const m = ui.modal({
-    eyebrow: 'SETTINGS · PROJECTS I FOLLOW', title: a.followTitle,
+    eyebrow: '', title: a.followTitle,
     body: `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">${left.map(k => `<span data-follow="${k}" role="button" class="chip">${esc(a.projects[k])}</span>`).join('')}</div>`,
     actions: [{ label: 'DONE', kind: 'primary' }]
   });
@@ -647,7 +651,7 @@ function openInterestsModal() {
   const a = COPY.account;
   const left = a.suggestions.filter(s => !(D.interests || []).some(i => i.toLowerCase() === s.toLowerCase()));
   const m = ui.modal({
-    eyebrow: 'SETTINGS · MY INTERESTS', title: a.interestsTitle,
+    eyebrow: '', title: a.interestsTitle,
     body: `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">${left.map(s => `<span data-int="${esc(s)}" role="button" class="chip">${esc(s)}</span>`).join('') || `<span style="font-size:14px;color:#4a4239">${a.interestsAllAdded}</span>`}</div>
       ${modalInput(a.interestsOwn, 'custom', 'text', '', 'e.g. Cardiology')}`,
     actions: [{ label: 'CANCEL' }, {
@@ -670,7 +674,7 @@ let manageRedraw = null;
 function openManage(kind) {
   const a = COPY.account, follow = kind === 'follow';
   const inner = () => follow ? settingChips(followList(), 'followRm', 'followAdd', a.follow.addT, a.follow.none) : settingChips(interestList(), 'intRm', 'intAdd', a.interests.addT, a.interests.none);
-  const m = ui.modal({ eyebrow: 'SETTINGS', title: follow ? a.follow.t : a.interests.t, body: `<p class="mx-profile-sheet-s">${follow ? a.follow.s : a.interests.s}</p><div data-block="manage">${inner()}</div>` });
+  const m = ui.modal({ eyebrow: '', title: follow ? a.follow.t : a.interests.t, body: `<p class="mx-profile-sheet-s">${follow ? a.follow.s : a.interests.s}</p><div data-block="manage">${inner()}</div>` });
   const redraw = () => { const b = m.el.isConnected && m.el.querySelector('[data-block="manage"]'); if (b) b.innerHTML = inner(); };
   manageRedraw = redraw;
   m.onClose(() => { if (manageRedraw === redraw) manageRedraw = null; });
@@ -690,7 +694,7 @@ function openDeleteModal() {
   const c = COPY.del;
   const refocus = () => { const b = q('[data-act="deleteAccount"]'); if (b) b.focus(); };
   const m = ui.modal({
-    eyebrow: c.modalEyebrow,
+    eyebrow: '',
     title: c.modalTitle,
     body: `<p style="margin:0 0 14px">${c.modalBody}</p>
       <div class="mx-accs mx-profile-delinfo">
@@ -796,7 +800,7 @@ const handlers = {
       !d.is_public_profile && `<div style="font-size:14px;color:#9b1b22;margin-top:14px">${COPY.preview.hiddenNote}</div>`
     ].filter(Boolean).join('');
     ui.modal({
-      eyebrow: COPY.preview.modalEyebrow,
+      eyebrow: '',
       title: esc([d.first_name, d.last_name].filter(Boolean).join(' ') || 'Member'),
       body: rows,
       actions: [{ label: 'CLOSE', kind: 'primary' }]

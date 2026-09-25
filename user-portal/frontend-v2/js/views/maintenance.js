@@ -6,7 +6,7 @@ export const SOURCE = 'System Pages.dc.html';
 export const COPY = {
   kicker: 'BACK SHORTLY',
   headline: "We're setting the room for the <i style=\"color:#c9a962\">next act</i>.",
-  why: 'Scheduled maintenance — the portal returns within the hour. Your tickets and registrations are safe.',
+  why: 'Back within the hour. Your tickets and registrations are safe.',
   urgent: 'Urgent? Write to us — we reply by email as soon as we\'re back.'
 };
 export const layout = 'bare';
@@ -26,8 +26,6 @@ export default {
       <span style="font:600 12px Inter,sans-serif;letter-spacing:.14em;color:#c9a962;margin-top:16px">${COPY.kicker}</span>
       <div style="font-family:Fraunces,serif;font-size:34px;line-height:1.15;margin-top:14px;max-width:560px">${COPY.headline}</div>
       <div style="font-size:16px;color:rgba(247,241,230,.82);line-height:1.5;max-width:440px;margin-top:12px">${COPY.why}</div>
-      <span style="width:28px;height:1px;background:#9b1b22;margin-top:20px"></span>
-      <div style="font-size:14px;color:rgba(247,241,230,.62);margin-top:14px">${COPY.urgent}</div>
     </div>
   </div>
   <!-- /dc -->

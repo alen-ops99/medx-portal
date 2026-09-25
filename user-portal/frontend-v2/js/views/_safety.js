@@ -23,7 +23,7 @@ import { ui, esc, fmt } from '../ui.js';
 export const SAFETY = {
   more: name => `More actions for ${name}`,
   msgMore: name => `Report this message from ${name}`, msgMoreTitle: 'Report this message',
-  menu: { report: 'REPORT', block: 'BLOCK' },
+  menu: { report: 'Report', block: 'Block' },   // a glass menu reads like iOS: sentence case (css/views/safety.css)
   contact: 'info@medx.hr',
   report: {
     eyebrow: 'REPORT · NETWORK', eyebrowMsg: 'REPORT · MESSAGES',
@@ -122,7 +122,7 @@ export function openMenu(anchor, items) {
   if (lastClosed.anchor === anchor && performance.now() - lastClosed.at < 350) return;
   closeMenu(false);
   const el = document.createElement('div');
-  el.className = 'mx-safe-menu';
+  el.className = 'mx-safe-menu mx-glass mx-glass--sheet';   // a glass popover (GLASS-RULES §1.9.4): the kit draws the material
   el.setAttribute('role', 'menu');
   el.innerHTML = items.map((it, i) => `<span data-i="${i}" role="menuitem" tabindex="-1" class="mx-safe-item${it.tone === 'danger' ? ' is-danger' : ''}">${esc(it.label)}</span>`).join('');
   document.body.appendChild(el);
@@ -193,7 +193,7 @@ export function reportSheet({ kind = 'member', targetId, name, excerpt = '' }) {
         <p class="mx-safe-foot">${R.foot(SAFETY.contact)}</p>
       </div>`;
     const m = ui.modal({
-      eyebrow: isMsg ? R.eyebrowMsg : R.eyebrow,
+      eyebrow: '',   // no caps eyebrow in a sheet head (GLASS-RULES §1.9.4): the title says it
       title: esc(isMsg ? R.titleMessage : R.titleMember(name || 'this member')),
       body,
       actions: [{ label: R.cancel, onClick: () => finish(false) }, { label: R.send, kind: 'primary', onClick: () => { send(); return false; } }]
@@ -237,7 +237,7 @@ export function reportSheet({ kind = 'member', targetId, name, excerpt = '' }) {
 // ---------------------------------------------------------------- block (confirm → POST)
 export async function blockFlow({ id, name }) {
   const B = SAFETY.block;
-  const ok = await ui.confirm({ eyebrow: B.eyebrow, title: esc(B.title(name || 'this member')), body: `<p style="margin:0">${esc(B.body(String(name || '').trim() || 'This member'))}</p>`, ok: B.ok, cancel: B.cancel, danger: true });
+  const ok = await ui.confirm({ eyebrow: '', title: esc(B.title(name || 'this member')), body: `<p style="margin:0">${esc(B.body(String(name || '').trim() || 'This member'))}</p>`, ok: B.ok, cancel: B.cancel, danger: true });
   if (!ok) return null;
   try {
     const r = await api.post('/api/v2/safety/block', { user_id: id });
@@ -266,7 +266,7 @@ export async function openBlockedList({ onUnblock } = {}) {
         <span data-act="unblock" data-id="${esc(b.user_id)}" data-name="${esc(b.name)}" class="btn-ghost btn-sm mx-safe-unblock">${L.unblock}</span>
       </div>`).join('') : `<p class="mx-safe-empty">${L.empty}</p>`;
   const m = ui.modal({
-    eyebrow: L.eyebrow, title: L.title,
+    eyebrow: '', title: L.title,
     body: `<p class="mx-safe-lead">${esc(L.sub)}</p><div data-role="safe-rows" class="mx-safe-rows">${rows()}</div>`,
     actions: [{ label: L.close }]
   });

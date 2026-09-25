@@ -40,7 +40,7 @@ export const COPY = {
     emptyWhy: 'Plexus 2026 is free for members — register and your ticket lands here, QR and all.',
     emptyCta: 'REGISTER FOR PLEXUS →', emptyTag: 'MY WALLET · NO TICKETS YET', emptyPh: 'Your first ticket',
     pastEmptyLine: 'No purchases yet.', pastEmptyWhy: 'Receipts and confirmations collect here after you register — free entries get a confirmation, paid seats a receipt.',
-    pastNote: 'Free registrations come with a confirmation rather than a receipt · certificates of attendance live under <strong style="color:#191512">My record</strong> below. Ask us anything about an order — ',
+    pastNote: 'Free registrations come with a confirmation, paid seats with a receipt · certificates of attendance live under <strong style="color:#191512">My record</strong> below. Ask us anything about an order — ',
     contact: 'contact the team', receipt: 'RECEIPT →', confirmation: 'CONFIRMATION →',
     emailed: to => `Ticket sent to ${to} — check your inbox.`,
     walletGate: 'Wallet passes are on their way — until then, the QR on your card here works at the door.',
@@ -51,7 +51,8 @@ export const COPY = {
     },
     order: n => `Order ${n}`, paidTag: a => `${fmt.eur(a)} · PAID`, freeTag: 'FREE ENTRY', vipTag: 'VIP · COMPLIMENTARY',
     titleT: 'Tickets', curT: 'Upcoming', pastT: 'Past', payT: 'Complete payment →', downloadT: 'Download', emailT: 'Email', addT: 'Wallet',
-    emptyCtaT: 'Register for Plexus', pastEmptyWhyT: 'Receipts and confirmations collect here.', receiptT: 'Receipt', confirmationT: 'Confirmation'
+    emptyCtaT: 'Register for Plexus', pastEmptyWhyT: 'Receipts and confirmations collect here.', receiptT: 'Receipt', confirmationT: 'Confirmation',
+    noneT: 'No tickets yet.'
   },
   record: {
     n: '02', title: 'MY RECORD', sub: 'Everything you have attended and earned with Med&amp;X — kept here for good.',
@@ -178,12 +179,6 @@ function statusLine(it) {
   if (it.amount > 0) return it.kind === 'gala' ? S.paidSeat(it.amount) : S.paid(it.amount);
   return S.free;
 }
-// '4–5 Dec' (day first, like the rest of the phone screens)
-function dayFirst(a, b) {
-  const x = fmt.toDate(a), y = fmt.toDate(b), M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  if (!x) return '';
-  return y && +y !== +x && y.getMonth() === x.getMonth() ? `${x.getDate()}–${y.getDate()} ${M[x.getMonth()]}` : `${x.getDate()} ${M[x.getMonth()]}`;
-}
 function shortRange(it) {
   const s = fmt.longRange(it.date, it.end_date);
   return s ? s.replace(/,\s*\d{4}$/, '') : '';
@@ -195,7 +190,7 @@ const appleOnly = () => document.documentElement.classList.contains('mx-ios') ||
 function walletProviderModal(onPick) {
   if (appleOnly()) return onPick('apple');
   ui.modal({
-    eyebrow: 'ADD TO PHONE WALLET', title: 'Pick your wallet',
+    eyebrow: '', title: 'Pick your wallet',
     body: '<p>The pass carries the same QR the door scans — one card, every door.</p>',
     actions: [
       { label: 'APPLE WALLET', onClick: () => onPick('apple') },
@@ -212,6 +207,9 @@ async function handlePassResponse(p) {
 // Phone calm pass (2026-09-25, DESIGN-RULES §11 › /app/me): a large title, the member card first (nothing on it under
 // 12px), ONE primary under it (Add to Wallet) with Download beside it, tickets as a shelf (or the drawn empty ticket and
 // one line), the record as three numbers, then three rows: Profile & settings · Certificates · Message us. No paragraphs.
+// Glass quiet pass (2026-09-25, GLASS-RULES §3.6 › My Med&X): the card says its name, number and year only (a QR glyph in
+// the corner for the flip), tickets empty is one compact line with the ghost Register for Plexus, the record waits for
+// the first event, no section numerals, sheets without eyebrows.
 function qrBox(size, role) {
   const src = st.qrUrl || '';
   return `<div class="mx-me-qr" style="width:${size}px;height:${size}px">${src
@@ -246,12 +244,11 @@ function cardInner() {
             <div class="mx-me-card-name">${esc(first || session.displayName())}${last ? ' <i>' + esc(last) + '</i>' : ''}</div>
             <div class="mx-me-card-sub">${esc(meta.member_type_label || m.type_label || 'Member')} · ${COPY.card.sinceT(since)}</div>
           </div>
-          <span class="mx-me-card-standing">${esc(meta.standing_label || m.standing_label || 'Member in good standing')}</span>
           ${qrBox(88, 'qr-front')}
         </div>
         <div class="mx-me-card-foot">
           <span>N° ${esc(m.member_no || String(D.me.id || '').slice(0, 8).toUpperCase())}</span>
-          <span>${COPY.card.flipT}</span>
+          <span class="mx-me-card-flip" aria-hidden="true">${ui.icon('qr', 18)}</span>
         </div>`;
 }
 function blockHero() {
@@ -297,13 +294,10 @@ function ticketCard(it) {
 }
 function walletCurrent() {
   if (!D.upcoming.length) return `
-      <!-- dc: Empty States.dc.html › "MY WALLET · NO TICKETS YET" (compact) -->
-      <div data-block="wallet-list" class="mx-me-empty">
-        <div class="mx-ghost-ticket" aria-hidden="true">
-          <span class="gt-stub"><span>ADMIT</span><b>1</b></span>
-          <span class="gt-body"><span class="gt-eye">${esc(fmt.upper(FACTS.plexus.short))}</span><span class="gt-title">${COPY.wallet.emptyPh}</span><span class="gt-meta">${esc(dayFirst(FACTS.plexus.start, FACTS.plexus.end))} · ${esc(FACTS.plexus.city)}</span></span>
-        </div>
-        <span class="empty-line">${COPY.wallet.emptyLine}</span>
+      <!-- dc: Empty States.dc.html › "MY WALLET · NO TICKETS YET" (glass quiet pass: compact, no drawn ticket) -->
+      <div data-block="wallet-list" class="mx-me-empty is-compact">
+        <span class="mx-me-empty-ic" aria-hidden="true">${ui.icon('ticket', 22)}</span>
+        <span class="empty-line">${COPY.wallet.noneT}</span>
         <a href="/app/plexus" class="btn-ghost btn-sm mx-me-btn">${COPY.wallet.emptyCtaT}</a>
       </div>
       <!-- /dc -->`;
@@ -314,9 +308,9 @@ function walletCurrent() {
 }
 function walletPast() {
   if (!D.purchases.length) return `
-      <div data-block="wallet-list" class="mx-me-empty">
+      <div data-block="wallet-list" class="mx-me-empty is-compact">
+        <span class="mx-me-empty-ic" aria-hidden="true">${ui.icon('ticket', 22)}</span>
         <span class="empty-line">${COPY.wallet.pastEmptyLine}</span>
-        <span class="empty-why">${COPY.wallet.pastEmptyWhyT}</span>
       </div>`;
   const row = it => {
     const orderNo = it.invoice_number ? '#' + it.invoice_number : '#' + String(it.id).slice(0, 8).toUpperCase();
@@ -340,7 +334,7 @@ function blockWallet() {
   return `
   <!-- dc: My MedX.dc.html › "01 · MY WALLET" (Upcoming / Past, tickets as a shelf) -->
   <section class="mx-sec" data-block="wallet">
-    <div class="mx-sh"><span class="mx-sh-n">01</span><h2 class="mx-sh-t">${COPY.wallet.titleT}</h2>
+    <div class="mx-sh"><h2 class="mx-sh-t">${COPY.wallet.titleT}</h2>
       <span class="mx-me-seg" role="tablist"><span data-act="showCur" role="tab" tabindex="0" aria-selected="${cur}" class="mx-me-tab${cur ? ' is-on' : ''}">${COPY.wallet.curT}</span><span data-act="showPast" role="tab" tabindex="0" aria-selected="${!cur}" class="mx-me-tab${cur ? '' : ' is-on'}">${COPY.wallet.pastT}</span></span>
     </div>
     ${cur ? walletCurrent() : walletPast()}
@@ -390,10 +384,12 @@ function blockRecord() {
   const att = D.attendance;
   const rawCards = (att && (att.cards || att.items || (Array.isArray(att) ? att : null))) || [];
   const attCards = visibleCards(rawCards);
+  // nothing to show yet: the record waits for the first event (the Certificates row stays in the list below)
+  if (!evs.length && !certs.length && !badges.length && !attCards.length) return '';
   return `
   <!-- dc: My MedX.dc.html › "02 · MY RECORD" (three numbers) -->
   <section class="mx-sec">
-    <div class="mx-sh"><span class="mx-sh-n">02</span><h2 class="mx-sh-t">${R.titleT}</h2></div>
+    <div class="mx-sh"><h2 class="mx-sh-t">${R.titleT}</h2></div>
     <div class="mx-tiles mx-tiles--3">
       <div class="mx-tile"><span class="mx-tile-n">${evs.length}</span><span class="mx-tile-l">${R.eventsT}</span></div>
       <a class="mx-tile" href="/app/me/certificates"><span class="mx-tile-n">${certs.length}</span><span class="mx-tile-l">${R.certsT}</span></a>
@@ -441,12 +437,10 @@ function certificatesTab() {
   <!-- v2: certificates tab (phone calm pass: a large title, rows with a seal, three text actions) -->
   <div class="mx-p mx-me-certhead">
     <h1 class="mx-lt">${C.titleT}</h1>
-    <p class="mx-lede">${C.ledeT}</p>
     <section class="mx-sec mx-sec--tight">
       ${certs.length ? `<div class="mx-me-certs">${rows}</div>` : `
       <div class="empty">
         <span class="empty-line">${C.emptyLine}</span>
-        <span class="empty-why">${C.emptyWhyT}</span>
         <a href="/app/plexus" class="btn-ghost btn-sm mx-me-btn">${C.emptyCtaT}</a>
       </div>`}
     </section>
@@ -482,7 +476,7 @@ function repaintCard() {
 function openPresent() {
   if (!st.qrUrl) return ui.toast(COPY.err.dl, { kind: 'error' });
   const m = ui.modal({
-    eyebrow: 'MEMBER QR', title: '',
+    eyebrow: '', title: '',
     body: `<div style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:6px 0 2px">
       <div style="width:min(64vw,260px);height:min(64vw,260px);background:#fff;border:1px solid rgba(25,21,18,.16);padding:12px;box-sizing:border-box"><img src="${st.qrUrl}" alt="Member QR" style="width:100%;height:100%;display:block;image-rendering:pixelated"></div>
       <div style="font-family:Fraunces,serif;font-style:italic;font-size:20px;color:#191512">${COPY.card.motto}</div>
@@ -490,6 +484,7 @@ function openPresent() {
     </div>`,
     actions: [{ label: 'DONE', kind: 'primary' }]
   });
+  m.el.removeAttribute('aria-labelledby'); m.el.setAttribute('aria-label', 'Member QR');   // no eyebrow names it now
   return m;
 }
 

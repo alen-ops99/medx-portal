@@ -42,12 +42,12 @@ export const COPY = {
   team: { name: 'Med&X Coordinators', sub: 'Official team inbox', init: 'MX', tag: 'OFFICIAL · MED&amp;X TEAM',
           meta: 'MED&X TEAM',                                        // rows from before sender_name existed (ask 1 backfill)
           staff: name => `${String(name).toUpperCase()} · MED&X`,     // staff identity on replies — "LAURA · MED&X"
-          nudge: 'Write to the team — replies land right here in your portal inbox.' },
-  composer: { ph: 'Write a message…', attach: 'ATTACH', attachTitle: 'Attach one image or PDF — up to 5 MB', send: 'SEND →', topicLabel: 'TOPIC', topicT: 'Topic: ', topicSheet: 'TOPIC' },
+          nudge: 'Ask us anything' },
+  composer: { ph: 'Write a message…', attach: 'ATTACH', attachTitle: 'Attach one image or PDF — up to 5 MB', send: 'SEND →', topicLabel: 'TOPIC', topicT: 'Topic: ', topicSheet: 'TOPIC', topicTitle: 'Topic' },
   // topic keys must match user-portal/backend/v2/messages.js › TOPICS
   topics: [['general', 'GENERAL'], ['plexus', 'PLEXUS'], ['gala', 'GALA'], ['accelerator', 'ACCELERATOR'], ['bridges', 'BUILDING BRIDGES'], ['forum', 'FORUM'], ['membership', 'MEMBERSHIP']],
   empty: {
-    line: 'No messages — yet.',
+    line: 'No messages yet.',
     why: 'Write to the Med&amp;X team about anything — tickets, programs, travel. Replies land right here in your portal inbox.',
     cta: 'START A MESSAGE →',
     whyT: 'Tickets, programs, travel: the team replies right here.', ctaT: 'Write a message'
@@ -68,7 +68,7 @@ export const COPY = {
   pickTopic: 'Pick a topic for your message.',
   emptyDraft: 'Write a message first.',
   loadFail: 'Your inbox could not be loaded.', retry: 'TRY AGAIN',
-  newModal: { eyebrow: 'MESSAGES · NEW', title: 'Who is it for?', teamSub: 'Official team inbox — tickets, programs, travel, anything.', noConns: 'Message your accepted connections — meet people in the Network first.', openNetwork: 'OPEN THE NETWORK →', openNetworkT: 'Open the network', connsFail: 'Your connections could not be loaded right now.' },
+  newModal: { eyebrow: 'MESSAGES · NEW', title: 'Who is it for?', teamSub: 'Tickets, programs, travel, anything.', noConns: 'Message your accepted connections — meet people in the Network first.', openNetwork: 'OPEN THE NETWORK →', openNetworkT: 'Open the network', connsFail: 'Your connections could not be loaded right now.' },
   blockedGate: {
     line: name => `You blocked ${name}.`,
     why: 'Unblock them to find each other again — then a new connection opens messaging.',
@@ -131,7 +131,7 @@ function timeLabel(v) { const d = sqlDate(v); return d ? String(d.getHours()).pa
 // ---------------------------------------------------------------- thread helpers
 function memberName(t) { return [t.first_name, t.last_name].filter(Boolean).join(' ') || COPY.unknownMember; }
 function threadName(t) { return t.kind === 'team' ? COPY.team.name : memberName(t); }
-function threadSub(t) { return t.kind === 'team' ? COPY.team.sub : (t.institution || COPY.memberFallbackSub); }
+function threadSub(t) { return t.kind === 'team' ? '' : (t.institution || COPY.memberFallbackSub); }
 function threadInit(t) { return t.kind === 'team' ? COPY.team.init : (fmt.initials(t.first_name, t.last_name) || 'M'); }
 function avatarOf(t) {                       // artboard palette: team crimson, members alternate ink → gold (stable per member)
   if (t.kind === 'team') return AV_TEAM;
@@ -288,8 +288,6 @@ function convMessages(thread) {
         <!-- dc: Empty States.dc.html › "MESSAGES · EMPTY INBOX" -->
         <div class="empty" style="margin:auto">
           <span class="empty-line">${COPY.empty.line}</span>
-          <span class="empty-why">${COPY.empty.whyT}</span>
-          <span data-act="startMsg" role="button" tabindex="0" class="btn-ghost btn-sm mx-msg-btn">${COPY.empty.ctaT}</span>
         </div>
         <!-- /dc -->`;
     if (thread.virtual && st.peer && st.peer.blocked) return `
@@ -355,15 +353,15 @@ function blockConv() {
       ${threadPic(t, 32)}
       <span class="mx-msg-head-text">
         <span class="mx-msg-head-name">${esc(threadName(t))}</span>
-        <span class="mx-msg-head-sub">${esc(threadSub(t))}</span>
+        ${threadSub(t) ? `<span class="mx-msg-head-sub">${esc(threadSub(t))}</span>` : ''}
       </span>
       ${t.virtual ? '' : `<span data-act="archive" role="button" tabindex="0" data-v2="archive = hide, never delete" class="mx-msg-link mx-msg-archlink">${t.archived ? COPY.unarchive : COPY.archive}</span>`}
       ${isTeam || (t.virtual && st.peer && st.peer.blocked) || !partnerResolved(t)
         ? (t.virtual ? '' : `<span data-act="more" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false" aria-label="${COPY.moreT}" class="mx-iconbtn mx-msg-more mx-msg-more--phone" data-v2="phones: Archive lives in this menu (the header keeps back · photo · name · ⋯)">${ui.icon('more', 22)}</span>`)
         : moreButton({ id: t.key, name: threadName(t), cls: 'mx-msg-more' })}
     </div>
-    <div data-role="msgs" aria-live="polite" class="mx-msg-pane${st.msgsKey === t.key && st.shownKey !== t.key ? ' mx-msg-fresh' : ''}" style="flex:1;padding:20px;display:flex;flex-direction:column;gap:14px;overflow-y:auto">${convMessages(t)}</div>
-    ${canWrite ? `<div class="mx-msg-compose-wrap">${isTeam ? topicChips() : ''}${attachChip}
+    <div data-role="msgs" aria-live="polite" class="mx-msg-pane${st.msgsKey === t.key && st.shownKey !== t.key ? ' mx-msg-fresh' : ''}" style="flex:1;padding:20px 20px calc(20px + var(--mx-compose-h, 0px));display:flex;flex-direction:column;gap:14px;overflow-y:auto">${convMessages(t)}</div>
+    ${canWrite ? `<div class="mx-msg-compose-wrap mx-glass" data-role="compose">${isTeam ? topicChips() : ''}${attachChip}
     ${st.sendError && st.sendError.key === t.key ? `<p data-role="sendErr" role="alert" data-v2="a send the server refused (403 suspended / blocked · 422 content filter) — the draft stays" class="mx-msg-err">${esc(st.sendError.text)}</p>` : ''}
     <div class="mx-msg-composer">
       ${isTeam ? `<label class="mx-msg-attach mx-iconbtn" tabindex="0" role="button" aria-label="${COPY.composer.attachTitle}" data-v2="ONE image/PDF per message — label wraps the hidden input so the OS picker opens without ui.bind's preventDefault (the profile-photo trap)" title="${COPY.composer.attachTitle}">${ui.icon('clip', 22)}<input type="file" data-role="attachFile" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" style="display:none"></label>` : ''}
@@ -433,15 +431,51 @@ function renderConv({ keepDraft = true } = {}) {
   const grid = rootEl && rootEl.querySelector('[data-role="grid"]');
   if (grid) grid.classList.toggle('mx-msg-open', !!st.mobileOpen);
   wireConv();
+  fitComposer();
   scrollMsgs();
 }
 // the inbox and the conversation stack (one shows at a time) at ≤700 px — messages.css
 const stacked = () => { try { return window.matchMedia('(max-width: 700px)').matches; } catch (e) { return false; } };
 function scrollMsgs() { const m = rootEl && rootEl.querySelector('[data-role="msgs"]'); if (m) m.scrollTop = m.scrollHeight; }
+// The space bottom-anchored things keep free for the tab bar (GLASS-RULES §1.10, §2.1): --mx-tabbar-h, set by the web
+// bar's own rule or by the iOS layer (0px while the keyboard is up). Its computed value can be an unresolved calc()
+// (the web bar's rule adds the safe area), so a hidden probe resolves it to pixels. The web bar where it stands on screen
+// now counts too (the larger of the two wins): that covers a tree where the variable is not defined yet, and a bar that
+// slid away for the keyboard or is hidden in the app counts nothing.
+let tbProbe = null;
+function tabbarSpace() {
+  const raw = getComputedStyle(document.documentElement).getPropertyValue('--mx-tabbar-h').trim();
+  let v = 0;
+  if (/^-?[\d.]+px$/.test(raw)) v = parseFloat(raw);
+  else if (raw) {
+    if (!tbProbe || !tbProbe.isConnected) {
+      tbProbe = document.createElement('div');
+      tbProbe.setAttribute('aria-hidden', 'true');
+      tbProbe.style.cssText = 'position:fixed;left:0;top:0;width:0;visibility:hidden;pointer-events:none;height:var(--mx-tabbar-h, 0px)';
+      document.body.appendChild(tbProbe);
+    }
+    v = tbProbe.offsetHeight;
+  }
+  const tab = document.getElementById('mx-tabbar');
+  let bar = 0;
+  if (tab && getComputedStyle(tab).display !== 'none') {
+    const top = tab.getBoundingClientRect().top;
+    if (top < window.innerHeight) bar = window.innerHeight - top;
+  }
+  return Math.max(v, bar);
+}
+// the floating composer's height, so the last bubble can scroll clear of it (the pane pads by --mx-compose-h)
+function fitComposer() {
+  const conv = rootEl && rootEl.querySelector('.mx-msg-conv'); if (!conv) return;
+  const wrap = conv.querySelector('[data-role="compose"]');
+  const pane = conv.querySelector('[data-role="msgs"]');
+  const atFoot = pane ? pane.scrollHeight - pane.scrollTop - pane.clientHeight < 8 : false;
+  conv.style.setProperty('--mx-compose-h', (wrap ? wrap.offsetHeight + 8 : 0) + 'px');
+  if (pane && atFoot) pane.scrollTop = pane.scrollHeight;
+}
 function sizeGrid() {
   const g = rootEl && rootEl.querySelector('[data-role="grid"]'); if (!g) return;
-  const tab = document.getElementById('mx-tabbar');
-  const tabH = tab && getComputedStyle(tab).display !== 'none' ? tab.offsetHeight : 0;
+  const tabH = tabbarSpace();
   const small = window.matchMedia('(max-width: 700px)').matches;
   // the grid's DOCUMENT offset: render() runs before the router's scroll-to-top, so a viewport offset taken
   // from a screen left scrolled down came out hundreds of px short and pushed the composer under the tab bar
@@ -471,12 +505,12 @@ function wireConv() {
   const ta = rootEl && rootEl.querySelector('[data-role="draft"]');
   if (!ta) return;
   // the field grows with what is typed, up to five lines, then scrolls
-  const grow = () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight + 2, 132) + 'px'; };
+  const grow = () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight + 2, 132) + 'px'; fitComposer(); };
   grow();
   ta.addEventListener('input', () => {
     grow();
     const k = ta.dataset.key || st.cur; if (k) st.drafts[k] = ta.value;
-    if (st.sendError) { st.sendError = null; const e = rootEl.querySelector('[data-role="sendErr"]'); if (e) e.remove(); }
+    if (st.sendError) { st.sendError = null; const e = rootEl.querySelector('[data-role="sendErr"]'); if (e) { e.remove(); fitComposer(); } }
   });
   ta.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handlers.send(); }   // Enter sends · Shift+Enter = newline
@@ -571,7 +605,7 @@ const handlers = {
   // the topic sheet: the seven values as rows; a pick runs the same `topic` handler and closes the sheet
   topicOpen: () => {
     const body = `<div class="mx-list mx-list--plain mx-msg-topics">${COPY.topics.map(([key, label]) => `<span data-act="topic" data-topic="${key}" role="radio" aria-checked="${st.topic === key}" tabindex="0" class="mx-row"><span class="mx-row-l">${esc(topicName(label))}</span>${st.topic === key ? ui.icon('check', 20) : ''}</span>`).join('')}</div>`;
-    const m = ui.modal({ eyebrow: COPY.composer.topicSheet, title: '', body });
+    const m = ui.modal({ eyebrow: '', title: COPY.composer.topicTitle, body });
     ui.bind(m.el, { topic: (el) => { handlers.topic(el); m.close(); } });
   },
   archive: async () => {
@@ -681,7 +715,7 @@ const handlers = {
           : `<p style="margin:14px 0 4px;font-size:14px;color:#4a4239;line-height:1.45">${D.conns ? COPY.newModal.noConns : COPY.newModal.connsFail}</p>
              <div style="padding:10px 0 2px"><a href="/app/network" data-act="closeModal" class="btn-ghost btn-sm mx-msg-btn">${COPY.newModal.openNetworkT}</a></div>`}
       </div>`;
-    const m = ui.modal({ eyebrow: COPY.newModal.eyebrow, title: COPY.newModal.title, body });
+    const m = ui.modal({ eyebrow: '', title: COPY.newModal.title, body });
     ui.bind(m.el, {
       pickTeam: () => { m.close(); openThread(TEAM, { focus: true }); },
       pickConn: (el) => { m.close(); openThread(el.dataset.id, { focus: true }); },
@@ -747,6 +781,15 @@ const module = {
     const onResize = () => sizeGrid();
     window.addEventListener('resize', onResize);
     unbindDoc.push(() => window.removeEventListener('resize', onResize));
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', onResize);
+      unbindDoc.push(() => window.visualViewport.removeEventListener('resize', onResize));
+    }
+    if (window.MutationObserver) {
+      const mo = new MutationObserver(() => { if (rootEl) sizeGrid(); });
+      mo.observe(document.documentElement, { attributes: true, attributeFilter: ['style', 'class'] });
+      unbindDoc.push(() => mo.disconnect());
+    }
     // whatever sits above the grid can still change height after this first measure — the web fonts landing,
     // the chrome's stats strip or email banner arriving — so the grid is re-measured whenever it does
     if (window.ResizeObserver) {
@@ -766,6 +809,7 @@ const module = {
     timers.forEach(stop => { try { stop(); } catch (e) {} }); timers = [];
     unbindDoc.forEach(off => { try { off(); } catch (e) {} }); unbindDoc = [];
     if (unbind) unbind(); unbind = null;
+    if (tbProbe) { tbProbe.remove(); tbProbe = null; }
     rootEl = null; D = null; st = null; pollBusy = false;
   }
 };

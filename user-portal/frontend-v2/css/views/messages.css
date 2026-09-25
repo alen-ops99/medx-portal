@@ -103,20 +103,40 @@
 .mx-msg-back { color: var(--crimson); }
 .mx-msg-head-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
 .mx-msg-head-name { font: 600 16px/22px var(--font-ui); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* a 320 phone: the header keeps the whole name ("Med&X Coordinators" was cut to "Med&X Coordinat…"): tighter gaps, and a
+   longer name takes a second line instead of an ellipsis */
+@media (max-width: 360px) {
+  .mx-msg-head { gap: 6px; padding-right: 4px; }
+  .mx-msg-head-name { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 20px; }
+}
 .mx-msg-head-sub { font: 400 12px/16px var(--font-ui); color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mx-msg-head .mx-msg-link { padding: 12px 8px; }
-.mx-msg-compose-wrap { border-top: 1px solid var(--hair); background: var(--card); }
-.mx-msg-topicrow { padding: 8px 12px 0 16px; }
+/* the composer (glass quiet pass, GLASS-RULES §1.9.7): ONE light glass panel floating over the foot of the conversation,
+   so the bubbles scroll under it (messages.js › fitComposer pads the pane by its height). The material is the kit's
+   (.mx-glass on the wrap, css/app.css); this file gives it the shape and the layout only. A capsule while it holds the
+   paperclip, the field and send; a team thread adds the topic line above that row and keeps the capsule's 26px corners. */
+.mx-msg-conv { position: relative; }
+.mx-msg-conv > .mx-msg-compose-wrap { position: absolute; left: 12px; right: 12px; bottom: 8px; z-index: 2; box-sizing: border-box;
+  padding: 4px; border: 0; border-radius: 26px; }
+@media (min-width: 701px) { .mx-msg-conv > .mx-msg-compose-wrap { left: 20px; right: 20px; bottom: 16px; max-width: 720px; margin: 0 auto; } }
+/* the field has no frame of its own inside the glass: the panel shows focus with a crimson ring that follows its corners */
+.mx-msg-conv > .mx-msg-compose-wrap:focus-within { box-shadow: 0 0 0 1.5px rgba(155,27,34,.5), var(--glass-shadow, 0 10px 30px rgba(25,21,18,.14)); }
+.mx-msg-topicrow { padding: 2px 12px 0 14px; }
 .mx-msg-topic { display: inline-flex; align-items: center; gap: 4px; min-height: 36px; padding: 0 4px; font: 400 14px/20px var(--font-ui); color: var(--soft); cursor: pointer; }
 .mx-msg-topic b { font-weight: 600; color: var(--ink); }
 .mx-msg-topic .mx-ic { color: var(--soft); }
-.mx-msg-attached { display: flex; align-items: center; gap: 4px; padding: 6px 8px 0 16px; }
-.mx-msg-attached-name { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 80%; padding: 6px 10px; background: rgba(201,169,98,.18); color: var(--gold-dark); font: 500 14px/20px var(--font-ui); }
+.mx-msg-attached { display: flex; align-items: center; gap: 4px; padding: 4px 4px 0 10px; }
+.mx-msg-attached-name { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 80%; padding: 6px 12px; border-radius: 999px; background: rgba(201,169,98,.2); color: var(--gold-dark); font: 500 14px/20px var(--font-ui); }
 .mx-msg-attached-name > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mx-msg-err { margin: 0; padding: 10px 16px 0; font-size: 14px; line-height: 1.45; color: var(--crimson); }
-.mx-msg-composer { display: flex; align-items: flex-end; gap: 6px; padding: 8px 12px 12px; }
-.mx-msg-draft { flex: 1 1 auto; min-width: 0; min-height: 44px; max-height: 132px; box-sizing: border-box; border: 1px solid rgba(25,21,18,.22); background: var(--cream);
-  padding: 10px 12px; font: 400 16px/22px var(--font-ui); color: var(--ink); resize: none; overflow-y: auto; }
+.mx-msg-err { margin: 0; padding: 8px 14px 0; font-size: 14px; line-height: 1.45; color: var(--crimson); }
+.mx-msg-composer { display: flex; align-items: flex-end; gap: 4px; padding: 0; }
+.mx-msg-draft { flex: 1 1 auto; min-width: 0; min-height: 44px; max-height: 132px; box-sizing: border-box; border: 0; background: transparent;
+  padding: 11px 6px; font: 400 16px/22px var(--font-ui); color: var(--ink); resize: none; overflow-y: auto; }
+.mx-msg-composer > .mx-msg-draft:first-child { padding-left: 14px; }   /* a member thread: no paperclip before it */
+.mx-msg-composer .mx-msg-field:focus { outline-color: transparent; }
+.mx-msg-draft::placeholder { color: #6d6459; }
+/* paperclip and send are glass controls, so round: a 44 circle each, send filled crimson */
+.mx-msg-composer .mx-iconbtn { border-radius: 50%; }
 .mx-msg-send { flex: none; }
 .mx-msg-send[aria-disabled="true"] { opacity: .6; }
 .mx-msg-attach { color: var(--soft); cursor: pointer; }

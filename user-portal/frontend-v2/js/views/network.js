@@ -69,7 +69,7 @@ export const COPY = {
   },
   btn: { connect: 'CONNECT', sent: 'REQUEST SENT', connected: 'CONNECTED ✓', accept: 'ACCEPT', declined: 'DECLINED' },
   // the small row actions (sentence case, phone calm pass)
-  row: { connect: 'Connect', sent: 'Requested', connected: 'Connected', accept: 'Accept', ignore: 'Ignore', declined: 'Declined', message: 'Message', remove: 'REMOVE' },
+  row: { connect: 'Connect', sent: 'Requested', connected: 'Connected', accept: 'Accept', ignore: 'Ignore', declined: 'Declined', message: 'Message', remove: 'Remove' },
   toast: {
     sent: n => `Request sent to ${n}.`, cancelled: 'Request cancelled.',
     accepted: n => `You are now connected with ${n}.`, declined: 'Request declined.',
@@ -158,6 +158,8 @@ async function load(q) {
 // action each — Connect / Requested / Accept, or Message once connected — and the ⋯ menu (report, block, and remove
 // for a connection). Requests come first with Accept / Ignore. The crumb and the PEOPLE / MESSAGES strip stay for
 // wider screens only (the tab bar says where you are on a phone).
+// Glass quiet pass (2026-09-25, GLASS-RULES §3.6 › People): no lede, five people for you, no section numerals, no
+// connection count, reason tags only when they add to the row, empty states of one line, sheets without eyebrows.
 function blockCrumb() { return `
   <!-- dc: Network.dc.html › "NETWORK → PEOPLE" (hidden on phones: app.css › .mx-crumbs) -->
   <div class="mx-gutter mx-crumbs" style="display:flex;align-items:center;gap:13px;padding:10px 36px;border-bottom:1px solid rgba(25,21,18,.16)">
@@ -185,7 +187,6 @@ function searchPlaceholder() {
 function blockHero() { return `
   <!-- dc: Network.dc.html › "RESEARCHERS & CLINICIANS, WORLDWIDE" (large title + the one search field) -->
   <h1 class="mx-lt">${COPY.hero.title}</h1>
-  <p class="mx-lede">${COPY.hero.lede}</p>
   <div class="mx-net-search">
     <label class="mx-net-field">${ui.icon('search', 20)}<input data-role="q" type="search" enterkeyhint="search" value="${esc(st.q)}" placeholder="${esc(searchPlaceholder())}" aria-label="Search the member directory" autocomplete="off"></label>
     <span data-act="search" role="button" tabindex="0" class="btn-primary mx-net-go">${COPY.hero.button}</span>
@@ -208,7 +209,11 @@ function rowAction(m) {
   if (s === 'declined' || s === 'declined_by_me') return netBtn(`data-act="connect" ${id}`, ' is-quiet', 'x', COPY.row.declined);
   return netBtn(`data-act="connect" ${id}`, '', 'user-plus', COPY.row.connect);
 }
+// a reason tag only when it adds to the row: the row already prints the institution and the place, and every
+// person here is a member (GLASS-RULES §3.6 › People), so those reasons stay unsaid
+const QUIET_REASONS = ['institution', 'country', 'city', 'member'];
 function reasonOf(m) {
+  if (QUIET_REASONS.includes(m.why) || /^(SAME (INSTITUTION|COUNTRY|CITY)|MED&X MEMBER)$/i.test(String(m.why_label || '').trim())) return '';
   return m.why_label || (COPY.reasons[m.why] ? (typeof COPY.reasons[m.why] === 'function' ? COPY.reasons[m.why]((m.reasons && m.reasons[0] && m.reasons[0].n) || 1) : COPY.reasons[m.why]) : '');
 }
 // a person row: the circle and the words open the profile sheet; the action and the ⋯ sit at the end
@@ -245,13 +250,14 @@ function cardSuggestion(m) {
   return personRow(m, { sub: esc(subLine(m)), tag: reasonOf(m), action: rowAction(m) });
 }
 
+// no section numerals (GLASS-RULES Q2): the `n` argument stays so the callers keep their shape
 function sectionHead(n, title, sub, right = '') {
-  return `<div class="mx-sh"><span class="mx-sh-n">${n}</span><h2 class="mx-sh-t">${title}</h2>${right}</div>${sub ? `<p class="mx-sh-sub">${sub}</p>` : ''}`;
+  return `<div class="mx-sh"><h2 class="mx-sh-t">${title}</h2>${right}</div>${sub ? `<p class="mx-sh-sub">${sub}</p>` : ''}`;
 }
 
 function blockForYou() {
   const requests = D.pending;
-  const suggestions = D.sugg.slice(0, Math.max(0, 8 - requests.length));
+  const suggestions = D.sugg.slice(0, Math.max(0, 5 - requests.length));
   const rows = requests.map(cardRequest).concat(suggestions.map(cardSuggestion));
   return `
       <!-- dc: Network.dc.html › "01 · PEOPLE FOR YOU" -->
@@ -260,7 +266,6 @@ function blockForYou() {
         ${rows.length ? `<div class="mx-person-rows">${rows.join('')}</div>` : `
         <div class="empty">
           <span class="empty-line">${COPY.forYou.emptyLine}</span>
-          <span class="empty-why">${COPY.forYou.emptyWhyT}</span>
           <a href="/app/profile" class="btn-ghost btn-sm">${COPY.forYou.emptyCtaT}</a>
         </div>`}
       </section>
@@ -272,13 +277,12 @@ function blockMyNetwork() {
   return `
       <!-- dc: Network.dc.html › "02 · MY NETWORK" -->
       <section class="mx-sec">
-        ${sectionHead(COPY.net.n, COPY.net.titleT, '', n ? `<span class="mx-sh-count">${COPY.net.count(n)}</span>` : '')}
+        ${sectionHead(COPY.net.n, COPY.net.titleT)}
         ${n ? `<div class="mx-person-rows">
-        ${D.conns.map(m => personRow(m, { sub: esc(m.institution || 'Med&X member'), action: `<span data-act="message" data-id="${esc(m.id)}" role="button" tabindex="0" class="mx-net-btn">${COPY.row.message}</span>` })).join('')}
+        ${D.conns.map(m => personRow(m, { sub: esc(m.institution || 'Med&X member'), action: netBtn(`data-act="message" data-id="${esc(m.id)}" role="button" tabindex="0"`, '', 'chat', COPY.row.message) })).join('')}
         </div>` : `
         <div class="empty">
           <span class="empty-line">${COPY.net.emptyLine}</span>
-          <span class="empty-why">${COPY.net.emptyWhyT}</span>
         </div>`}
       </section>
       <!-- /dc -->`;
@@ -330,7 +334,6 @@ function blockResults() {
         ${r && r.total === 0 ? `
         <div class="empty">
           <span class="empty-line">${COPY.results.noneLine(esc(st.q))}</span>
-          <span class="empty-why">${COPY.results.noneWhy}</span>
         </div>` : ''}
         ${r ? pager('resPage', r.page, r.pages) : ''}
       </section>
@@ -451,7 +454,7 @@ const handlers = {
     if (s.state === 'pending_in') return handlers.accept(el);   // rows show ACCEPT for incoming requests
     if (s.state === 'pending_out') {
       const c1 = COPY.confirm.cancel;
-      if (!await ui.confirm({ eyebrow: c1.eyebrow, title: c1.title, body: c1.body, ok: c1.ok, cancel: c1.no })) return;
+      if (!await ui.confirm({ eyebrow: '', title: c1.title, body: c1.body, ok: c1.ok, cancel: c1.no })) return;
       const prev = CS.get(id); CS.set(id, { state: 'none', id: null }); rerenderContent(id);
       try { await api.del('/api/v2/network/connections/' + encodeURIComponent(s.id)); ui.toast(COPY.toast.cancelled); }
       catch (e) { CS.set(id, prev); rerenderContent(); ui.toast(e.message, { kind: 'error' }); }
@@ -459,7 +462,7 @@ const handlers = {
     }
     if (s.state === 'declined_by_me') {
       const c2 = COPY.confirm.reopen;
-      if (!await ui.confirm({ eyebrow: c2.eyebrow, title: c2.title, body: c2.body, ok: c2.ok, cancel: c2.no })) return;
+      if (!await ui.confirm({ eyebrow: '', title: c2.title, body: c2.body, ok: c2.ok, cancel: c2.no })) return;
       try { await api.del('/api/v2/network/connections/' + encodeURIComponent(s.id)); CS.set(id, { state: 'none', id: null }); }
       catch (e) { return ui.toast(e.message, { kind: 'error' }); }
     }
@@ -501,7 +504,7 @@ const handlers = {
   remove: async (el) => {
     const cid = el.dataset.cid, id = el.dataset.id, name = el.dataset.name || 'this member';
     const c = COPY.confirm.remove(name);
-    if (!await ui.confirm({ eyebrow: c.eyebrow, title: c.title, body: c.body, ok: c.ok, cancel: c.no })) return;
+    if (!await ui.confirm({ eyebrow: '', title: c.title, body: c.body, ok: c.ok, cancel: c.no })) return;
     const prevConns = D.conns, prevState = CS.get(id);
     D.conns = D.conns.filter(x => x.cid !== cid);
     CS.set(id, { state: 'none', id: null }); rerenderContent();
@@ -534,10 +537,10 @@ const handlers = {
       : s === 'pending_in' ? { label: COPY.peek.accept, act: 'peekAccept' } : null;
     const state = !primary ? (s === 'pending_out' ? COPY.row.sent : s === 'connected' ? COPY.row.connected : s.startsWith('declined') ? COPY.row.declined : '') : '';
     const md = ui.modal({
-      eyebrow: COPY.peek.eyebrow,
+      eyebrow: '',
       title: '',
       body: `<div class="mx-sheet-person">
-          <span data-act="peekMore" role="button" tabindex="0" aria-haspopup="menu" aria-label="${esc(SAFETY.more(m.name))}" class="mx-iconbtn mx-sheet-more">${ui.icon('more', 22)}</span>
+          <span data-act="peekMore" role="button" tabindex="0" aria-haspopup="menu" aria-label="${esc(SAFETY.more(m.name))}" class="mx-gbtn mx-sheet-more">${ui.icon('more', 22)}</span>
           ${ui.portrait({ name: m.name, src: photoUrl(m.photo_url), size: 96, alt: '' })}
           <h2 class="mx-sheet-name">${esc(m.name)}</h2>
           ${role ? `<p class="mx-sheet-role">${esc(role)}</p>` : ''}
@@ -551,6 +554,8 @@ const handlers = {
         </div>`,
       actions: []
     });
+    // no eyebrow in the head (GLASS-RULES §1.9.4): the sheet is named by the person, for VoiceOver
+    md.el.removeAttribute('aria-labelledby'); md.el.setAttribute('aria-label', m.name);
     ui.bind(md.el, {
       peekMsg: () => { md.close(); router.navigate('/app/messages?to=' + encodeURIComponent(m.id)); },
       peekConnect: () => { md.close(); handlers.connect({ dataset: { id: m.id } }); },

@@ -7,7 +7,7 @@ export const SOURCE = 'System Pages.dc.html';
 export const COPY = {
   kicker: 'MEMBER PORTAL', code: '404',
   headline: "This door isn't on the <i style=\"color:#9b1b22\">guest list</i>.",
-  why: 'The page moved, or the link is off by a letter. Everything you need is one step away.',
+  why: 'This page moved, or the link has a typo.',
   home: 'BACK TO HOME →', message: 'MESSAGE US'
 };
 export const layout = 'bare';
@@ -39,8 +39,6 @@ export default {
   <div style="min-height:100vh;background:#f7f1e6;display:flex;flex-direction:column;overflow:hidden">
     <div style="background:#191512;padding:16px 32px;display:flex;align-items:center">
       <a href="/app/home"><img src="/assets/logo-white.png" alt="med&amp;X" style="height:18px;display:block"></a>
-      <div style="flex:1"></div>
-      <span style="font:600 12px Inter,sans-serif;letter-spacing:.12em;color:#c9a962">${COPY.kicker}</span>
     </div>
     <div data-enter="rise" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px">
       <span style="font-family:Fraunces,serif;font-style:italic;font-size:90px;line-height:1;color:rgba(25,21,18,.14)">${COPY.code}</span>

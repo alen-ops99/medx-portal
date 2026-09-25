@@ -50,9 +50,12 @@
 @media (min-width: 901px) { .mx-net-screen .mx-person-rows, .mx-net-screen .mx-list { max-width: 760px; } }
 
 /* the person sheet (the profile peek) */
-.mx-sheet-person { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding-top: 4px; }
+.mx-sheet-person { position: static; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding-top: 4px; }
 .mx-sheet-person > .mx-pic { margin-bottom: 8px; }
-.mx-sheet-more { position: absolute; top: -12px; right: -12px; color: var(--soft); }
+/* the ⋯ (Report · Block) is a 44 light glass circle in the sheet's own top-left corner, mirroring the × on the right
+   (GLASS-RULES §1.2, §1.9.4), so the two never stack in one corner */
+.mx-modal .mx-sheet-more { position: absolute; z-index: 4; top: 14px; left: 10px; color: var(--ink); }
+@media (min-width: 501px) { .mx-modal .mx-sheet-more { top: 12px; left: 12px; } }
 .mx-sheet-name { margin: 0; font: 400 var(--fs-title2)/28px var(--font-display); color: var(--ink); }
 .mx-sheet-role { margin: 0; font: 400 14px/20px var(--font-ui); color: var(--soft); }
 .mx-sheet-line { margin: 0; display: inline-flex; align-items: center; gap: 6px; font: 400 14px/20px var(--font-ui); color: var(--ink); }
