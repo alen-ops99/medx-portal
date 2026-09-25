@@ -5691,6 +5691,9 @@ app.get('/donate/checkout', donateCheckoutLimiter, async (req, res) => {
 // ========================== END PUBLIC DONATION CHECKOUT ==========================
 
 app.use(express.static(path.join(__dirname, '../frontend')));
+// Task files are private to the people on the task (owner rule 2026-09-25): uploads/tasks is never
+// served from /uploads; the bytes go out only through GET /api/tasks/files/:fileId/download.
+app.use('/uploads', (req, res, next) => (taskVis.isTaskUploadPath(req.path) ? res.status(404).json({ error: 'File not found' }) : next()));
 // User-uploaded files: force download + nosniff so a stored .svg/.html/.xml can't execute
 // inline as same-origin script (multer trusts the client MIME, so the content is untrusted).
 // Images embedded via <img src> still render; only top-level navigation is neutralized.
@@ -19542,6 +19545,17 @@ By applying to this program, I provide the following consents:
         db.run('DELETE FROM task_files WHERE id = ?', [req.params.fileId]);
         saveDb();
         res.json({ success: true });
+    });
+
+    // Download a task file: only a participant of the task gets the bytes (same answer as a missing
+    // file otherwise). Task files are not served statically, so reassigning a task revokes access.
+    app.get('/api/tasks/files/:fileId/download', auth, adminOnly, (req, res) => {
+        const file = query.get('SELECT * FROM task_files WHERE id = ?', [req.params.fileId]);
+        const onDisk = file && taskVis.findVisibleTask(query.get, req.user.id, file.task_id) ? taskVis.taskFileOnDisk(file, uploadsDir) : null;
+        if (!onDisk) return res.status(404).json({ error: 'File not found' });
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+        res.download(onDisk, String(file.original_name || file.filename || 'file'));
     });
 
     // Quick toggle task status

@@ -12,6 +12,10 @@
  * list, read, search, count or modify any of it, on the admin AND the member-portal backend.
  * Reassigning T to Carol moves visibility: Bob loses it, Carol gains it, Laura keeps it.
  *
+ * Side channels (leak re-check, same day): the Action Center nudge, the shared admin inbox, the
+ * audit-log feed, the /nag/run counts, the tech DB tools (a test TECH_PASSWORD) and the task file
+ * gate carry no task text to a non-participant, including older rows written before the fix.
+ *
  *   node tests/task-visibility.test.js
  *
  * Exits 1 on any failure. Cleans up its servers + scratch dir.
@@ -40,8 +44,8 @@ const check = (name, cond, detail = '') => {
     console.log((cond ? 'PASS' : 'FAIL') + ' | ' + name + (detail ? ' | ' + String(detail).slice(0, 200) : ''));
 };
 
-const api = async (base, p, { method = 'GET', body, token } = {}) => {
-    const headers = { 'Content-Type': 'application/json' };
+const api = async (base, p, { method = 'GET', body, token, headers: extra } = {}) => {
+    const headers = { 'Content-Type': 'application/json', ...(extra || {}) };
     if (token) headers.Authorization = 'Bearer ' + token;
     const r = await fetch(base + p, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
     const text = await r.text();
@@ -69,6 +73,8 @@ const waitUp = async (base, ms = 90000) => {
 };
 
 const SECRET = 'PERSONAL-'; // every private title/description carries this marker
+const TECH_PASS = 'task-vis-tech-pass-9'; // throwaway TECH_PASSWORD for the scratch servers only
+const taskVis = require(path.join(ROOT, 'shared/task-visibility'));
 const listFiles = (dir) => { try { return fs.readdirSync(dir).sort(); } catch (e) { return []; } };
 
 (async () => {
@@ -79,6 +85,7 @@ const listFiles = (dir) => { try { return fs.readdirSync(dir).sort(); } catch (e
         TURSO_DATABASE_URL: '', TURSO_AUTH_TOKEN: '',
         RESEND_API_KEY: '', SMTP_USER: '', ANTHROPIC_API_KEY: '',
         JWT_SECRET: 'task-visibility-test-secret',
+        TECH_PASSWORD: TECH_PASS,
         NODE_ENV: 'test',
     };
     const procs = [];
@@ -95,6 +102,17 @@ const listFiles = (dir) => { try { return fs.readdirSync(dir).sort(); } catch (e
     process.on('exit', cleanup);
 
     try {
+        // ---- unit: the side-channel helpers ----
+        const oldNudge = { sender_type: 'admin', title: 'Task reminder', sender_id: 'u-a', receiver_id: 'u-b', content: 'Reminder: "' + SECRET + 'x" (due 2026-09-24) needs your attention.' };
+        check('unit: an older task nudge reads neutral to a third party', taskVis.redactTaskReminderDm(oldNudge, 'u-c').content === taskVis.TASK_REMINDER_BODY);
+        check('unit: its sender and receiver still read it', taskVis.redactTaskReminderDm(oldNudge, 'u-a').content === oldNudge.content && taskVis.redactTaskReminderDm(oldNudge, 'u-b').content === oldNudge.content);
+        check('unit: with no caller (the drafting prompt) it is always neutral', taskVis.redactTaskReminderDm(oldNudge, null).content === taskVis.TASK_REMINDER_BODY);
+        check('unit: new nudge body carries no task text', !/PERSONAL|due \d/.test(taskVis.TASK_REMINDER_BODY));
+        const someId = '11111111-2222-4333-8444-555555555555';
+        check('unit: older task.create audit title is hidden, a new id is kept', taskVis.redactAuditRow({ action: 'task.create', detail: SECRET + 'x' }).detail === '(task title hidden)' && taskVis.redactAuditRow({ action: 'task.create', detail: someId }).detail === someId);
+        check('unit: older nag.act task line loses the name, sponsor lines keep theirs', !taskVis.redactAuditRow({ action: 'nag.act', detail: 'task_overdue -> assignee nudged (Bob Test)' }).detail.includes('Bob') && taskVis.redactAuditRow({ action: 'nag.act', detail: 'sponsor_deliverable -> assignee nudged (Ann)' }).detail.includes('Ann'));
+        check('unit: /uploads/tasks is blocked in any spelling', ['/tasks/a.txt', '/TASKS/a', '/%74asks/a', '/documents/../tasks/a', '/tasks'].every(taskVis.isTaskUploadPath) && !taskVis.isTaskUploadPath('/documents/a.txt') && !taskVis.isTaskUploadPath('/taskslist/a'));
+
         boot('user-portal/backend', 3111);
         await waitUp(USER);
         boot('admin-portal/backend', 3112);
@@ -242,6 +260,113 @@ const listFiles = (dir) => { try { return fs.readdirSync(dir).sort(); } catch (e
         r = await api(ADMIN, '/api/tasks/plexus', { token: B.token });
         check('T is still open after the denied Action Center "done"', ((r.d || []).find(x => x.id === T) || {}).status === 'todo');
 
+        // ================= side channels (leak re-check) =================
+        const emailOf = { a: 'qa.robot+taskvis-a@example.com', b: 'qa.robot+taskvis-b@example.com', c: 'qa.robot+taskvis-c@example.com', f: 'juginovic.alen@gmail.com' };
+        const auditOf = async (P) => { const x = await api(ADMIN, '/api/admin/audit-log?limit=500', { token: P.token }); return { ...x, rows: Array.isArray(x.d) ? x.d : [] }; };
+
+        // /nag/run answers with the caller's own counts (the same filter as /nag/items).
+        const runOpen = {};
+        for (const P of [B, C]) {
+            r = await api(ADMIN, '/api/admin/nag/run', { method: 'POST', token: P.token });
+            const listed = await api(ADMIN, '/api/admin/nag/items', { token: P.token });
+            runOpen[P.name] = r.d && r.d.open;
+            check(`${P.name}: /nag/run "open" equals their own Action Center count`, r.status === 200 && r.d.open === listed.d.counts.open && !r.text.includes(SECRET) && !r.text.includes(T), `run ${r.d && r.d.open} vs list ${listed.d && listed.d.counts && listed.d.counts.open}`);
+        }
+        check('/nag/run counts differ by exactly T\'s item between assignee and non-participant', runOpen[B.name] === runOpen[C.name] + 1, JSON.stringify(runOpen));
+
+        // The creator nudges the assignee: the message carries no task text.
+        r = await api(ADMIN, `/api/admin/nag/items/${nag && nag.id}/act`, { method: 'POST', token: A.token });
+        check('A (creator) nudges B about T', r.status === 200 && r.d && r.d.action === 'nudge_sent', r.text);
+        r = await api(USER, '/api/messages', { token: B.token });
+        const bNudge = (Array.isArray(r.d) ? r.d : []).find(m => m.title === 'Task reminder');
+        check('B receives the nudge, with no title or due date in it', bNudge && bNudge.content === taskVis.TASK_REMINDER_BODY, JSON.stringify(bNudge));
+        for (const P of [C, F]) {
+            r = await api(ADMIN, '/api/admin/messages', { token: P.token });
+            check(`${P.name}: shared admin inbox shows no task text`, r.status === 200 && !r.text.includes(SECRET) && !r.text.includes('(due '), r.status);
+            r = await api(ADMIN, '/api/admin/messages/' + encodeURIComponent(emailOf.b), { token: P.token });
+            check(`${P.name}: B's admin thread shows no task text`, r.status === 200 && !r.text.includes(SECRET) && !r.text.includes('(due '), r.status);
+            const au = await auditOf(P);
+            check(`${P.name}: audit feed has no task title and names nobody on a task nudge`, au.status === 200 && !au.text.includes(SECRET) && !au.rows.some(a => a.action === 'nag.act' && /Bob|task_/.test(a.detail || '')), JSON.stringify(au.rows.filter(a => a.action === 'nag.act')));
+            check(`${P.name}: audit feed carries no global scan counts`, !au.rows.some(a => a.action === 'nag.scan' && /open/.test(a.detail || '')));
+        }
+
+        // A subtask given to someone who is not on the parent task is never nudged to them.
+        r = await api(ADMIN, '/api/tasks', { method: 'POST', token: B.token, body: { project: 'plexus', title: SECRET + 'S2 for Carol', parent_id: T, assigned_to: C.tm, due_date: yesterday } });
+        const S2 = r.d && r.d.id;
+        check('B creates subtask S2 under T assigned to C (not on T)', r.status === 200 && S2, r.text);
+        await api(ADMIN, '/api/admin/nag/run', { method: 'POST', token: B.token });
+        r = await api(ADMIN, '/api/admin/nag/items', { token: B.token });
+        const nagS2 = (r.d && r.d.items || []).find(x => x.subject_id === S2);
+        check('B sees the overdue item for S2 (nudge offered)', nagS2 && nagS2.action_kind === 'nudge_assignee', JSON.stringify(nagS2 && nagS2.action_kind));
+        r = await api(ADMIN, `/api/admin/nag/items/${nagS2 && nagS2.id}/act`, { method: 'POST', token: B.token });
+        check('nudging C about S2 is refused (C cannot see T)', r.status === 400 && !r.text.includes(SECRET), r.status + ' ' + r.text);
+        r = await api(USER, '/api/messages', { token: C.token });
+        check('C received no message about S2', r.status === 200 && !r.text.includes(SECRET) && !r.text.includes('Task reminder'));
+        r = await api(ADMIN, '/api/admin/nag/items', { token: C.token });
+        check('C does not see the S2 item', r.status === 200 && !r.text.includes(SECRET) && !r.text.includes(S2));
+        r = await api(ADMIN, `/api/tasks/${S2}`, { method: 'DELETE', token: B.token });
+        check('B removes S2', r.status === 200, r.text);
+
+        // Older rows written before the fix (title in the nudge, title/name in the audit detail) are
+        // hidden when read. Written straight into the scratch DB, the way live already holds them.
+        const Database = require(path.join(ROOT, 'admin-portal/backend/node_modules/libsql'));
+        const raw = new Database(env.DATABASE_PATH);
+        const uidOf = (email) => (raw.prepare('SELECT id FROM users WHERE lower(email) = lower(?)').get(email) || {}).id;
+        const [aId, bId] = [uidOf(emailOf.a), uidOf(emailOf.b)];
+        const { randomUUID } = require('crypto');
+        raw.prepare("INSERT INTO direct_messages (id, sender_id, receiver_id, sender_type, receiver_type, title, content, is_read, created_at) VALUES (?, ?, ?, 'admin', 'user', 'Task reminder', ?, 0, datetime('now'))")
+            .run(randomUUID(), aId, bId, 'Reminder: "' + SECRET + 'legacy nudge" (due 2026-09-24) needs your attention.');
+        raw.prepare('INSERT INTO audit_log (id, actor_id, actor_email, action, detail) VALUES (?, ?, ?, ?, ?)').run(randomUUID(), aId, emailOf.a, 'task.create', SECRET + 'legacy checklist');
+        raw.prepare('INSERT INTO audit_log (id, actor_id, actor_email, action, detail) VALUES (?, ?, ?, ?, ?)').run(randomUUID(), aId, emailOf.a, 'nag.act', 'task_overdue -> assignee nudged (Bob Test)');
+        raw.close();
+        check('legacy rows written', !!(aId && bId));
+        for (const P of [C, F]) {
+            r = await api(ADMIN, '/api/admin/messages', { token: P.token });
+            check(`${P.name}: older nudge text is hidden in the admin inbox`, r.status === 200 && !r.text.includes(SECRET));
+            r = await api(ADMIN, '/api/admin/messages/' + encodeURIComponent(emailOf.b), { token: P.token });
+            check(`${P.name}: older nudge text is hidden in B's thread`, r.status === 200 && !r.text.includes(SECRET));
+            const au = await auditOf(P);
+            check(`${P.name}: older task titles / nudge names are hidden in the audit feed`, !au.text.includes(SECRET) && !au.rows.some(a => a.action === 'nag.act' && /Bob/.test(a.detail || '')));
+        }
+        r = await api(ADMIN, '/api/admin/messages', { token: A.token });
+        check('A (the sender) still reads the older nudge', r.text.includes(SECRET + 'legacy nudge'));
+
+        // Tech DB tools: the task tables show only the caller's own tasks.
+        const TECH = { 'x-tech-password': TECH_PASS };
+        const techTables = ['project_tasks', 'task_files', 'nag_items', 'direct_messages', 'push_outbox', 'scheduled_emails', 'audit_log'];
+        for (const P of [C, F]) {
+            for (const t of techTables) {
+                r = await api(ADMIN, `/api/admin/tech/tables/${t}?limit=500`, { token: P.token, headers: TECH });
+                check(`${P.name}: tech table ${t} has no task text`, r.status === 200 && !r.text.includes(SECRET) && !r.text.includes('personal-note.txt'), r.status + ' ' + r.text.slice(0, 120));
+            }
+            r = await api(ADMIN, '/api/admin/tech/tables/project_tasks?search=' + encodeURIComponent(SECRET), { token: P.token, headers: TECH });
+            check(`${P.name}: tech search finds no private task (total 0)`, r.status === 200 && r.d.total === 0, JSON.stringify(r.d && r.d.total));
+            r = await api(ADMIN, '/api/admin/tech/export-all', { token: P.token, headers: TECH });
+            check(`${P.name}: tech export-all has no task text`, r.status === 200 && !r.text.includes(SECRET) && !r.text.includes('personal-note.txt'), r.status);
+        }
+        r = await api(ADMIN, '/api/admin/tech/tables/project_tasks?limit=500', { token: A.token, headers: TECH });
+        check('A (creator): tech table project_tasks still shows T', r.status === 200 && r.text.includes(T));
+        r = await api(ADMIN, '/api/admin/tech/tables/scheduled_emails?limit=500', { token: B.token, headers: TECH });
+        check('B: tech table scheduled_emails shows his own digest', r.status === 200 && r.text.includes(SECRET));
+
+        // Task file gate: never served statically; the download route checks the rule.
+        r = await api(ADMIN, '/api/tasks/plexus', { token: A.token });
+        const fRow = (((r.d || []).find(x => x.id === T) || {}).files || [])[0] || {};
+        for (const u of ['/uploads/tasks/' + fRow.filename, '/uploads/%74asks/' + fRow.filename, '/uploads/TASKS/' + fRow.filename]) {
+            const x = await fetch(ADMIN + u);
+            check(`static ${u.replace(fRow.filename, '<file>')} is 404`, fRow.filename && x.status === 404, x.status);
+        }
+        const dl = async (P, id) => { const x = await fetch(`${ADMIN}/api/tasks/files/${id}/download`, { headers: P ? { Authorization: 'Bearer ' + P.token } : {} }); return { status: x.status, text: await x.text() }; };
+        let x = await dl(B, Fid);
+        check('B (assignee) downloads F through the gate', x.status === 200 && x.text === 'private file body', x.status);
+        x = await dl(null, Fid);
+        check('no session: the gate refuses', x.status === 401 || x.status === 403, x.status);
+        for (const P of [C, F]) {
+            const miss = await dl(P, missing);
+            x = await dl(P, Fid);
+            check(`${P.name}: download F answers exactly like a missing file`, x.status === 404 && x.text === miss.text, x.status + ' ' + x.text);
+        }
+
         // ---- reassignment moves visibility: B -> C ----
         r = await api(ADMIN, `/api/tasks/${T}`, { method: 'PUT', token: B.token, body: { title: SECRET + 'T doctor appointment', description: SECRET + 'desc private', assigned_to: C.tm, priority: 'high', status: 'todo', due_date: yesterday, project: 'plexus' } });
         check('B (assignee) may edit and reassign T to C', r.status === 200, r.text);
@@ -255,6 +380,10 @@ const listFiles = (dir) => { try { return fs.readdirSync(dir).sort(); } catch (e
         check('A (creator) still sees T', (r.d || []).some(x => x.id === T));
         r = await api(ADMIN, '/api/tasks/plexus', { token: F.token });
         check('founder still does not see T', r.status === 200 && !r.text.includes(T));
+        x = await dl(B, Fid);
+        check('after reassignment B can no longer download F', x.status === 404, x.status);
+        x = await dl(C, Fid);
+        check('after reassignment C downloads F', x.status === 200 && x.text === 'private file body', x.status);
 
         // ---- cleanup through the API (removes the uploaded file from disk) ----
         r = await api(ADMIN, `/api/tasks/files/${Fid}`, { method: 'DELETE', token: A.token });

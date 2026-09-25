@@ -937,6 +937,9 @@ app.use(helmet({
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../frontend')));
+// Task files are private to the people on the task (owner rule 2026-09-25): uploads/tasks is never
+// served from /uploads; the bytes go out only through GET /api/tasks/files/:fileId/download.
+app.use('/uploads', (req, res, next) => (taskVis.isTaskUploadPath(req.path) ? res.status(404).json({ error: 'File not found' }) : next()));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Content Planner photo library: serve the shared user-portal event/gala photos from this backend so
 // the planner's image suggestions and picker resolve to absolute, publicly reachable portal URLs.
@@ -1842,6 +1845,8 @@ function runNagScan() {
     const desiredKeys = new Set(desired.map((d) => d.kind + '|' + (d.subject_id || '')));
     const now = new Date().toISOString();
     let created = 0;
+    // (kind, subject_id) of what this scan touched, so a caller can count only what its user may see.
+    const keys = { found: desired.map((d) => ({ kind: d.kind, subject_id: d.subject_id || null })), created: [], resolved: [] };
     for (const d of desired) {
         const existing = query.get("SELECT id, status FROM nag_items WHERE kind = ? AND COALESCE(subject_id,'') = COALESCE(?, '') LIMIT 1", [d.kind, d.subject_id || null]);
         const payload = JSON.stringify(d.action_payload || {});
@@ -1856,12 +1861,14 @@ function runNagScan() {
                 db.run("UPDATE nag_items SET status='open', resolved_at=NULL, title=?, action_kind=?, action_payload_json=?, assignee=? WHERE id=?",
                     [d.title, d.action_kind, payload, d.assignee || null, existing.id]);
                 created++;
+                keys.created.push({ kind: d.kind, subject_id: d.subject_id || null });
             }
         } else {
             db.run(`INSERT INTO nag_items (id, kind, subject_id, title, action_kind, action_payload_json, assignee, status, created_at)
                     VALUES (?,?,?,?,?,?,?, 'open', ?)`,
                 [require('crypto').randomUUID(), d.kind, d.subject_id || null, d.title, d.action_kind, payload, d.assignee || null, now]);
             created++;
+            keys.created.push({ kind: d.kind, subject_id: d.subject_id || null });
         }
     }
     let resolved = 0;
@@ -1870,11 +1877,14 @@ function runNagScan() {
         if (!desiredKeys.has(row.kind + '|' + (row.subject_id || ''))) {
             db.run("UPDATE nag_items SET status='done', resolved_at=? WHERE id=?", [now, row.id]);
             resolved++;
+            keys.resolved.push({ kind: row.kind, subject_id: row.subject_id || null });
         }
     }
     saveDb();
+    // found/created/resolved/open are GLOBAL (they include items about private tasks): server logs
+    // only. A route that answers a user scopes them through `keys` (see POST /api/admin/nag/run).
     const open = query.get("SELECT COUNT(*) AS c FROM nag_items WHERE status IN ('open','actioned')")?.c || 0;
-    return { found: desired.length, created, resolved, open };
+    return { found: desired.length, created, resolved, open, keys };
 }
 
 // Compose a warm reminder email body via the shared AI primitive (deterministic '[Draft]' mock in
@@ -12222,7 +12232,7 @@ async function initializeApp() {
             VALUES (?,?,?,?,?, 'todo', ?)`,
             [id, b.project || 'general', title, b.assigned_to || null, b.due_date || null, req.user.id]);
         saveDb();
-        logAudit(req, 'task.create', title);
+        logAudit(req, 'task.create', id); // the id only: the audit feed goes to every admin, the title is private to the task
         res.json({ success: true, id });
     });
 
@@ -12603,7 +12613,7 @@ async function initializeApp() {
         // Audit-log entries that reference this person (mark-paid, resend-ticket, bulk email…).
         try {
             if (email) {
-                const rows = query.all("SELECT action, detail, actor_email, created_at FROM audit_log WHERE detail LIKE ? ORDER BY created_at DESC LIMIT 50", ['%' + email + '%']);
+                const rows = query.all("SELECT action, detail, actor_email, created_at FROM audit_log WHERE detail LIKE ? ORDER BY created_at DESC LIMIT 50", ['%' + email + '%']).map(taskVis.redactAuditRow);
                 rows.forEach(a => push('admin', a.action, (a.detail || '') + (a.actor_email ? ' · by ' + a.actor_email : ''), a.created_at));
             }
         } catch (e) {}
@@ -12612,8 +12622,9 @@ async function initializeApp() {
             if (email) {
                 const u = query.get('SELECT id FROM users WHERE lower(email) = lower(?)', [email]);
                 if (u) {
-                    const msgs = query.all(`SELECT title, content, sender_type, receiver_type, is_read, created_at
-                        FROM direct_messages WHERE sender_id = ? OR receiver_id = ? ORDER BY created_at DESC LIMIT 50`, [u.id, u.id]);
+                    const msgs = query.all(`SELECT title, content, sender_id, receiver_id, sender_type, receiver_type, is_read, created_at
+                        FROM direct_messages WHERE sender_id = ? OR receiver_id = ? ORDER BY created_at DESC LIMIT 50`, [u.id, u.id])
+                        .map((m) => taskVis.redactTaskReminderDm(m, req.user.id)); // older task nudges held the task title
                     msgs.forEach(m => {
                         const outbound = m.sender_type === 'admin';
                         push('message', outbound ? 'Message sent' : 'Message received',
@@ -18387,6 +18398,17 @@ By applying to this program, I provide the following consents:
         res.json({ success: true });
     });
 
+    // Download a task file: only a participant of the task gets the bytes (same answer as a missing
+    // file otherwise). Task files are not served statically, so reassigning a task revokes access.
+    app.get('/api/tasks/files/:fileId/download', auth, adminOnly, (req, res) => {
+        const file = query.get('SELECT * FROM task_files WHERE id = ?', [req.params.fileId]);
+        const onDisk = file && taskVis.findVisibleTask(query.get, req.user.id, file.task_id) ? taskVis.taskFileOnDisk(file, uploadsDir) : null;
+        if (!onDisk) return res.status(404).json({ error: 'File not found' });
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+        res.download(onDisk, String(file.original_name || file.filename || 'file'));
+    });
+
     // Quick toggle task status
     app.post('/api/tasks/:id/toggle', auth, adminOnly, (req, res) => {
         const task = taskVis.findVisibleTask(query.get, req.user.id, req.params.id);
@@ -18468,8 +18490,9 @@ By applying to this program, I provide the following consents:
                 );
             }
 
-            createUserNotification({
-                userId: teamMember?.user_id || null,
+            // No linked account -> no notification: a NULL user_id row shows in EVERY member's bell feed.
+            if (teamMember?.user_id) createUserNotification({
+                userId: teamMember.user_id,
                 userGroup: 'team',
                 category: 'task',
                 project: project || null,
@@ -18550,8 +18573,9 @@ By applying to this program, I provide the following consents:
                 }
 
                 // User-portal notification
-                createUserNotification({
-                    userId: teamMember?.user_id || null,
+                // No linked account -> no notification: a NULL user_id row shows in EVERY member's bell feed.
+                if (teamMember?.user_id) createUserNotification({
+                    userId: teamMember.user_id,
                     userGroup: 'team',
                     category: 'task',
                     project: sequence.project || null,
@@ -34415,7 +34439,7 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             // The UI passes the member's email; rows store users.id — try both keys.
             const u = query.get('SELECT id FROM users WHERE id = ? OR LOWER(email) = LOWER(?)', [userId, userId]);
             const k2 = u ? u.id : userId;
-            const msg = query.get(
+            let msg = query.get(
                 "SELECT * FROM direct_messages WHERE sender_id IN (?, ?) AND receiver_type = 'admin' ORDER BY created_at DESC LIMIT 1",
                 [userId, k2]
             ) || query.get(
@@ -34423,6 +34447,8 @@ At most 10 findings. summary = two or three plain sentences on what you found an
                 [userId, k2, userId, k2]
             );
             if (!msg) return res.status(404).json({ error: 'No message found for that member.' });
+            // An older task nudge held the task title: it never reaches the drafting prompt, for anyone.
+            msg = taskVis.redactTaskReminderDm(msg, null);
             // Make sure it carries a label even if the sweep has not reached it yet.
             if (!msg.ai_category) {
                 const cls = aiInboxClassify(msg.title, msg.content);
@@ -34466,7 +34492,8 @@ At most 10 findings. summary = two or three plain sentences on what you found an
                 ORDER BY dm.created_at DESC
                 LIMIT 200
             `);
-            res.json(messages);
+            // Older Action Center task nudges held the task title; only their sender/receiver read it.
+            res.json(messages.map((m) => taskVis.redactTaskReminderDm(m, req.user.id)));
         } catch (err) {
             console.error('Failed to get messages:', err);
             res.status(500).json({ error: 'Failed to get messages' });
@@ -34564,7 +34591,7 @@ At most 10 findings. summary = two or three plain sentences on what you found an
                 WHERE (sender_id IN (?, ?) OR receiver_id IN (?, ?))
                   AND (sender_type = 'admin' OR receiver_type = 'admin')
                 ORDER BY created_at ASC`,
-                [k1, k2, k1, k2]);
+                [k1, k2, k1, k2]).map((m) => taskVis.redactTaskReminderDm(m, req.user.id)); // older task nudges held the title
 
             // Mark this member's inbound messages as read.
             db.run(`UPDATE direct_messages SET is_read = 1
@@ -35157,7 +35184,8 @@ At most 10 findings. summary = two or three plain sentences on what you found an
     app.get('/api/admin/audit-log', auth, adminOnly, (req, res) => {
         try {
             const limit = Math.min(parseInt(req.query.limit) || 100, 500);
-            res.json(query.all('SELECT actor_email, action, detail, created_at FROM audit_log ORDER BY created_at DESC LIMIT ?', [limit]));
+            // Older task rows held a task title or an assignee's name; hide those details (read-time only).
+            res.json(query.all('SELECT actor_email, action, detail, created_at FROM audit_log ORDER BY created_at DESC LIMIT ?', [limit]).map(taskVis.redactAuditRow));
         } catch (e) { res.json([]); }
     });
 
@@ -36200,18 +36228,19 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             const search = req.query.search || '';
 
             const columns = query.all(`PRAGMA table_info("${tableName}")`);
-            let rows;
-            let total;
+            // Tables that carry task text keep only the rows the caller may see (creator + assignee
+            // rule), for the rows, the total and the search alike.
+            const scope = taskVis.techRowScope(tableName, 'tt', req.user);
+            const conds = scope ? [scope.sql] : [];
+            const params = scope ? [...scope.params] : [];
             if (search) {
-                const whereClauses = columns.map(c => `"${c.name}" LIKE ?`);
                 const searchParam = `%${search}%`;
-                const params = columns.map(() => searchParam);
-                total = query.get(`SELECT COUNT(*) as cnt FROM "${tableName}" WHERE ${whereClauses.join(' OR ')}`, params);
-                rows = query.all(`SELECT * FROM "${tableName}" WHERE ${whereClauses.join(' OR ')} LIMIT ? OFFSET ?`, [...params, limit, offset]);
-            } else {
-                total = query.get(`SELECT COUNT(*) as cnt FROM "${tableName}"`);
-                rows = query.all(`SELECT * FROM "${tableName}" LIMIT ? OFFSET ?`, [limit, offset]);
+                conds.push('(' + columns.map(c => `tt."${c.name}" LIKE ?`).join(' OR ') + ')');
+                columns.forEach(() => params.push(searchParam));
             }
+            const where = conds.length ? ' WHERE ' + conds.join(' AND ') : '';
+            const total = query.get(`SELECT COUNT(*) as cnt FROM "${tableName}" tt${where}`, params);
+            const rows = query.all(`SELECT tt.* FROM "${tableName}" tt${where} LIMIT ? OFFSET ?`, [...params, limit, offset]);
 
             res.json({
                 success: true,
@@ -36228,7 +36257,9 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         }
     });
 
-    // Download database file
+    // Download database file. This is the raw SQLite backup, so it holds EVERY task (project_tasks,
+    // task_files, nag_items, nudge messages, digest emails); the task-visibility rule cannot filter a
+    // file copy. It stays a superuser backup behind TECH_PASSWORD; whether to keep it is the owner's call.
     app.get('/api/admin/tech/db-download', auth, adminOnly, techAuth, (req, res) => {
         try {
             if (!fs.existsSync(DB_PATH)) return res.status(404).json({ error: 'Database file not found' });
@@ -36249,7 +36280,10 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             const tables = query.all("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
             const dump = {};
             tables.forEach(t => {
-                dump[t.name] = query.all(`SELECT * FROM "${t.name}"`);
+                const scope = taskVis.techRowScope(t.name, 'tt', req.user); // task text: the caller's own tasks only
+                dump[t.name] = scope
+                    ? query.all(`SELECT tt.* FROM "${t.name}" tt WHERE ${scope.sql}`, scope.params)
+                    : query.all(`SELECT * FROM "${t.name}"`);
             });
             res.setHeader('Content-Disposition', 'attachment; filename=medx_export_' + new Date().toISOString().slice(0, 10) + '.json');
             res.setHeader('Content-Type', 'application/json');
@@ -39278,8 +39312,13 @@ ${extraCss || ''}
         try {
             const r = runNagScan();
             const digest = generateTeamDigest();
-            logAudit(req, 'nag.scan', `found ${r.found}, +${r.created} new, ${r.resolved} auto-resolved, ${r.open} open`);
-            res.json({ success: true, ...r, digest });
+            // Counts are the caller's own view (same filter as /nag/items), so items about tasks the
+            // caller may not see are neither counted nor hinted at.
+            const mine = (it) => taskVis.nagItemVisible(query.get, req.user.id, it);
+            const open = query.all("SELECT kind, subject_id FROM nag_items WHERE status IN ('open','actioned')").filter(mine).length;
+            const scoped = { found: r.keys.found.filter(mine).length, created: r.keys.created.filter(mine).length, resolved: r.keys.resolved.filter(mine).length, open };
+            logAudit(req, 'nag.scan', 'manual scan'); // no counts: the audit feed goes to every admin
+            res.json({ success: true, ...scoped, digest });
         } catch (e) { console.error('[nag] run', e.message); res.status(500).json({ error: e.message }); }
     });
 
@@ -39344,17 +39383,28 @@ ${extraCss || ''}
             if (kind === 'nudge_assignee') {
                 const uid = payload.assignee_user_id;
                 if (!uid) return res.status(400).json({ error: 'That assignee has no linked portal account to notify.' });
-                const body = `Reminder: "${payload.task_title || item.title}"${payload.due_date ? ' (due ' + payload.due_date + ')' : ''} needs your attention.`;
+                const isTask = taskVis.TASK_NAG_KINDS.has(item.kind);
+                // A task nudge goes only to someone who may see the task: never to a subtask's own
+                // assignee who is not on the parent task, nor to a person the task has moved away from.
+                if (isTask && !taskVis.findVisibleTask(query.get, uid, item.subject_id)) {
+                    return res.status(400).json({ error: 'That person is not on this task, so they cannot be nudged about it. Run the check again.' });
+                }
+                // Admin-sent direct messages show in the shared admin inbox (every admin reads it), so a
+                // task nudge carries no task text. Sponsor deliverables are not private and keep theirs.
+                const title = isTask ? taskVis.TASK_REMINDER_TITLE : 'Deliverable reminder';
+                const body = isTask ? taskVis.TASK_REMINDER_BODY
+                    : `Reminder: "${payload.task_title || item.title}"${payload.due_date ? ' (due ' + payload.due_date + ')' : ''} needs your attention.`;
                 db.run(`INSERT INTO direct_messages (id, sender_id, receiver_id, sender_type, receiver_type, title, content, is_read, created_at)
                         VALUES (?, ?, ?, 'admin', 'user', ?, ?, 0, datetime('now'))`,
-                    [require('crypto').randomUUID(), req.user?.id || 'admin', uid, 'Task reminder', body]);
+                    [require('crypto').randomUUID(), req.user?.id || 'admin', uid, title, body]);
                 try {
                     db.run("INSERT INTO push_outbox (id, title, body, url, target_email, created_by, created_at) VALUES (?,?,?,?,?,?,datetime('now'))",
-                        [require('crypto').randomUUID(), 'Task reminder', body, '/messages', payload.assignee_email || null, req.user?.email || 'admin']);
+                        [require('crypto').randomUUID(), title, body, '/messages', payload.assignee_email || null, req.user?.email || 'admin']);
                 } catch (e) { /* push is best-effort; the direct message is the guaranteed channel */ }
                 db.run("UPDATE nag_items SET status='actioned' WHERE id = ?", [item.id]);
                 saveDb();
-                logAudit(req, 'nag.act', `${item.kind} -> assignee nudged (${payload.who || uid})`);
+                // The audit feed goes to every admin: for a task item, the item id only (no kind, no name).
+                logAudit(req, 'nag.act', isTask ? `${item.id} -> nudge sent` : `${item.kind} -> assignee nudged (${payload.who || uid})`);
                 return res.json({ success: true, action: 'nudge_sent' });
             }
 

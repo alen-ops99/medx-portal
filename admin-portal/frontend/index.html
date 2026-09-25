@@ -20922,12 +20922,13 @@ President, Med&amp;X</textarea>
                 // Get pinned task IDs
                 const pinnedTaskIds = this.pinnedItems.filter(p => p.item_type === 'task').map(p => p.item_id);
 
-                // Filter function: only show tasks assigned to current user or unassigned.
-                // A filtered view (overdue/urgent) shows EVERYONE's tasks — the pill count it
-                // comes from counts all assignees, so the list must match.
+                // The server returns only tasks the caller created or is assigned to (owner rule,
+                // 25 Sept 2026: a task is private to the people on it). The unfiltered view narrows
+                // that to "assigned to me or unassigned"; a filtered view (overdue/urgent) shows every
+                // task the caller can see, which is what the pill count it comes from counts.
                 const isMyTask = (task) => {
                     if (filter) return true;
-                    if (!task.assigned_to) return true; // Unassigned tasks visible to all
+                    if (!task.assigned_to) return true; // unassigned = one the caller created (server-scoped)
                     return this.isAssignedToMe(task.assigned_to);
                 };
 
@@ -22037,6 +22038,7 @@ President, Med&amp;X</textarea>
                                 <div style="display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--bg-secondary); border-radius: 4px; margin-bottom: 4px;">
                                     <i class="fas fa-file" style="color: var(--text-muted);"></i>
                                     <span style="flex: 1; font-size: 13px;">${escapeHtml(f.original_name || f.filename)}</span>
+                                    <button class="btn btn-secondary" style="padding: 2px 6px;" title="Download" data-name="${escapeHtml(f.original_name || f.filename || 'file')}" onclick="App.downloadFile('/api/tasks/files/${f.id}/download', this.dataset.name)"><i class="fas fa-download"></i></button>
                                     <button class="btn btn-secondary" style="padding: 2px 6px;" onclick="App.removeTaskFile('${f.id}')"><i class="fas fa-times"></i></button>
                                 </div>
                             `).join('');

@@ -16,6 +16,7 @@ services:
     buildFilter:
       paths:
         - user-portal/**
+        - shared/**   # both servers require ../../shared/* (db, ai, ca-merge, wallet, task-visibility)
     envVars:
       - key: PORT
         value: 3000
@@ -93,6 +94,7 @@ services:
     buildFilter:
       paths:
         - admin-portal/**
+        - shared/**   # both servers require ../../shared/* (db, ai, ca-merge, wallet, task-visibility)
     envVars:
       - key: PORT
         value: 3001
