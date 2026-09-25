@@ -74,14 +74,26 @@ const TASK_REMINDER_TITLE = 'Task reminder';
 const TASK_REMINDER_BODY = 'A task assigned to you needs your attention. Open your tasks in the Med&X portal to see which one.';
 
 /**
- * Nudges sent before 25 Sept 2026 stored the task title and due date in the message. Anyone but
- * the sender and the receiver reads the neutral text instead. Read-time only: stored rows are
- * never rewritten here (redacting them in the database is the owner's call).
+ * A task nudge, even a neutral one, says "this person was nudged about a task", so in the admin
+ * readers only its sender and receiver see the row at all:
+ *   userId given, a party   -> the row as stored
+ *   userId given, not party -> null (drop it: `.map(...).filter(Boolean)`)
+ *   userId null             -> the row with the neutral body (for a prompt: never task text)
+ * Nudges sent before 25 Sept 2026 stored the task title and due date in the message; this is
+ * read-time only, stored rows are never rewritten here (redacting them is the owner's call).
+ * Every other message passes through unchanged.
  */
 function redactTaskReminderDm(row, userId) {
     if (!row || row.sender_type !== 'admin' || row.title !== TASK_REMINDER_TITLE) return row;
-    if (userId && (row.sender_id === userId || row.receiver_id === userId)) return row;
-    return { ...row, content: TASK_REMINDER_BODY };
+    if (userId == null || userId === '') return { ...row, content: TASK_REMINDER_BODY };
+    return row.sender_id === userId || row.receiver_id === userId ? row : null;
+}
+
+/** SQL (on the direct_messages alias) that drops task nudges the user is not a party to. */
+function taskReminderDmScope(alias, userId) {
+    const uid = userId == null || userId === '' ? NO_USER : userId;
+    return { sql: `NOT (${alias}.sender_type = 'admin' AND ${alias}.title = ? AND COALESCE(${alias}.sender_id,'') <> ? AND COALESCE(${alias}.receiver_id,'') <> ?)`,
+        params: [TASK_REMINDER_TITLE, uid, uid] };
 }
 
 const ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -125,8 +137,7 @@ function techRowScope(table, alias, user) {
             return { sql: `(${a}.kind NOT IN (${taskKinds}) OR ${v.sql})`, params: v.params };
         }
         case 'direct_messages':
-            return { sql: `NOT (${a}.sender_type = 'admin' AND ${a}.title = ? AND COALESCE(${a}.sender_id,'') <> ? AND COALESCE(${a}.receiver_id,'') <> ?)`,
-                params: [TASK_REMINDER_TITLE, uid, uid] };
+            return taskReminderDmScope(a, uid);
         case 'push_outbox':
             return { sql: `NOT (${a}.title = ? AND LOWER(COALESCE(${a}.target_email,'')) <> ?)`, params: [TASK_REMINDER_TITLE, email] };
         case 'scheduled_emails': // the daily digest lists the recipient's own task titles
@@ -167,6 +178,6 @@ function taskFileOnDisk(file, uploadsDir) {
 module.exports = {
     TASK_404, TASK_NAG_KINDS, TASK_REMINDER_TITLE, TASK_REMINDER_BODY,
     visibleTaskSql, findVisibleTask, nagItemVisible,
-    redactTaskReminderDm, redactAuditRow, techRowScope,
+    redactTaskReminderDm, taskReminderDmScope, redactAuditRow, techRowScope,
     isTaskUploadPath, taskFileOnDisk
 };

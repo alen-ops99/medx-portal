@@ -104,7 +104,8 @@ const listFiles = (dir) => { try { return fs.readdirSync(dir).sort(); } catch (e
     try {
         // ---- unit: the side-channel helpers ----
         const oldNudge = { sender_type: 'admin', title: 'Task reminder', sender_id: 'u-a', receiver_id: 'u-b', content: 'Reminder: "' + SECRET + 'x" (due 2026-09-24) needs your attention.' };
-        check('unit: an older task nudge reads neutral to a third party', taskVis.redactTaskReminderDm(oldNudge, 'u-c').content === taskVis.TASK_REMINDER_BODY);
+        check('unit: a task nudge is dropped for a third party', taskVis.redactTaskReminderDm(oldNudge, 'u-c') === null);
+        check('unit: any other message passes through', taskVis.redactTaskReminderDm({ sender_type: 'admin', title: 'Hello', content: 'x' }, 'u-c').content === 'x');
         check('unit: its sender and receiver still read it', taskVis.redactTaskReminderDm(oldNudge, 'u-a').content === oldNudge.content && taskVis.redactTaskReminderDm(oldNudge, 'u-b').content === oldNudge.content);
         check('unit: with no caller (the drafting prompt) it is always neutral', taskVis.redactTaskReminderDm(oldNudge, null).content === taskVis.TASK_REMINDER_BODY);
         check('unit: new nudge body carries no task text', !/PERSONAL|due \d/.test(taskVis.TASK_REMINDER_BODY));
@@ -280,11 +281,14 @@ const listFiles = (dir) => { try { return fs.readdirSync(dir).sort(); } catch (e
         r = await api(USER, '/api/messages', { token: B.token });
         const bNudge = (Array.isArray(r.d) ? r.d : []).find(m => m.title === 'Task reminder');
         check('B receives the nudge, with no title or due date in it', bNudge && bNudge.content === taskVis.TASK_REMINDER_BODY, JSON.stringify(bNudge));
+        const nudgeRows = (x) => (Array.isArray(x.d) ? x.d : []).filter(m => m.title === 'Task reminder');
+        r = await api(ADMIN, '/api/admin/messages', { token: A.token });
+        check('A (sender) sees her nudge to B in the admin inbox', nudgeRows(r).length === 1, nudgeRows(r).length);
         for (const P of [C, F]) {
             r = await api(ADMIN, '/api/admin/messages', { token: P.token });
-            check(`${P.name}: shared admin inbox shows no task text`, r.status === 200 && !r.text.includes(SECRET) && !r.text.includes('(due '), r.status);
+            check(`${P.name}: shared admin inbox shows no task text and no nudge row`, r.status === 200 && !r.text.includes(SECRET) && !r.text.includes('(due ') && nudgeRows(r).length === 0, r.status + ' rows ' + nudgeRows(r).length);
             r = await api(ADMIN, '/api/admin/messages/' + encodeURIComponent(emailOf.b), { token: P.token });
-            check(`${P.name}: B's admin thread shows no task text`, r.status === 200 && !r.text.includes(SECRET) && !r.text.includes('(due '), r.status);
+            check(`${P.name}: B's admin thread shows no task text and no nudge row`, r.status === 200 && !r.text.includes(SECRET) && !r.text.includes('(due ') && nudgeRows(r).length === 0, r.status + ' rows ' + nudgeRows(r).length);
             const au = await auditOf(P);
             check(`${P.name}: audit feed has no task title and names nobody on a task nudge`, au.status === 200 && !au.text.includes(SECRET) && !au.rows.some(a => a.action === 'nag.act' && /Bob|task_/.test(a.detail || '')), JSON.stringify(au.rows.filter(a => a.action === 'nag.act')));
             check(`${P.name}: audit feed carries no global scan counts`, !au.rows.some(a => a.action === 'nag.scan' && /open/.test(a.detail || '')));
@@ -322,14 +326,18 @@ const listFiles = (dir) => { try { return fs.readdirSync(dir).sort(); } catch (e
         check('legacy rows written', !!(aId && bId));
         for (const P of [C, F]) {
             r = await api(ADMIN, '/api/admin/messages', { token: P.token });
-            check(`${P.name}: older nudge text is hidden in the admin inbox`, r.status === 200 && !r.text.includes(SECRET));
+            check(`${P.name}: older nudge is hidden in the admin inbox`, r.status === 200 && !r.text.includes(SECRET) && nudgeRows(r).length === 0);
             r = await api(ADMIN, '/api/admin/messages/' + encodeURIComponent(emailOf.b), { token: P.token });
-            check(`${P.name}: older nudge text is hidden in B's thread`, r.status === 200 && !r.text.includes(SECRET));
+            check(`${P.name}: older nudge is hidden in B's thread`, r.status === 200 && !r.text.includes(SECRET) && nudgeRows(r).length === 0);
             const au = await auditOf(P);
             check(`${P.name}: older task titles / nudge names are hidden in the audit feed`, !au.text.includes(SECRET) && !au.rows.some(a => a.action === 'nag.act' && /Bob/.test(a.detail || '')));
         }
         r = await api(ADMIN, '/api/admin/messages', { token: A.token });
         check('A (the sender) still reads the older nudge', r.text.includes(SECRET + 'legacy nudge'));
+        r = await api(ADMIN, '/api/admin/messages/' + encodeURIComponent(emailOf.b) + '/draft-reply', { method: 'POST', token: C.token });
+        check('C: a reply draft for B never picks up a nudge C is not party to', r.status === 404 && !r.text.includes(SECRET), r.status + ' ' + r.text.slice(0, 120));
+        r = await api(ADMIN, '/api/admin/messages/' + encodeURIComponent(emailOf.b) + '/draft-reply', { method: 'POST', token: A.token });
+        check('A: the reply draft works on her own nudge and carries no task text', r.status === 200 && !r.text.includes(SECRET), r.status + ' ' + r.text.slice(0, 120));
 
         // Tech DB tools: the task tables show only the caller's own tasks.
         const TECH = { 'x-tech-password': TECH_PASS };

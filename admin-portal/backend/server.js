@@ -12624,7 +12624,7 @@ async function initializeApp() {
                 if (u) {
                     const msgs = query.all(`SELECT title, content, sender_id, receiver_id, sender_type, receiver_type, is_read, created_at
                         FROM direct_messages WHERE sender_id = ? OR receiver_id = ? ORDER BY created_at DESC LIMIT 50`, [u.id, u.id])
-                        .map((m) => taskVis.redactTaskReminderDm(m, req.user.id)); // older task nudges held the task title
+                        .map((m) => taskVis.redactTaskReminderDm(m, req.user.id)).filter(Boolean); // task nudges: sender/receiver only
                     msgs.forEach(m => {
                         const outbound = m.sender_type === 'admin';
                         push('message', outbound ? 'Message sent' : 'Message received',
@@ -34439,15 +34439,16 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             // The UI passes the member's email; rows store users.id — try both keys.
             const u = query.get('SELECT id FROM users WHERE id = ? OR LOWER(email) = LOWER(?)', [userId, userId]);
             const k2 = u ? u.id : userId;
+            const hideNudge = taskVis.taskReminderDmScope('d', req.user.id); // task nudges: sender/receiver only
             let msg = query.get(
                 "SELECT * FROM direct_messages WHERE sender_id IN (?, ?) AND receiver_type = 'admin' ORDER BY created_at DESC LIMIT 1",
                 [userId, k2]
             ) || query.get(
-                "SELECT * FROM direct_messages WHERE (sender_id IN (?, ?) OR receiver_id IN (?, ?)) ORDER BY created_at DESC LIMIT 1",
-                [userId, k2, userId, k2]
+                `SELECT * FROM direct_messages d WHERE (d.sender_id IN (?, ?) OR d.receiver_id IN (?, ?)) AND ${hideNudge.sql} ORDER BY d.created_at DESC LIMIT 1`,
+                [userId, k2, userId, k2, ...hideNudge.params]
             );
             if (!msg) return res.status(404).json({ error: 'No message found for that member.' });
-            // An older task nudge held the task title: it never reaches the drafting prompt, for anyone.
+            // Even the caller's own task nudge reaches the drafting prompt only with the neutral text.
             msg = taskVis.redactTaskReminderDm(msg, null);
             // Make sure it carries a label even if the sweep has not reached it yet.
             if (!msg.ai_category) {
@@ -34492,8 +34493,8 @@ At most 10 findings. summary = two or three plain sentences on what you found an
                 ORDER BY dm.created_at DESC
                 LIMIT 200
             `);
-            // Older Action Center task nudges held the task title; only their sender/receiver read it.
-            res.json(messages.map((m) => taskVis.redactTaskReminderDm(m, req.user.id)));
+            // Action Center task nudges (older ones hold the task title) are seen only by their sender/receiver.
+            res.json(messages.map((m) => taskVis.redactTaskReminderDm(m, req.user.id)).filter(Boolean));
         } catch (err) {
             console.error('Failed to get messages:', err);
             res.status(500).json({ error: 'Failed to get messages' });
@@ -34591,7 +34592,7 @@ At most 10 findings. summary = two or three plain sentences on what you found an
                 WHERE (sender_id IN (?, ?) OR receiver_id IN (?, ?))
                   AND (sender_type = 'admin' OR receiver_type = 'admin')
                 ORDER BY created_at ASC`,
-                [k1, k2, k1, k2]).map((m) => taskVis.redactTaskReminderDm(m, req.user.id)); // older task nudges held the title
+                [k1, k2, k1, k2]).map((m) => taskVis.redactTaskReminderDm(m, req.user.id)).filter(Boolean); // task nudges: sender/receiver only
 
             // Mark this member's inbound messages as read.
             db.run(`UPDATE direct_messages SET is_read = 1
