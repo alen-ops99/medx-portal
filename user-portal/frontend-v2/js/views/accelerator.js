@@ -79,7 +79,7 @@ export const COPY = {
     note: 'Final acceptance is subject to the host institution’s approval.'
   },
   application: {
-    n: '04', title: 'Your application', resultAvail: 'RESULT AVAILABLE',
+    title: 'Your application', resultAvail: 'RESULT AVAILABLE',   // no n: the page counter (.mx-p--num) numbers this head in order
     noneLine: () => 'No application yet.',
     noneOpenLine: 'No application yet · applications are open.',
     closedLine: 'Applications for this cycle have closed.',
@@ -695,8 +695,9 @@ function resultsBlock() {
 }
 function blockApplication() {
   return `
-  <!-- dc: Accelerator.dc.html › "04 · YOUR APPLICATION" -->
-  <section class="mx-sec" data-block="application-sec">
+  <!-- dc: Accelerator.dc.html › "YOUR APPLICATION" (the head sits directly in the section so the page counter numbers it) -->
+  <section class="mx-sec" id="acc-application" data-block="application-sec">
+    ${sectionHead('', COPY.application.title)}
     <div data-block="application">${appSectionInner()}</div>
     <div class="mx-list mx-ax-followrow">
       <div class="mx-row" data-block="follow">${icon('bell')}<span class="mx-row-l">${COPY.hero.followTitle}<span class="mx-row-s" data-role="follow-label">${COPY.hero.followSub(st.follow)}</span></span><span data-act="tgFollow" role="switch" aria-checked="${st.follow}" aria-label="Get updates from the Accelerator" class="mx-switch"><span></span></span></div>
@@ -1362,7 +1363,6 @@ function appSectionInner() {
   // fallback clock in openState()) and stays afterwards, which is when AX26-XXXX codes exist.
   const lookupLive = openState() !== 'before';
   return `
-        <div id="acc-application">${sectionHead(COPY.application.n, COPY.application.title)}</div>
         ${applicationCard()}
         ${lookupLive ? `
         <div class="mx-ax-lookup">
