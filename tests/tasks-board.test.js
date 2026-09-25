@@ -1214,6 +1214,10 @@ const sys = id => q.all(`SELECT body, kind, author_name FROM v2_task_comments WH
         assert.strictEqual(x.status, 200); assert.strictEqual(tags(id).length, 12);
         x = await put(as.laura, id, { tag: ['tm-dl-10'] });
         assert.strictEqual(x.status, 400); assert.match(x.body.error, /at most 12/); assert.strictEqual(tags(id).length, 12);
+        // …refused before any team row is made for an admin tagged as user:<id>
+        x = await put(as.laura, id, { tag: ['user:u-fran'] });
+        assert.strictEqual(x.status, 400); assert.match(x.body.error, /at most 12/);
+        assert.strictEqual(q.get(`SELECT COUNT(*) AS c FROM team_members WHERE user_id = 'u-fran'`).c, 0, 'no team row made for Fran by a refused request');
         x = await put(as.laura, id, { untag: ['tm-dl-0'], tag: ['tm-dl-10'] });
         assert.strictEqual(x.status, 200, 'one off and one on stays at 12'); assert.ok(tags(id).includes('tm-dl-10') && !tags(id).includes('tm-dl-0'));
         // Ema (not on it, not its creator) tagging herself on gets exactly the missing answer
@@ -1288,6 +1292,7 @@ const sys = id => q.all(`SELECT body, kind, author_name FROM v2_task_comments WH
         assert.ok(/assignees: st\.addPeople/.test(src), 'the add bar sends the whole set (a new task)');
         assert.ok(/untag\.length \? \{ untag \} : \{ tag \}/.test(src) && !/\{ assignees: ids \}/.test(src), 'the drawer sends a change (tag / untag), never the whole set it last loaded');
         assert.ok(/savePeople\(\{ untag: \[el\.dataset\.id\] \}/.test(src) && /savePeople\(\{ tag: \[v\] \}/.test(src), 'the chip × untags one person, the picker tags one');
+        assert.ok(/COPY\.confirm\.handOff\(keep\)\)\)\)\) \{ st\.peopleBusy = false; if \(st\.open\) rerenderDrawer\(\); return; \}/.test(src), 'KEEP IT on the hand-off question frees the × and the picker at once');
         assert.ok(/if \(!st\.open \|\| !st\.detail \|\| st\.peopleBusy\) return;/.test(src) && /markPeopleBusy\(\);/.test(src) && /finally \{ if \(st\) st\.peopleBusy = false; \}/.test(src), 'one people save at a time; the × and the picker wait for it');
         assert.ok(/aria-label="\$\{esc\(c\.remove\(n\)\)\}"\$\{off\}>/.test(src) && /aria-label="\$\{esc\(c\.pick\)\}"\$\{off\}>/.test(src), 'the × and the picker render disabled while busy');
         assert.ok(/loadDetail\(id, \{ quiet: true \}\)/.test(src) && /poll = setInterval\(async \(\) => \{[\s\S]{0,400}rerenderDrawer\(\)/.test(src), 'the 60 s poll reloads the open drawer too');

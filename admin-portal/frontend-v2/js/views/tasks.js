@@ -534,7 +534,8 @@ async function savePeople(delta, what) {
     if (leaving.some(isMePerson) && t.created_by !== me().id) {
       const stay = cur.filter(p => !untag.includes(p.id));
       const keep = seers([{ user_id: t.created_by, first: t.creator_first }].concat(stay));
-      if (!(await ui.confirm(Object.assign({ eyebrow: 'PLEASE CONFIRM' }, COPY.confirm.handOff(keep))))) return;
+      // KEEP IT: the × and the picker answer again at once (a return here would skip the redraw below)
+      if (!(await ui.confirm(Object.assign({ eyebrow: 'PLEASE CONFIRM' }, COPY.confirm.handOff(keep))))) { st.peopleBusy = false; if (st.open) rerenderDrawer(); return; }
     }
     const r = await api.put('/api/v2/tasks/' + encodeURIComponent(t.id), untag.length ? { untag } : { tag });
     if (r && r.handed_off) {

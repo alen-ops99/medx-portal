@@ -282,9 +282,16 @@ module.exports = function mountTasks(app, ctx) {
         const isOff = m => offRows.has(m) || offAccts.has(acctOf(m));
         const next = curPeople.filter(m => !isOff(m));
         const toTag = tagList.filter(x => { const s = String(x == null ? '' : x).trim(); return s && !offRows.has(s) && !(s.startsWith('user:') && offAccts.has(s.slice(5))); });
+        const accts = new Set(next.map(acctOf).filter(Boolean));
+        // the cap is checked before any team row is made for a 'user:<id>' (as a list of assignees is)
+        const adding = new Set();
+        for (const x of toTag) {
+            const s = String(x).trim(); const a = s.startsWith('user:') ? s.slice(5) : acctOf(s);
+            if (a ? !accts.has(a) : !next.includes(s)) adding.add(a ? 'acct:' + a : 'row:' + s);
+        }
+        if (next.length + adding.size > taskVis.MAX_TASK_PEOPLE) return tooMany;
         const who = toTag.length ? resolveAssignees(toTag) : { ids: [] };
         if (who.error) return who;
-        const accts = new Set(next.map(acctOf).filter(Boolean));
         for (const m of who.ids) {
             if (next.includes(m) || isOff(m)) continue;
             const a = acctOf(m); if (a && accts.has(a)) continue;
