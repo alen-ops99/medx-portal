@@ -15,6 +15,7 @@ const { createDatabase } = require('../../shared/db');
 const { aiDraft } = require('../../shared/ai');
 const caMerge = require('../../shared/ca-merge');
 const wallet = require('../../shared/wallet'); // Google Wallet event-ticket passes (env-gated; no-op until configured)
+const taskVis = require('../../shared/task-visibility'); // a task is seen ONLY by its creator + assignee (owner rule 2026-09-25)
 // (email goes out exclusively through the Brevo HTTP API — see sendEmail below)
 const XLSX = require('xlsx');
 const rateLimit = require('express-rate-limit');
@@ -1915,13 +1916,16 @@ function generateTeamDigest() {
             const c = query.get("SELECT COUNT(*) AS c FROM scheduled_emails WHERE batch_id = ?", [existing.batch_id])?.c || 0;
             return { batch_id: existing.batch_id, recipients: c, reused: true };
         }
-        const members = query.all(`SELECT tm.id AS tm_id, tm.name, u.email
+        const members = query.all(`SELECT tm.id AS tm_id, tm.name, u.email, u.id AS user_id
             FROM team_members tm JOIN users u ON tm.user_id = u.id
             WHERE u.email IS NOT NULL AND u.email != ''`);
         const batchId = 'nagdigest-' + require('crypto').randomUUID();
         let recipients = 0;
         for (const m of members) {
-            const items = query.all("SELECT title FROM nag_items WHERE assignee = ? AND status IN ('open','actioned') ORDER BY created_at DESC", [m.tm_id]);
+            // A task item is listed only while the recipient may still see that task (a reassigned
+            // task leaves the old assignee's digest even before the next scan refreshes nag_items).
+            const items = query.all("SELECT title, kind, subject_id FROM nag_items WHERE assignee = ? AND status IN ('open','actioned') ORDER BY created_at DESC", [m.tm_id])
+                .filter((it) => taskVis.nagItemVisible(query.get, m.user_id, it));
             if (!items.length) continue;
             const lis = items.map((it) => `<li style="margin:6px 0;">${nagEscape(it.title)}</li>`).join('');
             const subject = `Your Med&X action items (${items.length})`;
@@ -12202,9 +12206,10 @@ async function initializeApp() {
         const project = req.query.project;
         const base = `SELECT pt.*, tm.name AS assignee_name FROM project_tasks pt LEFT JOIN team_members tm ON pt.assigned_to = tm.id`;
         const tail = ` AND (pt.parent_id IS NULL OR pt.parent_id = '') ORDER BY (pt.status='done'), (pt.due_date IS NULL), pt.due_date, pt.created_at`;
+        const vis = taskVis.visibleTaskSql('pt', req.user.id); // creator + assignee only
         const rows = project
-            ? query.all(base + ` WHERE pt.project = ?` + tail, [project])
-            : query.all(base + ` WHERE 1=1` + tail);
+            ? query.all(base + ` WHERE pt.project = ? AND ${vis.sql}` + tail, [project, ...vis.params])
+            : query.all(base + ` WHERE ${vis.sql}` + tail, vis.params);
         res.json(rows);
     });
 
@@ -12222,8 +12227,8 @@ async function initializeApp() {
     });
 
     app.put('/api/admin/tasks/:id', auth, adminOnly, (req, res) => {
-        const existing = query.get('SELECT * FROM project_tasks WHERE id = ?', [req.params.id]);
-        if (!existing) return res.status(404).json({ error: 'Task not found' });
+        const existing = taskVis.findVisibleTask(query.get, req.user.id, req.params.id);
+        if (!existing) return res.status(404).json({ error: taskVis.TASK_404 });
         const b = req.body || {};
         let status = existing.status;
         if (b.done !== undefined) status = b.done ? 'done' : 'todo';
@@ -12240,8 +12245,8 @@ async function initializeApp() {
     });
 
     app.delete('/api/admin/tasks/:id', auth, adminOnly, (req, res) => {
-        const existing = query.get('SELECT id FROM project_tasks WHERE id = ?', [req.params.id]);
-        if (!existing) return res.status(404).json({ error: 'Task not found' });
+        const existing = taskVis.findVisibleTask(query.get, req.user.id, req.params.id);
+        if (!existing) return res.status(404).json({ error: taskVis.TASK_404 });
         db.run('DELETE FROM project_tasks WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });
@@ -18077,12 +18082,13 @@ By applying to this program, I provide the following consents:
     app.get('/api/dashboard/summary', auth, adminOnly, (req, res) => {
         const conf = query.get("SELECT id FROM conferences WHERE slug = 'plexus-2026'");
         const program = query.get('SELECT id FROM accelerator_programs WHERE is_active = 1');
+        const tv = taskVis.visibleTaskSql('pt', req.user.id); // task counts = the caller's visible tasks only
 
         const summary = {
             plexus: {
                 registrations: query.get("SELECT COUNT(*) as c FROM croatians_abroad_registrations WHERE conference_status IN ('pre-registered','confirmed','registered')")?.c || 0,   // Plexus conference = the /plexus form table, not the legacy paid-registrations table
                 speakers: query.get('SELECT COUNT(*) as c FROM speakers WHERE conference_id = ?', [conf?.id])?.c || 0,
-                pending_tasks: query.get("SELECT COUNT(*) as c FROM project_tasks WHERE project = 'plexus' AND status != 'done'")?.c || 0
+                pending_tasks: query.get(`SELECT COUNT(*) as c FROM project_tasks pt WHERE pt.project = 'plexus' AND pt.status != 'done' AND ${tv.sql}`, tv.params)?.c || 0
             },
             accelerator: {
                 applications: query.get('SELECT COUNT(*) as c FROM accelerator_applications WHERE program_id = ?', [program?.id])?.c || 0,
@@ -18098,8 +18104,8 @@ By applying to this program, I provide the following consents:
                 events: query.get('SELECT COUNT(*) as c FROM bridges_events')?.c || 0
             },
             tasks: {
-                total: query.get("SELECT COUNT(*) as c FROM project_tasks WHERE status != 'done'")?.c || 0,
-                urgent: query.get("SELECT COUNT(*) as c FROM project_tasks WHERE status != 'done' AND priority = 'high'")?.c || 0
+                total: query.get(`SELECT COUNT(*) as c FROM project_tasks pt WHERE pt.status != 'done' AND ${tv.sql}`, tv.params)?.c || 0,
+                urgent: query.get(`SELECT COUNT(*) as c FROM project_tasks pt WHERE pt.status != 'done' AND pt.priority = 'high' AND ${tv.sql}`, tv.params)?.c || 0
             }
         };
 
@@ -18193,8 +18199,10 @@ By applying to this program, I provide the following consents:
         // Tasks WITHOUT a due date must never count as overdue: in SQLite '' < date('now')
         // is true, so the old predicate inflated the chip with every no-due-date task.
         // Same predicate as the advisor pack query at ~41238.
-        const overdueTasks = query.get("SELECT COUNT(*) as c FROM project_tasks WHERE status != 'done' AND due_date IS NOT NULL AND TRIM(due_date) <> '' AND date(due_date) < date('now')")?.c || 0;
-        const urgentTasks = query.get("SELECT COUNT(*) as c FROM project_tasks WHERE status != 'done' AND priority = 'high'")?.c || 0;
+        // Counted over the caller's VISIBLE tasks only (creator + assignee), the same set the list opens.
+        const tv = taskVis.visibleTaskSql('pt', req.user.id);
+        const overdueTasks = query.get(`SELECT COUNT(*) as c FROM project_tasks pt WHERE pt.status != 'done' AND pt.due_date IS NOT NULL AND TRIM(pt.due_date) <> '' AND date(pt.due_date) < date('now') AND ${tv.sql}`, tv.params)?.c || 0;
+        const urgentTasks = query.get(`SELECT COUNT(*) as c FROM project_tasks pt WHERE pt.status != 'done' AND pt.priority = 'high' AND ${tv.sql}`, tv.params)?.c || 0;
 
         // Content freshness: items created in last 7 days
         const recentRegistrations = query.get("SELECT COUNT(*) as c FROM registrations WHERE created_at > date('now', '-7 days')")?.c || 0;
@@ -18266,9 +18274,11 @@ By applying to this program, I provide the following consents:
 
     // Get tasks for a project
     app.get('/api/tasks/:project', auth, adminOnly, (req, res) => {
-        // Get parent tasks (no parent_id)
-        const tasks = query.all("SELECT * FROM project_tasks WHERE project = ? AND (parent_id IS NULL OR parent_id = '') ORDER BY sort_order, created_at DESC",
-            [req.params.project]);
+        // Get parent tasks (no parent_id) the caller may see (creator + assignee only); the
+        // subtasks and files below hang off these visible parents, so they follow them.
+        const vis = taskVis.visibleTaskSql('pt', req.user.id);
+        const tasks = query.all(`SELECT pt.* FROM project_tasks pt WHERE pt.project = ? AND (pt.parent_id IS NULL OR pt.parent_id = '') AND ${vis.sql} ORDER BY pt.sort_order, pt.created_at DESC`,
+            [req.params.project, ...vis.params]);
         // Attach files and subtasks to each task
         tasks.forEach(task => {
             task.files = query.all('SELECT id, filename, original_name, file_size FROM task_files WHERE task_id = ?', [task.id]);
@@ -18282,7 +18292,8 @@ By applying to this program, I provide the following consents:
 
     // Get all tasks summary
     app.get('/api/tasks', auth, adminOnly, (req, res) => {
-        const tasks = query.all('SELECT * FROM project_tasks ORDER BY due_date, priority DESC');
+        const vis = taskVis.visibleTaskSql('pt', req.user.id); // creator + assignee only
+        const tasks = query.all(`SELECT pt.* FROM project_tasks pt WHERE ${vis.sql} ORDER BY pt.due_date, pt.priority DESC`, vis.params);
         const summary = {
             total: tasks.length,
             todo: tasks.filter(t => t.status === 'todo').length,
@@ -18300,16 +18311,24 @@ By applying to this program, I provide the following consents:
     // Create task
     app.post('/api/tasks', auth, adminOnly, (req, res) => {
         const { project, title, description, assigned_to, priority, due_date, parent_id } = req.body;
+        let parentId = parent_id || null;
+        if (parentId) {
+            // A subtask can only hang off a task the caller may see, and it follows the TOP-level task.
+            const parent = taskVis.findVisibleTask(query.get, req.user.id, parentId);
+            if (!parent) return res.status(404).json({ error: taskVis.TASK_404 });
+            if (parent.parent_id) parentId = parent.parent_id;
+        }
         const id = uuidv4();
         db.run(`INSERT INTO project_tasks (id, project, title, description, assigned_to, priority, due_date, created_by, parent_id)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [id, project || 'general', title, description, assigned_to || null, priority || 'medium', due_date, req.user.id, parent_id || null]);
+            [id, project || 'general', title, description, assigned_to || null, priority || 'medium', due_date, req.user.id, parentId]);
         saveDb();
         res.json({ success: true, id, task_id: id });
     });
 
     // Update task
     app.put('/api/tasks/:id', auth, adminOnly, (req, res) => {
+        if (!taskVis.findVisibleTask(query.get, req.user.id, req.params.id)) return res.status(404).json({ error: taskVis.TASK_404 });
         const { title, description, assigned_to, priority, status, due_date, project } = req.body;
         db.run(`UPDATE project_tasks SET
             title = COALESCE(?, title),
@@ -18331,8 +18350,11 @@ By applying to this program, I provide the following consents:
         if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
         const fileId = uuidv4();
-        const task = query.get('SELECT id FROM project_tasks WHERE id = ?', [req.params.id]);
-        if (!task) return res.status(404).json({ error: 'Task not found' });
+        const task = taskVis.findVisibleTask(query.get, req.user.id, req.params.id);
+        if (!task) {
+            try { fs.unlinkSync(req.file.path); } catch (e) { /* multer temp file already gone */ }
+            return res.status(404).json({ error: taskVis.TASK_404 });
+        }
 
         // Move file to tasks folder
         const newPath = path.join(uploadsDir, 'tasks', req.file.filename);
@@ -18352,7 +18374,8 @@ By applying to this program, I provide the following consents:
     // Delete task file
     app.delete('/api/tasks/files/:fileId', auth, adminOnly, (req, res) => {
         const file = query.get('SELECT * FROM task_files WHERE id = ?', [req.params.fileId]);
-        if (!file) return res.status(404).json({ error: 'File not found' });
+        // A file on a task the caller may not see answers exactly like a missing file.
+        if (!file || !taskVis.findVisibleTask(query.get, req.user.id, file.task_id)) return res.status(404).json({ error: 'File not found' });
 
         // Delete physical file
         if (file.file_path && fs.existsSync(file.file_path)) {
@@ -18366,8 +18389,8 @@ By applying to this program, I provide the following consents:
 
     // Quick toggle task status
     app.post('/api/tasks/:id/toggle', auth, adminOnly, (req, res) => {
-        const task = query.get('SELECT status FROM project_tasks WHERE id = ?', [req.params.id]);
-        if (!task) return res.status(404).json({ error: 'Task not found' });
+        const task = taskVis.findVisibleTask(query.get, req.user.id, req.params.id);
+        if (!task) return res.status(404).json({ error: taskVis.TASK_404 });
 
         const nextStatus = task.status === 'todo' ? 'in_progress' : task.status === 'in_progress' ? 'done' : 'todo';
         db.run('UPDATE project_tasks SET status = ?, completed_at = ? WHERE id = ?',
@@ -18378,6 +18401,7 @@ By applying to this program, I provide the following consents:
 
     // Delete task
     app.delete('/api/tasks/:id', auth, adminOnly, (req, res) => {
+        if (!taskVis.findVisibleTask(query.get, req.user.id, req.params.id)) return res.status(404).json({ error: taskVis.TASK_404 });
         db.run('DELETE FROM project_tasks WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });
@@ -18773,8 +18797,9 @@ By applying to this program, I provide the following consents:
         if (!q || q.length < 2) return res.json({ tasks: [], files: [], folders: [] });
 
         const searchTerm = `%${q}%`;
-        const tasks = query.all(`SELECT * FROM project_tasks WHERE title LIKE ? OR description LIKE ? LIMIT 10`,
-            [searchTerm, searchTerm]);
+        const vis = taskVis.visibleTaskSql('pt', req.user.id); // only tasks the caller may see
+        const tasks = query.all(`SELECT pt.* FROM project_tasks pt WHERE (pt.title LIKE ? OR pt.description LIKE ?) AND ${vis.sql} LIMIT 10`,
+            [searchTerm, searchTerm, ...vis.params]);
         const files = query.all(`SELECT * FROM project_files WHERE original_name LIKE ? LIMIT 10`,
             [searchTerm]);
         const folders = query.all(`SELECT * FROM project_folders WHERE name LIKE ? LIMIT 10`,
@@ -39262,11 +39287,14 @@ ${extraCss || ''}
     app.get('/api/admin/nag/items', auth, adminOnly, (req, res) => {
         try {
             const status = String(req.query.status || 'active');
+            // Task items carry the task title: keep only those about tasks the caller may see.
+            const mine = (r) => taskVis.nagItemVisible(query.get, req.user.id, r);
             let rows;
             if (status === 'active') rows = query.all("SELECT * FROM nag_items WHERE status IN ('open','actioned') ORDER BY (status='actioned'), created_at DESC");
             else rows = query.all("SELECT * FROM nag_items WHERE status = ? ORDER BY created_at DESC", [status]);
+            rows = rows.filter(mine);
             const items = rows.map((r) => { let p = {}; try { p = r.action_payload_json ? JSON.parse(r.action_payload_json) : {}; } catch (e) { p = {}; } return { ...r, action_payload: p }; });
-            const counts = { open: query.get("SELECT COUNT(*) AS c FROM nag_items WHERE status IN ('open','actioned')")?.c || 0 };
+            const counts = { open: query.all("SELECT kind, subject_id FROM nag_items WHERE status IN ('open','actioned')").filter(mine).length };
             res.json({ items, counts });
         } catch (e) { console.error('[nag] items', e.message); res.status(500).json({ error: e.message }); }
     });
@@ -39278,7 +39306,7 @@ ${extraCss || ''}
     app.post('/api/admin/nag/items/:id/act', auth, adminOnly, async (req, res) => {
         try {
             const item = query.get("SELECT * FROM nag_items WHERE id = ?", [req.params.id]);
-            if (!item) return res.status(404).json({ error: 'Item not found' });
+            if (!item || !taskVis.nagItemVisible(query.get, req.user.id, item)) return res.status(404).json({ error: 'Item not found' });
             let payload = {}; try { payload = item.action_payload_json ? JSON.parse(item.action_payload_json) : {}; } catch (e) { payload = {}; }
             const kind = item.action_kind;
 
@@ -39342,7 +39370,7 @@ ${extraCss || ''}
     app.post('/api/admin/nag/items/:id/done', auth, adminOnly, (req, res) => {
         try {
             const item = query.get("SELECT id, kind, subject_id FROM nag_items WHERE id = ?", [req.params.id]);
-            if (!item) return res.status(404).json({ error: 'Item not found' });
+            if (!item || !taskVis.nagItemVisible(query.get, req.user.id, item)) return res.status(404).json({ error: 'Item not found' });
             let taskCompleted = false;
             if ((item.kind === 'task_overdue' || item.kind === 'task_due_soon') && item.subject_id) {
                 try {
@@ -39360,8 +39388,8 @@ ${extraCss || ''}
     // Dismiss an item (not relevant) — stays dismissed across rescans.
     app.post('/api/admin/nag/items/:id/dismiss', auth, adminOnly, (req, res) => {
         try {
-            const item = query.get("SELECT id FROM nag_items WHERE id = ?", [req.params.id]);
-            if (!item) return res.status(404).json({ error: 'Item not found' });
+            const item = query.get("SELECT id, kind, subject_id FROM nag_items WHERE id = ?", [req.params.id]);
+            if (!item || !taskVis.nagItemVisible(query.get, req.user.id, item)) return res.status(404).json({ error: 'Item not found' });
             db.run("UPDATE nag_items SET status='dismissed', resolved_at=datetime('now') WHERE id = ?", [req.params.id]);
             saveDb();
             logAudit(req, 'nag.dismiss', req.params.id);
@@ -39374,8 +39402,8 @@ ${extraCss || ''}
     // guarded ALTER after SCHEMA-MIRROR:END) so the daily rescan never clears a human-set owner.
     app.post('/api/admin/nag/items/:id/claim', auth, adminOnly, (req, res) => {
         try {
-            const item = query.get("SELECT id, claimed_by FROM nag_items WHERE id = ?", [req.params.id]);
-            if (!item) return res.status(404).json({ error: 'Item not found' });
+            const item = query.get("SELECT id, kind, subject_id, claimed_by FROM nag_items WHERE id = ?", [req.params.id]);
+            if (!item || !taskVis.nagItemVisible(query.get, req.user.id, item)) return res.status(404).json({ error: 'Item not found' });
             const me = req.user && req.user.email;
             if (!me) return res.status(400).json({ error: 'No signed-in admin to assign.' });
             if (item.claimed_by && item.claimed_by === me) {

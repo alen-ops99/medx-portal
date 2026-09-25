@@ -15,6 +15,7 @@
     "test:plexus-pass": "node tests/plexus-pass.test.js",
     "test:plexus-ticket": "node tests/plexus-ticket.test.js",
     "test:plexus-program": "node tests/plexus-program.test.js",
-    "test:gala-audit": "node tests/gala-audit.test.js"
+    "test:gala-audit": "node tests/gala-audit.test.js",
+    "test:task-visibility": "node tests/task-visibility.test.js"
   }
 }

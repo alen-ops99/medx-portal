@@ -14,6 +14,7 @@ const { createDatabase } = require('../../shared/db');
 const { aiDraft } = require('../../shared/ai');
 const caMerge = require('../../shared/ca-merge'); // merged duplicate /plexus registrations follow their survivor
 const wallet = require('../../shared/wallet'); // Google Wallet event-ticket passes (env-gated; no-op until configured)
+const taskVis = require('../../shared/task-visibility'); // a task is seen ONLY by its creator + assignee (owner rule 2026-09-25)
 const faqKb = require('./faq-kb'); // Member FAQ Assistant grounding corpus + deterministic retrieval (queue 5a6)
 // (email goes out exclusively through the Brevo HTTP API — see sendEmail below)
 const webpush = require('web-push');
@@ -19396,12 +19397,13 @@ By applying to this program, I provide the following consents:
     app.get('/api/dashboard/summary', auth, adminOnly, (req, res) => {
         const conf = activePlexusConf();
         const program = query.get('SELECT id FROM accelerator_programs WHERE is_active = 1');
+        const tv = taskVis.visibleTaskSql('pt', req.user.id); // task counts = the caller's visible tasks only
 
         const summary = {
             plexus: {
                 registrations: query.get('SELECT COUNT(*) as c FROM registrations WHERE conference_id = ?', [conf?.id])?.c || 0,
                 speakers: query.get('SELECT COUNT(*) as c FROM speakers WHERE conference_id = ?', [conf?.id])?.c || 0,
-                pending_tasks: query.get("SELECT COUNT(*) as c FROM project_tasks WHERE project = 'plexus' AND status != 'done'")?.c || 0
+                pending_tasks: query.get(`SELECT COUNT(*) as c FROM project_tasks pt WHERE pt.project = 'plexus' AND pt.status != 'done' AND ${tv.sql}`, tv.params)?.c || 0
             },
             accelerator: {
                 applications: query.get('SELECT COUNT(*) as c FROM accelerator_applications WHERE program_id = ?', [program?.id])?.c || 0,
@@ -19417,8 +19419,8 @@ By applying to this program, I provide the following consents:
                 events: 4
             },
             tasks: {
-                total: query.get("SELECT COUNT(*) as c FROM project_tasks WHERE status != 'done'")?.c || 0,
-                urgent: query.get("SELECT COUNT(*) as c FROM project_tasks WHERE status != 'done' AND priority = 'high'")?.c || 0
+                total: query.get(`SELECT COUNT(*) as c FROM project_tasks pt WHERE pt.status != 'done' AND ${tv.sql}`, tv.params)?.c || 0,
+                urgent: query.get(`SELECT COUNT(*) as c FROM project_tasks pt WHERE pt.status != 'done' AND pt.priority = 'high' AND ${tv.sql}`, tv.params)?.c || 0
             }
         };
 
@@ -19429,9 +19431,11 @@ By applying to this program, I provide the following consents:
 
     // Get tasks for a project
     app.get('/api/tasks/:project', auth, adminOnly, (req, res) => {
-        // Get parent tasks (no parent_id)
-        const tasks = query.all("SELECT * FROM project_tasks WHERE project = ? AND (parent_id IS NULL OR parent_id = '') ORDER BY sort_order, created_at DESC",
-            [req.params.project]);
+        // Get parent tasks (no parent_id) the caller may see (creator + assignee only); the
+        // subtasks and files below hang off these visible parents, so they follow them.
+        const vis = taskVis.visibleTaskSql('pt', req.user.id);
+        const tasks = query.all(`SELECT pt.* FROM project_tasks pt WHERE pt.project = ? AND (pt.parent_id IS NULL OR pt.parent_id = '') AND ${vis.sql} ORDER BY pt.sort_order, pt.created_at DESC`,
+            [req.params.project, ...vis.params]);
         // Attach files and subtasks to each task
         tasks.forEach(task => {
             task.files = query.all('SELECT id, filename, original_name, file_size FROM task_files WHERE task_id = ?', [task.id]);
@@ -19445,7 +19449,8 @@ By applying to this program, I provide the following consents:
 
     // Get all tasks summary
     app.get('/api/tasks', auth, adminOnly, (req, res) => {
-        const tasks = query.all('SELECT * FROM project_tasks ORDER BY due_date, priority DESC');
+        const vis = taskVis.visibleTaskSql('pt', req.user.id); // creator + assignee only
+        const tasks = query.all(`SELECT pt.* FROM project_tasks pt WHERE ${vis.sql} ORDER BY pt.due_date, pt.priority DESC`, vis.params);
         const summary = {
             total: tasks.length,
             todo: tasks.filter(t => t.status === 'todo').length,
@@ -19463,16 +19468,24 @@ By applying to this program, I provide the following consents:
     // Create task
     app.post('/api/tasks', auth, adminOnly, (req, res) => {
         const { project, title, description, assigned_to, priority, due_date, parent_id } = req.body;
+        let parentId = parent_id || null;
+        if (parentId) {
+            // A subtask can only hang off a task the caller may see, and it follows the TOP-level task.
+            const parent = taskVis.findVisibleTask(query.get, req.user.id, parentId);
+            if (!parent) return res.status(404).json({ error: taskVis.TASK_404 });
+            if (parent.parent_id) parentId = parent.parent_id;
+        }
         const id = uuidv4();
         db.run(`INSERT INTO project_tasks (id, project, title, description, assigned_to, priority, due_date, created_by, parent_id)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [id, project || 'general', title, description, assigned_to || null, priority || 'medium', due_date, req.user.id, parent_id || null]);
+            [id, project || 'general', title, description, assigned_to || null, priority || 'medium', due_date, req.user.id, parentId]);
         saveDb();
         res.json({ success: true, id, task_id: id });
     });
 
     // Update task
     app.put('/api/tasks/:id', auth, adminOnly, (req, res) => {
+        if (!taskVis.findVisibleTask(query.get, req.user.id, req.params.id)) return res.status(404).json({ error: taskVis.TASK_404 });
         const { title, description, assigned_to, priority, status, due_date, project } = req.body;
         db.run(`UPDATE project_tasks SET
             title = COALESCE(?, title),
@@ -19494,8 +19507,11 @@ By applying to this program, I provide the following consents:
         if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
         const fileId = uuidv4();
-        const task = query.get('SELECT id FROM project_tasks WHERE id = ?', [req.params.id]);
-        if (!task) return res.status(404).json({ error: 'Task not found' });
+        const task = taskVis.findVisibleTask(query.get, req.user.id, req.params.id);
+        if (!task) {
+            try { fs.unlinkSync(req.file.path); } catch (e) { /* multer temp file already gone */ }
+            return res.status(404).json({ error: taskVis.TASK_404 });
+        }
 
         // Move file to tasks folder
         const newPath = path.join(uploadsDir, 'tasks', req.file.filename);
@@ -19515,7 +19531,8 @@ By applying to this program, I provide the following consents:
     // Delete task file
     app.delete('/api/tasks/files/:fileId', auth, adminOnly, (req, res) => {
         const file = query.get('SELECT * FROM task_files WHERE id = ?', [req.params.fileId]);
-        if (!file) return res.status(404).json({ error: 'File not found' });
+        // A file on a task the caller may not see answers exactly like a missing file.
+        if (!file || !taskVis.findVisibleTask(query.get, req.user.id, file.task_id)) return res.status(404).json({ error: 'File not found' });
 
         // Delete physical file
         if (file.file_path && fs.existsSync(file.file_path)) {
@@ -19529,8 +19546,8 @@ By applying to this program, I provide the following consents:
 
     // Quick toggle task status
     app.post('/api/tasks/:id/toggle', auth, adminOnly, (req, res) => {
-        const task = query.get('SELECT status FROM project_tasks WHERE id = ?', [req.params.id]);
-        if (!task) return res.status(404).json({ error: 'Task not found' });
+        const task = taskVis.findVisibleTask(query.get, req.user.id, req.params.id);
+        if (!task) return res.status(404).json({ error: taskVis.TASK_404 });
 
         const nextStatus = task.status === 'todo' ? 'in_progress' : task.status === 'in_progress' ? 'done' : 'todo';
         db.run('UPDATE project_tasks SET status = ?, completed_at = ? WHERE id = ?',
@@ -19541,6 +19558,7 @@ By applying to this program, I provide the following consents:
 
     // Delete task
     app.delete('/api/tasks/:id', auth, adminOnly, (req, res) => {
+        if (!taskVis.findVisibleTask(query.get, req.user.id, req.params.id)) return res.status(404).json({ error: taskVis.TASK_404 });
         db.run('DELETE FROM project_tasks WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });
@@ -19819,8 +19837,9 @@ By applying to this program, I provide the following consents:
         if (!q || q.length < 2) return res.json({ tasks: [], files: [], folders: [] });
 
         const searchTerm = `%${q}%`;
-        const tasks = query.all(`SELECT * FROM project_tasks WHERE title LIKE ? OR description LIKE ? LIMIT 10`,
-            [searchTerm, searchTerm]);
+        const vis = taskVis.visibleTaskSql('pt', req.user.id); // only tasks the caller may see
+        const tasks = query.all(`SELECT pt.* FROM project_tasks pt WHERE (pt.title LIKE ? OR pt.description LIKE ?) AND ${vis.sql} LIMIT 10`,
+            [searchTerm, searchTerm, ...vis.params]);
         const files = query.all(`SELECT * FROM project_files WHERE original_name LIKE ? LIMIT 10`,
             [searchTerm]);
         const folders = query.all(`SELECT * FROM project_folders WHERE name LIKE ? LIMIT 10`,
