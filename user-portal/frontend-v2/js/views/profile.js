@@ -54,7 +54,7 @@ export const COPY = {
   },
   account: {
     n: '03', title: 'ACCOUNT &amp; PREFERENCES', titleT: 'Account &amp; preferences', resendT: 'Resend', nonShort: 'None',
-    saveNoteT: 'Visible across the portal and the directory.',
+    saveNoteT: 'Visible across the portal and the directory.', saveNoteOffT: 'Visible across the portal, hidden from the directory.',
     email: 'Email', notConfirmed: 'not yet confirmed', confirmed: 'confirmed', resend: 'RESEND LINK',
     resent: 'Link sent — check your inbox (and spam).',
     // UX audit 2026-09-02 › item 8 — Profile & settings is the ONE place account settings live.
@@ -319,12 +319,14 @@ function accountExtraRows() {
         <span class="mx-row" data-act="followOpen" role="button" tabindex="0">${ui.icon('star')}<span class="mx-row-l">${a.follow.t}</span><span class="mx-row-v">${f.length ? esc(f.length === 1 ? f[0].label : f.length + ' projects') : a.nonShort}</span>${ui.icon('chevron-right', 18)}</span>
         <span class="mx-row" data-act="intOpen" role="button" tabindex="0">${ui.icon('sparkle')}<span class="mx-row-l">${a.interests.t}</span><span class="mx-row-v">${n.length ? esc(n.length === 1 ? n[0].label : n.length + ' interests') : a.nonShort}</span>${ui.icon('chevron-right', 18)}</span>`;
 }
+// the note under Save says where the profile shows, as the directory switch has it (a hidden profile is not "in the directory")
+const saveNote = () => (D.draft.is_public_profile && !D.modHidden ? COPY.account.saveNoteT : COPY.account.saveNoteOffT);
 function saveRow() {
   const a = COPY.account;
   const label = D.saving ? a.saving : (D.saved ? a.saved : a.save);
   return `
         <span data-act="save" role="button" tabindex="0"${D.saving ? ' aria-disabled="true"' : ''} class="btn-primary btn-block mx-profile-btn">${label}</span>
-        ${D.saveError ? `<p data-role="saveErr" role="alert" class="mx-profile-savenote is-err">${esc(D.saveError)}</p>` : `<p class="mx-profile-savenote">${a.saveNoteT}</p>`}`;
+        ${D.saveError ? `<p data-role="saveErr" role="alert" class="mx-profile-savenote is-err">${esc(D.saveError)}</p>` : `<p class="mx-profile-savenote" data-role="saveNote">${saveNote()}</p>`}`;
 }
 function blockAccount() {
   const a = COPY.account, p = D.profile;
@@ -768,6 +770,7 @@ const handlers = {
     if (D.modHidden) return ui.toast(COPY.account.dir.modHiddenToast);     // locked while the team keeps the profile hidden
     D.draft.is_public_profile = !D.draft.is_public_profile; setSwitch(el, D.draft.is_public_profile); schedulePreview();
     const line = q('[data-role="dirLine"]'); if (line) line.textContent = dirLine(D.draft.is_public_profile);
+    const note = q('[data-role="saveNote"]'); if (note) note.textContent = saveNote();
   },
   tgUpd: (el) => { D.draft.updates_opt_in = !D.draft.updates_opt_in; setSwitch(el, D.draft.updates_opt_in); schedulePreview(); },
   save: () => doSave(),
