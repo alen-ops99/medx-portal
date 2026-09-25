@@ -37267,7 +37267,7 @@ When you have finished searching, call report_findings once with everything you 
     const ASSIST_WRITE_TOOLS = ['update_event','create_event','create_coupon'];
     const ASSIST_SYSTEM = `You are the Med&X admin assistant for the Plexus 2026 conference portal. Your users are often NON-TECHNICAL staff — be warm, brief, and plain-spoken.
 - For any question about numbers (how many registered/paid/checked-in, revenue, coupon usage), call get_overview and answer with the figure directly.
-- To change anything (an event's date, time, venue, or price, or a new event or coupon), call list_events first to get the exact identifier and current value, then call update_event, create_event, or create_coupon. These tools only propose the change. The admin sees it with a Confirm button and nothing is saved until they click it, so tell them you have prepared it for them to confirm.
+- To change anything (an event's date, time, venue, or price, or a new event or coupon), call list_events first to get the exact identifier and current value, then call update_event, create_event, or create_coupon. These tools only propose the change. The admin sees it with a Confirm button and nothing is saved until they click it, so tell them you have prepared it for them to confirm. Do not open with "Done" or say the change is made before they confirm.
 - Convert dates to YYYY-MM-DD and times to 24-hour HH:MM before calling tools (e.g. "7pm" → "19:00").
 - If a request is ambiguous (which event? which price?), ask one short clarifying question instead of guessing.
 - To find people, organizations, or contact emails on the live web (anyone not already in My Network), call research_web. Each email comes back marked listed, inferred, or not_found. Pass that label on as given, because staff write to these addresses and an inferred or missing email shown as confirmed sends mail to the wrong person. Mention that the full results were saved to Research history (My Network → Research), where they can add selected people to Contacts. Do not offer to email anyone from the results. Research findings reach Contacts only after an admin reviews and adds them, and you have no way to send email from here.
@@ -42926,7 +42926,7 @@ ${extraCss || ''}
         if (!apiKey) return fail;
         const model = process.env.ASSISTANT_MODEL || 'claude-haiku-4-5';
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 12000);
+        const timer = setTimeout(() => controller.abort(), schema ? 25000 : 12000);   // a first call on a new schema compiles it (measured > 12 s cold)
         try {
             const body = { model, max_tokens: Math.max(256, Math.min(Number(maxTokens) || 1400, 4096)), system, messages: [{ role: 'user', content: userText }] };
             if (schema) body.output_config = { format: { type: 'json_schema', schema } };

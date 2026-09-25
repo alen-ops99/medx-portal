@@ -97,7 +97,8 @@ async function aiDraft({ purpose, context, maxTokens, schema, timeoutMs } = {}) 
     }
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), Math.max(1000, Number(timeoutMs) || TIMEOUT_MS));
+    // a first call on a new or cold schema compiles it server-side (measured > 8 s), so schema calls get 20 s
+    const timer = setTimeout(() => controller.abort(), Math.max(1000, Number(timeoutMs) || (schema ? 20000 : TIMEOUT_MS)));
     try {
         const system =
             'You are drafting content for Med&X, a Croatian biomedical NGO. ' +
