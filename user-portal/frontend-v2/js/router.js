@@ -16,7 +16,7 @@ import { ui } from './ui.js';
 const routes = [];
 let current = { module: null, root: null, path: null };
 let notFoundLoader = null;
-let hooks = { leave: null, settle: null, beforeRender: null, afterRender: null, title: t => t ? t + ' · Med&X' : 'Med&X Member Portal' };
+let hooks = { leave: null, settle: null, beforeRender: null, afterRender: null, placed: null, title: t => t ? t + ' · Med&X' : 'Med&X Member Portal' };
 // Screen changes (View Transitions, where the browser has them: Safari / WKWebView 18+, Chrome 111+). The screen
 // being left stays on view until the next one has its data; then ctx.ready() (called by the view just before its
 // first write) snapshots it and the two screens cross over — forward slides in from the right, back from the left
@@ -31,6 +31,7 @@ let navHint = null;   // 'fade' when the tab bar, the menu or the logo started t
 let vtNow = null;     // the view transition under way, if any
 const waitedSheets = new WeakSet();   // a view stylesheet is waited for once at most (a 404 must not slow every screen)
 let tabFrom = null;   // the active section tab's box when a sibling tab was clicked — the new underline slides from it
+let segFrom = null;   // the same for a segmented control (.mx-seg[data-tabs]): the raised capsule slides from the item left
 let enterTimer = null, heldTimer = null, slowTimer = null;
 const SLOW_MS = 250;  // a wait past this dims the leaving screen and runs the gold hairline (app.css › body.mx-slow)
 // A KEYBOARD press on a link inside the view (a section tab, a breadcrumb): the new view's innerHTML replaces
@@ -80,7 +81,8 @@ export const router = {
     }
     return null;
   },
-  navigate(to, { replace = false, state: st = null, back = false } = {}) {
+  // `jump`: a tab bar jump (the native bar's mx:navigate, chrome.js › tabGo) cross-fades like a tap on the web tab bar
+  navigate(to, { replace = false, state: st = null, back = false, jump = false } = {}) {
     if (/^https?:\/\//i.test(to)) { window.location.assign(to); return; }
     const url = new URL(to, window.location.origin);
     if (isServerPath(url.pathname)) { window.location.assign(url.href); return; }
@@ -99,6 +101,7 @@ export const router = {
     try { history[replace ? 'replaceState' : 'pushState'](entry, '', there); } catch (e) { window.location.assign(url.href); return; }
     navIdx = idx;
     nextDir = replace ? 'fade' : back ? 'back' : 'forward';
+    if (jump) navHint = 'fade';
     return this.resolve({ popped: false });
   },
   replace(to) { return this.navigate(to, { replace: true }); },
@@ -184,12 +187,15 @@ export const router = {
       // frame)
       if (keepY != null) {
         if (keepY > 0 && window.scrollY >= 0 && Math.abs(window.scrollY - keepY) > 1) window.scrollTo(0, keepY);
-        return;
+      } else {
+        const st = history.state || {};
+        const target = hashTarget(location.hash);
+        if (target) target.scrollIntoView();
+        else window.scrollTo(0, keepY != null ? keepY : popped ? (st.scrollY || 0) : 0);
       }
-      const st = history.state || {};
-      const target = hashTarget(location.hash);
-      if (target) target.scrollIntoView();
-      else window.scrollTo(0, keepY != null ? keepY : popped ? (st.scrollY || 0) : 0);
+      // the bars take the new screen's place at once (chrome.js › viewChanged: the top bar's mode, both tones), inside the
+      // crossing, before the new screen is captured
+      if (hooks.placed) { try { hooks.placed(); } catch (e) {} }
     };
     let kind = reread ? 'fade' : tabKey ? 'tab' : (hint || dir);
     // ctx.ready(): the view calls it once its data is in, right before its first write (`if (!(await ctx.ready()))
@@ -515,7 +521,13 @@ function nameTabs(root, key, was) {
 // underline slides over from there instead of drawing in from the centre. Meanwhile the pressed tab
 // shows its hover underline (.is-pending), so the press is answered before the data arrives.
 function rememberTab(a) {
-  tabFrom = null;
+  tabFrom = null; segFrom = null;
+  const seg = a.closest && a.closest('.mx-seg[data-tabs]');
+  if (seg && a.parentElement === seg) {
+    const cur = seg.querySelector(':scope > .is-on, :scope > [aria-current="page"]');
+    if (cur && cur !== a) { const r = cur.getBoundingClientRect(); segFrom = { key: seg.getAttribute('data-tabs'), left: r.left, width: r.width, at: Date.now() }; }
+    return;
+  }
   const strip = a.closest && a.closest('[data-tabs]');
   const on = strip && strip.querySelector('.mx-tab.is-on');
   if (!on || !a.classList.contains('mx-tab')) return;
@@ -525,6 +537,23 @@ function rememberTab(a) {
   a.classList.add('is-pending');
 }
 function settleTabs(root) {
+  // a segmented control: its current item is brought into view first (a strip that scrolls sideways), then the raised
+  // capsule slides over from where the item you left was (app.css › .mx-seg .is-sliding; reduced motion: it appears)
+  const sf = segFrom; segFrom = null;
+  root.querySelectorAll('.mx-seg[data-tabs]').forEach(seg => {
+    const on = seg.querySelector(':scope > .is-on, :scope > [aria-current="page"]');
+    if (!on) return;
+    if (seg.scrollWidth > seg.clientWidth + 1) {
+      const want = on.offsetLeft - (seg.clientWidth - on.offsetWidth) / 2;
+      seg.scrollLeft = Math.max(0, Math.min(want, seg.scrollWidth - seg.clientWidth));
+    }
+    if (!sf || sf.key !== seg.getAttribute('data-tabs') || Date.now() - sf.at > 4000) return;
+    const r = on.getBoundingClientRect();
+    if (!r.width || Math.abs(sf.left - r.left) < 1) return;
+    on.style.setProperty('--seg-dx', (sf.left - r.left).toFixed(1) + 'px');
+    on.style.setProperty('--seg-sx', (sf.width / r.width).toFixed(3));
+    on.classList.add('is-sliding');
+  });
   const from = tabFrom; tabFrom = null;
   root.querySelectorAll('[data-tabs]').forEach(strip => {
     const on = strip.querySelector('.mx-tab.is-on');

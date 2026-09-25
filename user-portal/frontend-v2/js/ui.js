@@ -17,6 +17,7 @@
 //   ui.hideToast();                                       // take a toast down early (a screen that owned it is leaving)
 //   ui.portrait({ name, src, size: 64 })                  // a person: circle 32/44/64/96, initials when no photo or a broken one
 //   ui.icon('calendar', 20)                               // a line icon (js/icons.js)
+//   ui.bottomSpace()                                      // px the tab bar keeps free at the bottom (--mx-tabbar-h, measured)
 
 import { iconSvg } from './icons.js';
 
@@ -198,7 +199,8 @@ function closeModals() { [...openModals].forEach(fn => { try { fn(); } catch (e)
 function modal({ eyebrow = 'MED&X', title = '', body = '', actions = [], closeOnScrim = true, wide = false } = {}) {
   const wrap = document.createElement('div');
   const opener = document.activeElement;
-  wrap.className = 'mx-modal';
+  // the wrapper carries is-wide too (the photo viewer keeps its centred frame on a phone): css selects on it, no :has()
+  wrap.className = 'mx-modal' + (wide ? ' is-wide' : '');
   // a sheet opened as another one leaves (REPORT from a profile, a confirm after a menu): the scrim is already
   // there, so it stays at full strength instead of dipping and fading in again; only the new sheet rises. The
   // leaving sheet hands its scrim over at once and fades out above the new one (.is-handed): two scrims stacked, or
@@ -207,11 +209,16 @@ function modal({ eyebrow = 'MED&X', title = '', body = '', actions = [], closeOn
   if (leaving.length) { wrap.classList.add('is-chained'); leaving.forEach(n => n.classList.add('is-handed')); }
   const lid = 'mx-modal-l' + (++modalSeq);
   wrap.setAttribute('role', 'dialog'); wrap.setAttribute('aria-modal', 'true'); wrap.setAttribute('aria-labelledby', lid);
+  // Glass Quiet (GLASS-RULES §1.9.4): a floating glass sheet. The head holds the title (or nothing) and the close × in a 44px
+  // glass circle; the caps eyebrow no longer shows (the title says it) and stays only as the dialog's name when there is
+  // no title. The body and the actions scroll inside .mx-modal-scroll, so the glass sheet itself never scrolls
   wrap.innerHTML = `
-    <div class="mx-modal-sheet${wide ? ' is-wide' : ''}" tabindex="-1">
-      <div class="mx-modal-head"><span${title ? '' : ` id="${lid}"`}>${esc(eyebrow)}</span><div style="flex:1"></div><span data-act="close" role="button" tabindex="0" aria-label="Close" style="color:#4a4239;cursor:pointer;letter-spacing:0">${iconSvg('x', 20)}</span></div>
-      <div class="mx-modal-body">${title ? `<div class="mx-modal-title" id="${lid}">${title}</div>` : ''}${body}</div>
-      ${actions.length ? `<div class="mx-modal-foot">${actions.map((a, i) => `<span data-act="a${i}" role="button" tabindex="0" class="${a.kind === 'primary' ? 'btn-primary' : a.kind === 'gold' ? 'btn-gold' : 'btn-ghost'}">${esc(a.label)}</span>`).join('')}</div>` : ''}
+    <div class="mx-modal-sheet mx-glass mx-glass--sheet${wide ? ' is-wide' : ''}" tabindex="-1">
+      <div class="mx-modal-head">${title ? `<h2 class="mx-modal-title" id="${lid}">${title}</h2>` : `<span class="mx-modal-eb" id="${lid}">${esc(eyebrow)}</span>`}<span data-act="close" role="button" tabindex="0" aria-label="Close" class="mx-modal-x mx-gbtn">${iconSvg('x', 20)}</span></div>
+      <div class="mx-modal-scroll">
+        <div class="mx-modal-body">${body}</div>
+        ${actions.length ? `<div class="mx-modal-foot">${actions.map((a, i) => `<span data-act="a${i}" role="button" tabindex="0" class="${a.kind === 'primary' ? 'btn-primary' : a.kind === 'gold' ? 'btn-gold' : 'btn-ghost'}">${esc(a.label)}</span>`).join('')}</div>` : ''}
+      </div>
     </div>`;
   // the sheet fades out (160 ms, css .mx-modal.is-leaving) — callers already resolved; nothing waits on it
   let release = null;
@@ -240,6 +247,8 @@ function modal({ eyebrow = 'MED&X', title = '', body = '', actions = [], closeOn
   // focus lands on the sheet itself, read from its top (eyebrow, title, ×): focusing the first footer action
   // scrolled a tall sheet to its foot on a short phone, with the × out of view. The first Tab goes to the ×.
   try { sheet.focus({ preventScroll: true }); } catch (e) { /* fine */ }
+  const scroller = sheet.querySelector('.mx-modal-scroll');
+  if (scroller) scroller.scrollTop = 0;
   sheet.scrollTop = 0; wrap.scrollTop = 0;
   return { close, onClose(fn) { opts_onclose = fn; return this; }, el: wrap };
 }
@@ -251,15 +260,15 @@ function lightbox(photos, { start = 0, eyebrow = 'PHOTOS', title = '', note = ''
   let i = Math.max(0, Math.min(list.length - 1, Number(start) || 0));
   const m = modal({ eyebrow, title, wide: true, body: `<div data-role="lb"></div>${note ? `<p style="margin:12px 0 0;font-size:14px;color:#4a4239">${note}</p>` : ''}` });
   const box = m.el.querySelector('[data-role="lb"]');
-  const ctl = 'font:600 12px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;cursor:pointer;white-space:nowrap;padding:14px 0;min-height:44px;box-sizing:border-box';
+  const ctl = 'color:#191512';
   const paint = () => {
     const p = list[i];
     box.innerHTML = `<figure style="margin:0;background:#191512"><img src="${esc(p.src)}" alt="${esc(p.alt || '')}" style="display:block;width:100%;height:auto;max-height:min(62vh,560px);object-fit:contain"></figure>
       ${p.caption ? `<div style="font-size:14px;color:#4a4239;margin-top:8px">${esc(p.caption)}</div>` : ''}
-      ${list.length > 1 ? `<div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px">
-        <span data-act="lbPrev" role="button" tabindex="0" aria-label="Previous photo" style="${ctl}">← PREV</span>
+      ${list.length > 1 ? `<div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px">
+        <span data-act="lbPrev" role="button" tabindex="0" aria-label="Previous photo" class="mx-gbtn" style="${ctl}">${iconSvg('chevron-left', 22)}</span>
         <span style="font:500 14px Inter,sans-serif;color:#4a4239;font-variant-numeric:tabular-nums">${i + 1} / ${list.length}</span>
-        <span data-act="lbNext" role="button" tabindex="0" aria-label="Next photo" style="${ctl}">NEXT →</span></div>` : ''}`;
+        <span data-act="lbNext" role="button" tabindex="0" aria-label="Next photo" class="mx-gbtn" style="${ctl}">${iconSvg('chevron-right', 22)}</span></div>` : ''}`;
   };
   const go = d => { i = (i + d + list.length) % list.length; paint(); };
   const onKey = e => {
@@ -481,7 +490,7 @@ function installDelegates() {
 // Controls that already answer the press in css (cards, the tab bar, the phone bar, the event app's rows and
 // links) keep their own look.
 const PRESSABLE = 'a[href], button, [data-act], [data-nav], [role="button"], [role="tab"], [role="switch"], [role="menuitem"], [role="radio"], summary, .mx-pop-row';
-const PRESS_OWN = '#mx-scrim, .mx-search, .mx-modal, .lv-scrim, [data-role="bio-scrim"], #mx-tabbar a, #mx-mobile-top a, #mx-mobile-top [data-act], ' +
+const PRESS_OWN = '#mx-scrim, .mx-search, .mx-modal, .lv-scrim, [data-role="bio-scrim"], #mx-tabbar a, #mx-mobile-top a, #mx-mobile-top [data-act], .mx-gbtn, .mx-glass, .mx-tag--glass, .mx-seg > *, ' +
   '.mx-card-link, .mx-proj-card, .lv-card-body, .lv-person, .lv-now-item, .lv-slot, .lv-mini, .lv-tab, .lv-x, .lv-sback, .lv-ics, .lv-links a, ' +
   '.lv-glance-map, .lv-refresh, .lv-back, .lv-info-body a, .lv-glance-list a, input, textarea, select, [contenteditable]';
 function installPress() {
@@ -575,7 +584,25 @@ function fadeImages(root) {
   });
 }
 
-export const ui = { toast, hideToast, trapFocus, returnFocus, modal, closeModals, lightbox, confirm, countdown, tick, toggleSwitch, flipSwitch, revealOnScroll, reducedMotion, buildIcs, downloadIcs, bind, installDelegates, esc, fmt, monogram, initials, portrait,
+// ---------------------------------------------------------------- the tab bar's space
+// The px every bottom-anchored thing keeps free for the tab bar (GLASS-RULES §1.10): the web bar's own space, the iOS 26
+// native bar's (the iOS layer writes it on <html>), 0 with the keyboard up or where no bar is drawn. Measured on a fixed
+// probe as tall as var(--mx-tabbar-h): read as text, the web bar's value is its unresolved calc() in engines without
+// @property (before iOS 16.4), so parseFloat of the custom property is not enough.
+let spaceProbe = null;
+function bottomSpace() {
+  try {
+    if (!spaceProbe || !spaceProbe.isConnected) {
+      spaceProbe = document.createElement('div');
+      spaceProbe.setAttribute('aria-hidden', 'true');
+      spaceProbe.style.cssText = 'position:fixed;left:0;bottom:0;width:0;height:var(--mx-tabbar-h, 0px);visibility:hidden;pointer-events:none';
+      document.body.appendChild(spaceProbe);
+    }
+    return Math.round(spaceProbe.getBoundingClientRect().height) || 0;
+  } catch (e) { return 0; }
+}
+
+export const ui = { toast, hideToast, trapFocus, returnFocus, modal, closeModals, lightbox, confirm, countdown, tick, toggleSwitch, flipSwitch, revealOnScroll, reducedMotion, buildIcs, downloadIcs, bind, installDelegates, esc, fmt, monogram, initials, portrait, bottomSpace,
   // a line icon from js/icons.js (1.5 stroke, currentColor), decorative: ui.icon('calendar') · ui.icon('chevron-right', 16)
   icon: (name, size = 20, cls = '') => iconSvg(name, size, cls),
   lockScroll(on) { document.body.style.overflow = on ? 'hidden' : ''; },

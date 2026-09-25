@@ -8,6 +8,7 @@
 // Names: calendar clock pin tie ticket euro users user mail bell search home grid inbox card qr wallet download
 // external check plus chevron-right chevron-left chevron-down edit clip send award mic music globe
 // + x more compose lock cog help logout seal star sparkle arrow-right image heart shield user-plus chat
+// + home-fill grid-fill users-fill inbox-fill card-fill (the selected tab) · refresh building
 
 export const ICONS = {
   calendar: '<rect x="3.75" y="5.25" width="16.5" height="15" rx="0"/><path d="M3.75 9.75h16.5M8.25 3v4.5M15.75 3v4.5"/>',
@@ -56,7 +57,17 @@ export const ICONS = {
   heart: '<path d="M12 19.5s-7.5-4.5-7.5-10.1A3.9 3.9 0 0 1 12 7.2a3.9 3.9 0 0 1 7.5 2.2C19.5 15 12 19.5 12 19.5z"/>',
   shield: '<path d="M12 3.75 19.5 6.75v5.25c0 4.5-3.2 7.5-7.5 8.25-4.3-.75-7.5-3.75-7.5-8.25V6.75z"/>',
   'user-plus': '<circle cx="9.75" cy="8.25" r="3.75"/><path d="M3 20.25c.75-4 3.4-6.25 6.75-6.25s6 2.25 6.75 6.25"/><path d="M18.75 6.75v6M15.75 9.75h6"/>',
-  chat: '<path d="M3.75 5.25h16.5v11.25H10.5l-4.5 3.75v-3.75H3.75z"/>'
+  chat: '<path d="M3.75 5.25h16.5v11.25H10.5l-4.5 3.75v-3.75H3.75z"/>',
+  // Glass Quiet (GLASS-RULES §1.9.1): the selected tab draws its icon FILLED, the idle one stays a line icon. Same
+  // outline and footprint as the line icon, so a tab change swaps the fill without the glyph moving
+  'home-fill': '<path fill="currentColor" d="M12 4.2 5.75 9.3v10.95h4.5v-6h3.5v6h4.5V9.3z"/><path d="M3.75 10.5 12 3.75l8.25 6.75"/>',
+  'grid-fill': '<rect fill="currentColor" x="3.75" y="3.75" width="6.75" height="6.75"/><rect fill="currentColor" x="13.5" y="3.75" width="6.75" height="6.75"/><rect fill="currentColor" x="3.75" y="13.5" width="6.75" height="6.75"/><rect fill="currentColor" x="13.5" y="13.5" width="6.75" height="6.75"/>',
+  'users-fill': '<circle fill="currentColor" cx="9" cy="8.25" r="3.25"/><path fill="currentColor" d="M3 19.5c.6-3.3 3-5.25 6-5.25s5.4 1.95 6 5.25z"/><path d="M15 5.2a3.25 3.25 0 0 1 0 6.1M17.25 14.6c1.9.7 3.3 2.4 3.75 4.9"/>',
+  'inbox-fill': '<path d="M3.75 13.5 6 4.5h12l2.25 9"/><path fill="currentColor" d="M3.75 13.5h4.5l1.5 2.25h4.5l1.5-2.25h4.5v6H3.75z"/>',
+  'card-fill': '<path fill="currentColor" stroke="none" fill-rule="evenodd" d="M2.25 4.5h19.5v15H2.25zM8.6 8.9a2.1 2.1 0 1 0 0 4.2 2.1 2.1 0 1 0 0-4.2zM5.4 16.4c.5-1.75 1.75-2.65 3.2-2.65s2.7.9 3.2 2.65zM14.25 9.05h4.6v1.4h-4.6zM14.25 12.05h3.1v1.4h-3.1z"/>',
+  // the event app's "Updated hh:mm" refresh button, and an institution (never a person) in a square tile
+  refresh: '<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4.5v4.5H15"/>',
+  building: '<path d="M3.75 8.25 12 3.75l8.25 4.5zM4.5 10.5h15M3.75 20.25h16.5M6.75 10.5v9.75M10.25 10.5v9.75M13.75 10.5v9.75M17.25 10.5v9.75"/>'
 };
 
 // `size` in px; the stroke stays 1.5 units of the 24 grid (≈1.25 px at 20). Unknown names draw nothing.

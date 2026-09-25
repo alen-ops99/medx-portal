@@ -123,7 +123,9 @@ function boot() {
     .hook('leave', () => { chrome.closeDrawer(); chrome.closePopover(); ui.closeModals(); closeSafetyMenu(false); })
     .hook('settle', () => chrome.drawerSettled())
     .hook('beforeRender', ({ route, title }) => { state.set({ viewTitle: (route && route.title) || '', shownPath: location.pathname }); })
-    .hook('afterRender', ({ title }) => { if (title) state.set({ viewTitle: title }); });
+    .hook('afterRender', ({ title }) => { if (title) state.set({ viewTitle: title }); chrome.viewChanged(); })
+    // the new screen is placed (scrolled to its top, restored, or kept): the glass bars settle on it in the same frame
+    .hook('placed', () => chrome.viewChanged());
   chrome.mount();
   router.start().then(() => { after.forEach(fn => { try { fn(); } catch (e) { console.error('[boot] entry handler failed', e); } }); });
   refreshMe();

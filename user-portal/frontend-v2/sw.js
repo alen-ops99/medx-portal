@@ -1,6 +1,6 @@
 // Med&X member portal v2 — service worker.
 // Keep the CACHE_NAME line shape: scripts/stamp-sw.sh rewrites '…-vN' → '…-vN-<sha>' on deploy.
-const CACHE_NAME = 'medx-portal-v2-10';   // bumped 2026-09-25 (phone calm pass): new kit (ui.icon, ui.portrait, icons.js) — an old cached ui.js under new views fails to render, so cache-first JS must roll
+const CACHE_NAME = 'medx-portal-v2-11';   // bumped 2026-09-25 (Glass Quiet): the Liquid Glass kit (app.css, tokens.css, ui.js, chrome.js, icons.js) and the quieter views — cache-first CSS and JS must roll together
 
 // App shell (same-origin only — cross-origin entries make cache.addAll() reject and the SW never installs).
 // /js/views/live.js + /css/views/live.css are precached so a guest's second open of /live/<token> paints

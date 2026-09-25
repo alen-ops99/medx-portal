@@ -22,8 +22,10 @@ export const COPY = {
   banner: { lead: 'Confirm your email to unlock everything. Link sent to ', leadShort: 'Confirm your email to unlock everything.', resend: 'RESEND LINK', resendShort: 'RESEND', sent: 'Link sent — check your inbox (and spam).' },
   stats: { registrations: 'REGISTRATIONS', following: 'FOLLOWING', since: 'MEMBER SINCE' },
   drawer: { portal: 'PORTAL', projects: 'Projects', quick: 'QUICK LINKS', website: 'Website ↗' },
-  searchPanel: { placeholder: 'Search events, people, tickets…', hint: 'Type at least two characters.', none: 'Nothing matched — try a name, a city or an event.', groups: { projects: 'PROJECTS', events: 'EVENTS', members: 'PEOPLE', mine: 'MINE' } },
-  alertsPanel: { title: 'ALERTS', markAll: 'MARK ALL READ', emptyLine: 'All quiet.', emptyWhy: 'Announcements and replies land here the moment they arrive.' },
+  // Glass Quiet copy cuts (GLASS-RULES §3.6 › glass builder): the search hint goes (the placeholder says what to type),
+  // alerts read "Alerts" / "All quiet." with no explaining line
+  searchPanel: { placeholder: 'Search events, people, tickets…', none: 'Nothing matched — try a name, a city or an event.', groups: { projects: 'PROJECTS', events: 'EVENTS', members: 'PEOPLE', mine: 'MINE' } },
+  alertsPanel: { title: 'Alerts', unreadNew: n => n + ' new', markAll: 'Mark all read', emptyLine: 'All quiet.' },
   // title: the artboard's label for Home. At 390 px it ran out of room beside the logo ('MEMBER PORT…'),
   // so Home shows `home` — the logo already names the portal, and every other root tab shows its own name
   mobile: { title: 'MEMBER PORTAL', home: 'HOME', tabs: ['HOME', 'PROJECTS', 'PEOPLE', 'INBOX', 'MY M&X'],
@@ -157,7 +159,7 @@ function drawer() {
   return `
   <!-- dc: Portal Chrome.dc.html › "Drawer" -->
   <div id="mx-scrim" data-act="cl" aria-hidden="true" tabindex="-1"></div>
-  <div id="mx-drawer" role="navigation" aria-label="Portal menu">
+  <div id="mx-drawer" role="navigation" aria-label="Portal menu"><div class="mx-dr-scroll">
     <div style="display:flex;align-items:center;padding:0 26px"><img src="/assets/logo-white.png" alt="med&amp;X" style="height:20px;display:block"><div style="flex:1"></div><span data-act="cl" aria-label="Close menu" style="font-size:20px;color:rgba(247,241,230,.7);cursor:pointer" data-hover="color:#f7f1e6">×</span></div>
     <div style="font:600 12px Inter,sans-serif;letter-spacing:.12em;color:rgba(201,169,98,.9);padding:0 26px;margin:30px 0 8px">${COPY.drawer.portal}</div>
     <div style="display:flex;flex-direction:column">
@@ -170,7 +172,7 @@ function drawer() {
     </div>
     <div style="height:1px;background:rgba(247,241,230,.14);margin:14px 26px"></div>
     <a href="${FACTS.org.site}" target="_blank" rel="noopener" style="display:block;padding:0 26px;font-size:13px;color:rgba(247,241,230,.6);text-decoration:none" data-hover="color:#f7f1e6">${COPY.drawer.website}</a>
-  </div>
+  </div></div>
   <!-- /dc -->`;
 }
 function mobileTop() {
@@ -182,16 +184,19 @@ function mobileTop() {
   const isRoot = Object.values(TAB_ROOTS).includes(path.replace(/\/$/, '')) || path === '/' || path === '/app';
   const title = String(s.viewTitle || '').replace(/<[^>]+>/g, '');
   return `
-  <!-- dc: Mobile Portal.dc.html › "Top bar" (phone calm pass 2026-09-25: icons, no caps title, no avatar) -->
+  <!-- dc: Mobile Portal.dc.html › "Top bar" (phone calm pass 2026-09-25: icons, no caps title, no avatar; Glass Quiet: glass
+       controls, and a mode class chrome.js › applyBar() puts back after every draw: is-flat · is-glass · is-clear, is-dark) -->
   <!-- the bar sticks through its host: app.css makes #chrome sticky at phone widths (a sticky bar inside a header
        exactly its own height had no room to stick). Every control is a 44 px target -->
   <div id="mx-mobile-top" class="mx-mt${isRoot ? ' is-root' : ' is-pushed'}">
     ${isRoot
       ? `<a href="/app/home" class="mx-brand mx-mt-brand" aria-label="Med&amp;X home"><img src="/assets/logo.png" alt="med&amp;X" style="width:auto;height:18px;display:block"></a>
     <div class="mx-mt-fill"></div>
-    <span data-act="search" role="button" tabindex="0" aria-label="${COPY.mobile.search}" class="mx-mt-btn">${ui.icon('search', 22)}</span>
-    <span data-act="alerts" role="button" tabindex="0" aria-label="${COPY.mobile.alerts}" class="mx-mt-btn">${ui.icon('bell', 22)}<span class="mx-mt-dot" data-role="unread-dot-m"${s.unread > 0 ? '' : ' hidden'}></span></span>`
-      : `<span data-act="back" role="button" tabindex="0" aria-label="${COPY.mobile.back}" class="mx-mt-btn mx-mt-back">${ui.icon('chevron-left', 24)}</span>
+    <span class="mx-mt-caps mx-glass">
+      <span data-act="search" role="button" tabindex="0" aria-label="${COPY.mobile.search}" class="mx-mt-btn">${ui.icon('search', 22)}</span>
+      <span data-act="alerts" role="button" tabindex="0" aria-label="${COPY.mobile.alerts}" class="mx-mt-btn">${ui.icon('bell', 22)}<span class="mx-mt-dot" data-role="unread-dot-m"${s.unread > 0 ? '' : ' hidden'}></span></span>
+    </span>`
+      : `<span data-act="back" role="button" tabindex="0" aria-label="${COPY.mobile.back}" class="mx-mt-btn mx-mt-back mx-gbtn">${ui.icon('chevron-left', 24)}</span>
     <span class="mx-mt-title">${esc(title)}</span>
     <span class="mx-mt-btn mx-mt-spacer" aria-hidden="true"></span>`}
     <div data-role="popover-m"></div>
@@ -210,19 +215,24 @@ function mobileBanner() {
   </div>
   <!-- /dc -->`;
 }
+// which tab owns a path: the project screens light Projects, Profile lights My Med&X, Mentorship lights People
+function tabOn(label, path) {
+  const under = root => path === root || path.startsWith(root + '/');
+  return under(TAB_ROOTS[label]) || (label === 'HOME' && (path === '/' || path === '/app')) || (label === 'PROJECTS' && PROJECT_ROOTS.some(under)) || (TAB_EXTRA[label] || []).some(under);
+}
 function tabBar() {
   const path = router.path;
-  const under = root => path === root || path.startsWith(root + '/');
-  const on = label => under(TAB_ROOTS[label]) || (label === 'HOME' && (path === '/' || path === '/app')) || (label === 'PROJECTS' && PROJECT_ROOTS.some(under)) || (TAB_EXTRA[label] || []).some(under);
   const inbox = Number(state.get().msgUnread) || 0;
-  // a 22px line icon over a 12px sentence-case label; the lit tab is a gold icon and a cream label, the others cream
-  // at 55 %. The markup is the same lit or not (css reads aria-selected), so a tab change only moves one attribute and
-  // the colours ease across. Inbox carries the unread count
+  const lit = COPY.mobile.tabs.findIndex(k => tabOn(k, path));
+  // Glass Quiet (GLASS-RULES §1.9.1): a floating glass capsule. Each tab is a 24px icon (the line icon idle, the filled one
+  // selected) over an 11px label; the selected one sits on a lens that slides across (--i = its column). Inbox carries
+  // the unread count. A tab change moves one attribute, one icon and the lens, so the colours ease and the lens glides
   return `
-  <!-- dc: Mobile Portal.dc.html › "Tab bar" (phone calm pass 2026-09-25: line icons, readable labels, no diamonds) -->
-  <div id="mx-tabbar" role="tablist" aria-label="Sections">
-    ${COPY.mobile.tabs.map(key => { const a = on(key); const badge = key === 'INBOX' && inbox > 0 ? `<span class="mx-tb-badge" aria-label="${inbox} unread">${inbox > 99 ? '99+' : inbox}</span>` : '';
-      return `<a href="${TAB_ROOTS[key]}" role="tab" aria-selected="${a}" class="mx-tb"><span class="mx-tb-ic">${ui.icon(COPY.mobile.icons[key], 24)}${badge}</span><span class="mx-tb-l">${COPY.mobile.labels[key]}</span></a>`; }).join('\n    ')}
+  <!-- dc: Mobile Portal.dc.html › "Tab bar" (phone calm pass 2026-09-25; Glass Quiet 2026-09-25: floating glass capsule) -->
+  <div id="mx-tabbar" role="tablist" aria-label="Sections" class="mx-glass${lit < 0 ? ' no-lens' : ''}" style="--i:${Math.max(0, lit)}">
+    <span class="mx-tb-lens" aria-hidden="true"></span>
+    ${COPY.mobile.tabs.map((key, i) => { const a = i === lit; const badge = key === 'INBOX' && inbox > 0 ? `<span class="mx-tb-badge" aria-label="${inbox} unread">${inbox > 99 ? '99+' : inbox}</span>` : '';
+      return `<a href="${TAB_ROOTS[key]}" role="tab" aria-selected="${a}" class="mx-tb"><span class="mx-tb-ic">${ui.icon(COPY.mobile.icons[key] + (a ? '-fill' : ''), 24)}${badge}</span><span class="mx-tb-l">${COPY.mobile.labels[key]}</span></a>`; }).join('\n    ')}
   </div>
   <!-- /dc -->`;
 }
@@ -236,16 +246,16 @@ function alertsPanel() {
       <span class="mx-pop-text"><span class="mx-pop-t">${esc(n.title || 'Update')}</span>${n.message ? `<span class="mx-pop-s">${esc(n.message)}</span>` : ''}</span>
       <span class="mx-pop-d">${fmt.shortDate(n.created_at).replace(/^([A-Z])([A-Z]+)/, (m, a, b) => a + b.toLowerCase())}</span>
     </div>`;
-  return `<div class="mx-pop" role="dialog" aria-label="Alerts">
-    <div class="mx-pop-head"><span class="mx-pop-h">${COPY.alertsPanel.title}${s.unread ? ' · ' + s.unread + ' NEW' : ''}</span><div style="flex:1"></div>${list.length ? `<span data-act="markAll" class="mx-pop-a">${COPY.alertsPanel.markAll}</span>` : ''}<span data-act="closePop" role="button" tabindex="0" aria-label="Close" class="mx-pop-x">${ui.icon('x', 20)}</span></div>
-    <div class="mx-pop-list">${s.msgUnread > 0 ? `<div class="mx-pop-row" data-act="openInbox"><span class="mx-pop-dot is-gold"></span><span class="mx-pop-text"><span class="mx-pop-t">${s.msgUnread} unread message${s.msgUnread === 1 ? '' : 's'}</span></span><span class="mx-pop-go">Open →</span></div>` : ''}${list.length ? list.map(row).join('') : s.msgUnread > 0 ? '' : `<div class="empty"><span class="empty-line">${COPY.alertsPanel.emptyLine}</span><span class="empty-why">${COPY.alertsPanel.emptyWhy}</span></div>`}</div>
+  return `<div class="mx-pop mx-glass mx-glass--sheet" role="dialog" aria-label="Alerts">
+    <div class="mx-pop-head"><span class="mx-pop-h">${COPY.alertsPanel.title}${s.unread ? ' · ' + COPY.alertsPanel.unreadNew(s.unread) : ''}</span><div style="flex:1"></div>${list.length ? `<span data-act="markAll" class="mx-pop-a">${COPY.alertsPanel.markAll}</span>` : ''}<span data-act="closePop" role="button" tabindex="0" aria-label="Close" class="mx-pop-x">${ui.icon('x', 20)}</span></div>
+    <div class="mx-pop-list">${s.msgUnread > 0 ? `<div class="mx-pop-row" data-act="openInbox"><span class="mx-pop-dot is-gold"></span><span class="mx-pop-text"><span class="mx-pop-t">${s.msgUnread} unread message${s.msgUnread === 1 ? '' : 's'}</span></span><span class="mx-pop-go">Open →</span></div>` : ''}${list.length ? list.map(row).join('') : s.msgUnread > 0 ? '' : `<div class="empty"><span class="empty-line">${COPY.alertsPanel.emptyLine}</span></div>`}</div>
   </div>`;
 }
 function searchOverlay() {
   return `<div class="mx-search" data-act="closePop" tabindex="-1" role="dialog" aria-label="Search">
-    <div class="mx-search-panel" data-stop="1">
+    <div class="mx-search-panel mx-glass mx-glass--sheet" data-stop="1">
       <div class="mx-search-field">${ui.icon('search', 20)}<input data-role="q" type="search" enterkeyhint="search" placeholder="${esc(COPY.searchPanel.placeholder)}" aria-label="Search" autocomplete="off"><span data-act="closePop" role="button" tabindex="0" aria-label="Close search" class="mx-pop-x">${ui.icon('x', 20)}</span></div>
-      <div data-role="results" class="mx-pop-list"><div class="mx-pop-hint">${COPY.searchPanel.hint}</div></div>
+      <div data-role="results" class="mx-pop-list"></div>
     </div>
   </div>`;
 }
@@ -279,24 +289,29 @@ function renderAll() {
   const portal = s.layout === 'portal';
   document.body.setAttribute('data-layout', s.layout || 'portal');
   document.body.classList.toggle('authed', session.isAuthed);
+  syncWebbar();
   const html = portal ? `<div id="mx-desktop-chrome">${topBar()}${statsStrip()}${banner()}</div>${mobileTop()}` : '';
-  if (html !== els.chrome._html || (portal && !els.chrome.firstElementChild)) { els.chrome.innerHTML = html; els.chrome._html = html; }
+  if (html !== els.chrome._html || (portal && !els.chrome.firstElementChild)) { els.chrome.innerHTML = html; els.chrome._html = html; applyBar(); }
   renderOverlays(portal);
   if (popover) renderPopover();
+  reportTabbar();
 }
 function renderOverlays(portal) {
   const o = els.overlays;
   if (!portal) { if (o.firstChild) o.innerHTML = ''; o._drawer = o._tabs = null; return; }
   const d = drawer(), t = tabBar();
   const dr = o.querySelector('#mx-drawer'), tb = o.querySelector('#mx-tabbar');
-  if (!dr || !tb || !o.querySelector('#mx-scrim')) { o.innerHTML = d + t; o._drawer = d; o._tabs = t; return; }
+  if (!dr || !tb || !o.querySelector('#mx-scrim')) { o.innerHTML = d + t; o._drawer = d; o._tabs = t; applyBar(); return; }
   if (o._drawer !== d) { const n = ui.h(`<div>${d}</div>`).querySelector('#mx-drawer'); if (n) dr.innerHTML = n.innerHTML; o._drawer = d; }
-  if (o._tabs !== t) { patchTabs(tb, ui.h(t.replace(/<!--[\s\S]*?-->/g, ''))); o._tabs = t; }
+  if (o._tabs !== t) { patchTabs(tb, ui.h(t.replace(/<!--[\s\S]*?-->/g, ''))); o._tabs = t; applyBar(); }
 }
-// the same five tabs, another one lit: attributes and inline styles move over, so the css transitions carry them
+// the same five tabs, another one lit: attributes and inline styles move over, so the css transitions carry them (the lens
+// slides because only the bar's --i changes; the tone class the scroll watcher set stays)
 function patchTabs(el, next) {
   const now = [...el.querySelectorAll(':scope > a')], want = next ? [...next.querySelectorAll(':scope > a')] : [];
   if (!want.length || now.length !== want.length || now.some((a, i) => a.getAttribute('href') !== want[i].getAttribute('href'))) { el.replaceWith(next); return; }
+  if (el.getAttribute('style') !== next.getAttribute('style')) el.setAttribute('style', next.getAttribute('style') || '');
+  el.classList.toggle('no-lens', next.classList.contains('no-lens'));
   now.forEach((a, i) => {
     const b = want[i];
     ['aria-selected', 'style', 'class'].forEach(k => { const v = b.getAttribute(k); if (a.getAttribute(k) !== v) { if (v == null) a.removeAttribute(k); else a.setAttribute(k, v); } });
@@ -313,6 +328,8 @@ function renderPopover() {
   if (!host) return;
   // ALERTS on a phone dims the page like SEARCH does: a scrim after the panel (a tap on it closes, css shows it ≤500px)
   host.innerHTML = popover === 'alerts' ? alertsPanel() + '<div class="mx-pop-scrim" data-act="closePop" aria-hidden="true"></div>' : popover === 'search' ? searchOverlay() : '';
+  // while one is open the bar and its sheet sit above the tab bar (app.css › body.mx-pop-open)
+  document.body.classList.toggle('mx-pop-open', !!popover);
   // The panel is re-drawn whenever its data lands (alerts refresh, chrome re-render). Only the opening
   // pass animates, and a re-draw during it picks the animation up where it was (negative delay).
   const panel = host.firstElementChild;
@@ -363,7 +380,7 @@ function onSearchInput(e) {
   const q = e.target.value.trim();
   clearTimeout(searchTimer);
   const box = els.chrome.querySelector('[data-role="results"]');
-  if (q.length < 2) { searchActive = -1; if (box) box.innerHTML = `<div class="mx-pop-hint">${COPY.searchPanel.hint}</div>`; return; }
+  if (q.length < 2) { searchActive = -1; if (box) box.innerHTML = ''; return; }
   searchTimer = setTimeout(async () => {
     try {
       // the server's search only knew confirmed Plexus registrants as people — the member directory
@@ -388,6 +405,138 @@ function onSearchInput(e) {
     }
     catch (err) { if (box) box.innerHTML = `<div class="mx-pop-hint is-error">${esc(err.message)}</div>`; }
   }, 250);
+}
+
+// ---------------------------------------------------------------- Liquid Glass behaviour (GLASS-RULES §1.5, §1.9, §2.1)
+// One phone test for every side (app.css, medx-native.css and boot.js say 500 too), so web and iOS never disagree at the edge
+const PHONE_MQ = '(max-width: 500px)';
+const phoneMq = (() => { try { return window.matchMedia(PHONE_MQ); } catch (e) { return { matches: false }; } })();
+const isPhonePortal = () => !!phoneMq.matches && state.get().layout === 'portal';
+// the stable keys of the web ↔ native tab bar contract (§2.1), in tab order, and the tab labels as plain text
+const TAB_KEYS = { HOME: 'home', PROJECTS: 'projects', PEOPLE: 'people', INBOX: 'inbox', 'MY M&X': 'me' };
+const plain = h => String(h).replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+// dark regions a bar can sit over (§1.5): the kit marks these; a view marks anything else with data-glass-dark
+const DARK_SEL = '.mx-hero:not(.mx-hero--cream), .mx-countdown:not(.mx-countdown--line), .mx-dark, .card-ink, .lv-head, .mx-ink, [data-glass-dark], [style*="background:#191512"]';
+// what counts as an overlay over the phone screen (§1.9.4): while one is open the tab bar is reported as not visible, so
+// the native bar steps aside the way a UIKit sheet covers a tab bar
+const OVERLAY_SEL = '.mx-modal:not(.is-leaving), .mx-search:not(.mx-pop-out), .mx-pop-scrim:not(.mx-pop-out), .mx-bio-scrim:not(.is-leaving), .lv-sheet-wrap:not(.is-leaving)';
+let bar = { mode: null, dark: false };      // the phone top bar: 'flat' | 'glass' | 'clear' (null: no phone bar on this layout)
+let tabDark = false;                          // the web tab bar over a dark region
+let heroEl = null;                            // the photo hero the top bar floats over (clear mode), or null
+let barRaf = 0, lastTabbar = '';
+
+// html.mx-webbar: the web tab bar is drawn (a phone, the portal layout). The css keys --mx-tabbar-h on it, and the tall hero
+// reads that, so it is set before any view draws (mount, and every layout or width change) — never in a later callback
+function syncWebbar() { document.documentElement.classList.toggle('mx-webbar', isPhonePortal()); }
+
+// the web ↔ native tab bar contract (§2.1): after every draw or update of the phone tab bar, an unread change, an overlay
+// opening or closing and the width crossing 500px, the latest detail goes out as `mx:tabbar` and waits in window.__mxTabbar
+function overlayOpen() { return document.body.classList.contains('drawer-open') || !!document.querySelector(OVERLAY_SEL); }
+function reportTabbar() {
+  const s = state.get(), path = router.path;
+  const lit = COPY.mobile.tabs.find(k => tabOn(k, path));
+  const detail = {
+    visible: isPhonePortal() && !overlayOpen(),
+    active: lit ? TAB_KEYS[lit] : null,
+    unread: Number(s.msgUnread) || 0,
+    tabs: COPY.mobile.tabs.map(k => ({ key: TAB_KEYS[k], label: plain(COPY.mobile.labels[k]), href: TAB_ROOTS[k] }))
+  };
+  window.__mxTabbar = detail;
+  const sig = JSON.stringify(detail);
+  if (sig === lastTabbar) return;
+  lastTabbar = sig;
+  try { window.dispatchEvent(new CustomEvent('mx:tabbar', { detail })); } catch (e) {}
+}
+
+// a tab: the one you are on scrolls the page back to its top (like iOS); from a screen under it, its root; else a jump
+// (the router cross-fades a tab jump, never pushes). The web bar's taps and the native bar's mx:navigate both come here
+function scrollToTop() { try { window.scrollTo({ top: 0, behavior: ui.reducedMotion() ? 'auto' : 'smooth' }); } catch (e) { window.scrollTo(0, 0); } }
+function tabGo(href) {
+  if (typeof href !== 'string' || !href.startsWith('/') || href.startsWith('//')) return;
+  if (href === location.pathname && !location.search) return scrollToTop();
+  router.navigate(href, { jump: true });
+}
+
+// the phone top bar's mode (§1.9.2) and the tone of both bars (§1.5). The classes live on the bar elements and are put back
+// after every chrome draw (a mode change never re-draws the bar); the mode is mirrored on <html data-mx-bar> and sent as
+// `mx:bar` for the iOS layer (status-bar glyphs light in clear mode)
+function applyBar() {
+  const top = els.chrome && els.chrome.querySelector('#mx-mobile-top');
+  if (top) {
+    ['flat', 'glass', 'clear'].forEach(m => top.classList.toggle('is-' + m, bar.mode === m));
+    top.classList.toggle('is-dark', bar.mode === 'glass' && bar.dark);
+  }
+  const tb = els.overlays && els.overlays.querySelector('#mx-tabbar');
+  if (tb) tb.classList.toggle('is-dark', tabDark);
+}
+function underIsDark(el) {
+  const r = el.getBoundingClientRect();
+  if (!r.width || !r.height || typeof document.elementsFromPoint !== 'function') return false;
+  const y = r.top + r.height / 2;
+  let hits = 0;
+  for (const f of [0.2, 0.5, 0.8]) {
+    let under = null;
+    try { under = document.elementsFromPoint(r.left + r.width * f, y).find(n => n !== document.documentElement && n !== document.body && !els.chrome.contains(n) && !els.overlays.contains(n) && !n.closest('.mx-toast')); } catch (e) {}
+    if (under && under.closest(DARK_SEL)) hits++;
+  }
+  return hits >= 2;
+}
+// the photo hero a pushed screen opens on (§1.9.2 "clear"): the first visible block of #view is a .mx-hero holding an
+// .mx-hero-photo (hidden crumbs do not count). Never while the email line shows (the bar then starts in glass mode).
+// Runs before the new screen paints: #chrome leaves the flow here, so the photo starts under the status bar
+function detectHero() {
+  let hero = null;
+  const view = document.getElementById('view');
+  if (isPhonePortal() && view && !els.chrome.querySelector('.mx-mt-banner')) {
+    const h = [...view.querySelectorAll('.mx-hero')].find(x => !x.closest('.mx-leaving'));
+    if (h && h.querySelector('.mx-hero-photo') && !h.classList.contains('mx-hero--ink') && !h.classList.contains('mx-hero--cream')) {
+      const vr = view.getBoundingClientRect(), hr = h.getBoundingClientRect();
+      if (hr.height > 0 && Math.abs(hr.top - vr.top) < 2) hero = h;
+    }
+  }
+  heroEl = hero;
+  document.body.classList.toggle('mx-over-hero', !!hero);
+}
+function updateBar() {
+  barRaf = 0;
+  const phone = isPhonePortal();
+  const top = els.chrome && els.chrome.querySelector('#mx-mobile-top');
+  let mode = null, dark = false;
+  if (phone && top) {
+    const edge = top.getBoundingClientRect().bottom;
+    if (heroEl && heroEl.isConnected) mode = heroEl.getBoundingClientRect().bottom > edge + 0.5 ? 'clear' : 'glass';
+    else mode = window.scrollY > 4 || (els.chrome.querySelector('.mx-mt-banner') && document.querySelector('#view .mx-hero')) ? 'glass' : 'flat';
+    if (mode === 'glass') dark = underIsDark(top);
+  }
+  const tb = els.overlays && els.overlays.querySelector('#mx-tabbar');
+  tabDark = !!(phone && tb && underIsDark(tb));
+  const changed = mode !== bar.mode;
+  bar = { mode, dark };
+  applyBar();
+  if (!changed) return;
+  const html = document.documentElement;
+  if (mode) html.setAttribute('data-mx-bar', mode); else html.removeAttribute('data-mx-bar');
+  try { window.dispatchEvent(new CustomEvent('mx:bar', { detail: { mode } })); } catch (e) {}
+}
+function scheduleBar() { if (!barRaf) barRaf = requestAnimationFrame(updateBar); }
+// a new screen drew (or was placed): find its hero and settle both bars at once, in the same frame
+function viewChanged() { if (barRaf) { cancelAnimationFrame(barRaf); barRaf = 0; } detectHero(); updateBar(); reportTabbar(); }
+
+// the keyboard (§1.9.1): the visual viewport shrinks by more than 150px while a field has focus → html.mx-vkb (the web bar
+// steps down, --mx-tabbar-h goes to 0). A rotation or a width change starts the measure again
+function watchKeyboard() {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  let base = vv.height, w = window.innerWidth;
+  const typing = () => { const a = document.activeElement; return !!a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)); };
+  const check = () => {
+    if (window.innerWidth !== w) { w = window.innerWidth; base = vv.height; }
+    if (vv.height > base) base = vv.height;
+    const up = vv.scale < 1.05 && base - vv.height > 150 && typing();
+    if (up !== document.documentElement.classList.contains('mx-vkb')) document.documentElement.classList.toggle('mx-vkb', up);
+  };
+  vv.addEventListener('resize', check);
+  document.addEventListener('focusout', () => setTimeout(check, 60));
 }
 
 const handlers = {
@@ -446,9 +595,36 @@ export const chrome = {
       openPopover('search');
     });
     document.addEventListener('click', e => { if (popover === 'alerts' && !e.target.closest('.mx-pop') && !e.target.closest('[data-act="alerts"]')) closePopover(); });
+    // Liquid Glass: html.mx-webbar before anything draws; the tab you are on scrolls to the top; the native bar's taps
+    // (mx:navigate) route like a web tab; the bars follow the scroll, the width, the view and the overlays
+    syncWebbar();
+    els.overlays.addEventListener('click', e => {
+      const a = e.target.closest && e.target.closest('#mx-tabbar > a[href]');
+      if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const href = a.getAttribute('href');
+      if (href === location.pathname && !location.search) { e.preventDefault(); scrollToTop(); }
+    });
+    window.addEventListener('mx:navigate', e => tabGo(e && e.detail && e.detail.href));
+    window.addEventListener('scroll', scheduleBar, { passive: true });
+    window.addEventListener('resize', () => { detectHero(); scheduleBar(); }, { passive: true });
+    const onWidth = () => { syncWebbar(); if (popover) renderPopover(); viewChanged(); };
+    if (phoneMq.addEventListener) phoneMq.addEventListener('change', onWidth); else if (phoneMq.addListener) phoneMq.addListener(onWidth);
+    const view = document.getElementById('view');
+    if (view && typeof MutationObserver === 'function') {
+      // the view's first write (root.innerHTML) is a childList change of #view: its hero is found in that microtask,
+      // inside the view transition's update, before the new screen is captured or painted
+      new MutationObserver(() => viewChanged()).observe(view, { childList: true });
+      // a sheet, SEARCH, ALERTS, the bio sheet, the event app sheet or the menu opening or closing
+      let wasOpen = null;
+      new MutationObserver(() => { const o = overlayOpen(); if (o !== wasOpen) { wasOpen = o; reportTabbar(); } })
+        .observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+    }
+    watchKeyboard();
     state.subscribe((s, keys) => { if (keys.some(k => ['user', 'stats', 'unread', 'msgUnread', 'active', 'layout', 'viewTitle', 'shownPath', 'notifications'].includes(k))) renderAll(); });
     renderAll();
   },
+  // the router: a screen was drawn and placed (app.js › hooks afterRender / placed)
+  viewChanged,
   toggleDrawer() { document.body.classList.contains('drawer-open') ? chrome.closeDrawer() : chrome.openDrawer(); },
   openDrawer() {
     document.body.classList.add('drawer-open'); const s = els.overlays.querySelector('#mx-scrim'); if (s) s.setAttribute('aria-hidden', 'false');
@@ -458,7 +634,7 @@ export const chrome = {
       // every menu line steps in on its own, 22 ms apart (capped at 160 ms): the headings, each entry of the
       // two lists, the rules, the website link — a list no longer arrives as one slab
       const lines = [];
-      for (const c of d.children) { if (c.tagName === 'DIV' && c.querySelector(':scope > a')) lines.push(...c.children); else lines.push(c); }
+      for (const c of (d.querySelector('.mx-dr-scroll') || d).children) { if (c.tagName === 'DIV' && c.querySelector(':scope > a')) lines.push(...c.children); else lines.push(c); }
       lines.forEach((el, i) => { el.classList.add('mx-dr-i'); el.style.setProperty('--dr-d', Math.min(i * 22, 160) + 'ms'); });
       d.classList.remove('is-entering'); void d.offsetWidth; d.classList.add('is-entering');
       clearTimeout(drawerTimer); drawerTimer = setTimeout(() => d.classList.remove('is-entering'), 700);

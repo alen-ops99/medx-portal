@@ -81,7 +81,35 @@
   --gutter-p: 20px;     /* phone page gutter */
   --pic-ring: rgba(25,21,18,.12);   /* hairline around a person's circle on cream */
   --tap: 44px;          /* smallest touch target */
+
+  /* Liquid Glass · GLASS-RULES §1 (2026-09-25). Glass is for what FLOATS over content (bars, sheets, menus, chips on
+     photos, segmented controls, toasts); what IS content stays square cream paper. Final tints are set by the contrast
+     check (§1.7, after/glass/glass-contrast.json) */
+  --glass-blur: 24px;                        /* bars */
+  --glass-blur-sheet: 30px;                  /* sheets, popovers, drawer */
+  --glass-blur-chip: 16px;                   /* chips and buttons on photos */
+  --glass-sat: 180%;
+  --glass-light: rgba(250, 246, 238, .72);   /* over cream pages */
+  --glass-light-strong: rgba(250, 246, 238, .88);  /* sheets and popovers: long text sits on them */
+  --glass-dark: rgba(25, 21, 18, .52);       /* over photos, ink bands */
+  --glass-dark-chip: rgba(25, 21, 18, .40);
+  --glass-edge-light: inset 0 1px 0 rgba(255, 255, 255, .70), inset 0 0 0 .5px rgba(255, 255, 255, .50);
+  --glass-edge-dark: inset 0 1px 0 rgba(255, 255, 255, .22), inset 0 0 0 .5px rgba(255, 255, 255, .14);
+  --glass-shadow: 0 10px 30px rgba(25, 21, 18, .14), 0 1px 3px rgba(25, 21, 18, .10);
+  --glass-shadow-dark: 0 10px 30px rgba(0, 0, 0, .30);
+  --glass-lens-light: rgba(25, 21, 18, .07);  /* the selected-tab pill inside a light bar */
+  --glass-lens-dark: rgba(247, 241, 230, .16);
+  --glass-solid-light: #f3ece0;              /* fallbacks (§1.6) */
+  --glass-solid-dark: #221d19;
+  --glass-press: .96;                        /* pressed scale */
+  --r-capsule: 999px; --r-sheet: 28px; --r-pop: 22px; --r-drawer: 24px;
+  /* the space every bottom-anchored thing keeps free (§1.9.1, §1.10, §2.1): 0 wherever no bar is drawn; the web bar sets
+     it in app.css (html.mx-webbar), the iOS layer writes a px value inline on <html> in native mode. JS reads it through
+     ui.bottomSpace() (a measured length: before @property support the computed value is the unresolved calc() text) */
+  --mx-tabbar-h: 0px;
 }
+/* registered as a length where the engine can (iOS 16.4+, Chrome 85+): getComputedStyle then returns "95px", not the calc() */
+@property --mx-tabbar-h { syntax: '<length>'; inherits: true; initial-value: 0px; }
 @supports (animation-timing-function: linear(0, 1)) {
   :root { --ease-settle: linear(0, 0.04, 0.136, 0.259, 0.39, 0.515, 0.627, 0.724, 0.803, 0.866, 0.915, 0.951, 0.976, 0.994, 1.005, 1.011, 1.014, 1.015, 1.015, 1.013, 1.011, 1.009, 1.007, 1.005, 1.003, 1.001, 1); }
 }

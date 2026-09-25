@@ -46,7 +46,7 @@ img { max-width: 100%; }
   outline: 2px solid #9b1b22; outline-offset: 3px;
 }
 /* on the ink ground (drawer, tab bar, dark bands, photo heroes) the ring turns gold so it stays visible */
-#mx-drawer :focus-visible, #mx-tabbar :focus-visible, .mx-ink :focus-visible, .mx-toast :focus-visible,
+#mx-drawer :focus-visible, #mx-tabbar.is-dark :focus-visible, .mx-ink :focus-visible, .mx-toast :focus-visible, .mx-gbtn--dark:focus-visible,
 [style*="background:#191512"] :focus-visible, .mx-waking :focus-visible, .btn-ghost-ink:focus-visible { outline-color: #c9a962; }
 #mx-tabbar a:focus-visible { outline-offset: -4px; }
 [data-act][aria-disabled="true"] { opacity: .55; cursor: default; }
@@ -71,16 +71,21 @@ body[data-layout="portal"] #view > [data-screen-label] { flex: 1 0 auto; min-hei
 /* The drawer/scrim markup and inline styles are verbatim; these rules only carry the
    open/closed state that the mock expressed through {{ dx }} {{ sc }} {{ pe }}. */
 #mx-scrim { position: fixed; inset: 0; z-index: 40; transition: background-color var(--t-reveal) var(--ease-fade); background: rgba(25,21,18,0); pointer-events: none; cursor: pointer; }
-#mx-drawer { position: fixed; top: 0; left: -312px; width: 300px; max-height: 100%; height: 100%; z-index: 41; background: #191512; color: #f7f1e6;
-  transform: translateX(0px); display: flex; flex-direction: column;
-  padding: calc(24px + env(safe-area-inset-top)) 0 calc(28px + env(safe-area-inset-bottom)); box-sizing: border-box; box-shadow: none; overflow-y: auto; visibility: hidden;
+/* Glass Quiet: the menu floats as dark glass 8px off the screen edges with 24px corners. The glass lives on ::before
+   and the entries scroll inside .mx-dr-scroll, so the blur never scrolls away with them */
+#mx-drawer { position: fixed; top: calc(8px + env(safe-area-inset-top)); bottom: calc(8px + env(safe-area-inset-bottom)); left: -320px; width: 300px; z-index: 41; color: #f7f1e6;
+  border-radius: var(--r-drawer); overflow: hidden; isolation: isolate; background: transparent;
+  transform: translateX(0px); display: flex; flex-direction: column; padding: 0; box-sizing: border-box; box-shadow: none; visibility: hidden;
   transition: transform var(--t-reveal) var(--ease), box-shadow var(--t-reveal) var(--ease), visibility 0s linear var(--t-reveal); }
+#mx-drawer::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; background: rgba(25,21,18,.78); box-shadow: var(--glass-edge-dark);
+  -webkit-backdrop-filter: blur(var(--glass-blur-sheet)) saturate(var(--glass-sat)); backdrop-filter: blur(var(--glass-blur-sheet)) saturate(var(--glass-sat)); }
+#mx-drawer > .mx-dr-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; padding: 24px 0 28px; box-sizing: border-box; }
 /* the shadow only exists while the drawer is open — closed, its 44px blur used to bleed a grey band
    down the left edge of every page (the drawer parks at left:-312px, the blur reached ~40px in) */
-body.drawer-open #mx-scrim { background: rgba(25,21,18,.45); pointer-events: auto; }
+body.drawer-open #mx-scrim { background: rgba(25,21,18,.32); pointer-events: auto; }
 /* a list scrolled to its end inside the menu, a sheet or a dropdown never drags the page behind it along */
-#mx-drawer, .mx-modal, .mx-search { overscroll-behavior: contain; }
-body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 44px rgba(25,21,18,.4); visibility: visible;
+#mx-drawer, .mx-modal, .mx-search, .mx-modal-scroll { overscroll-behavior: contain; }
+body.drawer-open #mx-drawer { transform: translateX(328px); box-shadow: var(--glass-shadow-dark); visibility: visible;
   transition: transform var(--t-reveal) var(--ease), box-shadow var(--t-reveal) var(--ease), visibility 0s; }
 #mx-drawer a, #mx-drawer [data-act] { transition: color var(--t-quick) var(--ease), background-color var(--t-quick) var(--ease), transform var(--t-quick) var(--ease); }
 /* opening: the entries follow the panel in one after another — every menu line, not each list as a slab.
@@ -96,37 +101,43 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
 }
 
 /* ---- top-bar dropdowns (SEARCH / ALERTS) — no artboard; built from tokens ---- */
-.mx-pop { position: absolute; top: 60px; right: 36px; z-index: 35; width: 380px; max-width: calc(100vw - 36px); background: #fdfaf3; border: 1px solid rgba(25,21,18,.16); box-shadow: 0 10px 34px rgba(25,21,18,.15); }
-.mx-pop-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid rgba(25,21,18,.16); }
+.mx-pop { position: absolute; top: 60px; right: 36px; z-index: 35; width: 380px; max-width: calc(100vw - 36px); border-radius: var(--r-pop); overflow: hidden; box-shadow: var(--glass-shadow); }
+.mx-pop-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--hair-soft); }
 .mx-pop-list { max-height: 60vh; overflow-y: auto; overscroll-behavior: contain; }
 .mx-pop-row { display: flex; gap: 12px; align-items: flex-start; padding: 11px 16px; border-bottom: 1px solid rgba(25,21,18,.1); color: #191512; cursor: pointer; }
 .mx-pop-row { transition: background-color var(--t-quick) var(--ease), box-shadow var(--t-quick) var(--ease); }
 @media (hover: hover) { .mx-pop-row:hover { background: var(--row-hover); } }
 .mx-pop-row:last-child { border-bottom: 0; }
-.mx-search { position: fixed; inset: 0; z-index: 50; background: rgba(25,21,18,.55); display: flex; align-items: flex-start; justify-content: center; padding: calc(10vh + env(safe-area-inset-top)) 18px 0; }
-.mx-search-panel { width: 640px; max-width: 100%; background: #fdfaf3; border: 1px solid rgba(25,21,18,.16); box-shadow: 0 16px 44px rgba(25,21,18,.35); }
+.mx-search { position: fixed; inset: 0; z-index: 50; background: rgba(25,21,18,.32); display: flex; align-items: flex-start; justify-content: center; padding: calc(10vh + env(safe-area-inset-top)) 18px 0; }
+.mx-search-panel { width: 640px; max-width: 100%; border-radius: var(--r-pop); overflow: hidden; box-shadow: 0 16px 44px rgba(25,21,18,.22); }
 .mx-search-panel input { border: 0; border-bottom: 1px solid rgba(25,21,18,.16); background: transparent; padding: 18px 20px; font: 16px Inter, sans-serif; color: #191512; width: 100%; box-sizing: border-box; }
 .mx-search-panel input:focus { outline: 0; }
 .mx-search-panel input::-webkit-search-cancel-button, .mx-search-panel input::-webkit-search-decoration { -webkit-appearance: none; appearance: none; }
 /* the field row: a magnifier, the 16px field and a 44px close (the phone had no visible way out but the backdrop) */
-.mx-search-field { display: flex; align-items: center; gap: 10px; padding: 4px 4px 4px 18px; border-bottom: 1px solid rgba(25,21,18,.16); color: var(--soft); }
+.mx-search-field { display: flex; align-items: center; gap: 10px; padding: 4px 4px 4px 18px; border-bottom: 1px solid var(--hair-soft); color: var(--soft); }
 .mx-search-field > .mx-ic { flex: none; }
 .mx-search-panel .mx-search-field input { flex: 1 1 auto; min-width: 0; width: auto; border-bottom: 0; padding: 14px 0; }
 .mx-pop-scrim { display: none; }
-@media (max-width: 500px) { .mx-pop-scrim { display: block; position: fixed; inset: 0; z-index: 34; background: rgba(25,21,18,.55); } }
+@media (max-width: 500px) { .mx-pop-scrim { display: block; position: fixed; inset: 0; z-index: 34; background: rgba(25,21,18,.32); } }
 .mx-search-group { padding: 14px 20px 6px; font: 600 12px/16px Inter, sans-serif; letter-spacing: .12em; color: #6e5626; }
 /* SEARCH / ALERTS open with a short fade and a few pixels of travel; they fade out on close.
    chrome.js adds .mx-pop-in for the opening pass only (--pop-t continues it across a re-render). */
 /* Entrances fill `backwards` only: a finished entrance must not keep an identity transform on the panel
    (it would stay a containing block for anything fixed or sticky inside it). Exits fill `forwards`. */
 @media (prefers-reduced-motion: no-preference) {
-  .mx-pop.mx-pop-in { animation: mx-fade var(--t-reveal) var(--ease-fade) backwards, mx-drop-t var(--t-settle) var(--ease-settle) backwards; animation-delay: var(--pop-t, 0ms); }
-  .mx-search.mx-pop-in { animation: mx-fade var(--t-reveal) var(--ease-fade) backwards; animation-delay: var(--pop-t, 0ms); }
-  .mx-search.mx-pop-in .mx-search-panel { animation: mx-fade var(--t-reveal) var(--ease-fade) backwards, mx-drop-t var(--t-settle) var(--ease-settle) backwards; animation-delay: var(--pop-t, 0ms); }
-  .mx-pop.mx-pop-out, .mx-search.mx-pop-out, .mx-pop-scrim.mx-pop-out { animation: mx-fade-out var(--t-exit) var(--ease-exit) forwards; pointer-events: none; }
-  .mx-pop-scrim { animation: mx-fade var(--t-reveal) var(--ease-fade) backwards; }
-  .mx-pop.mx-pop-out, .mx-search.mx-pop-out .mx-search-panel { transform: translateY(-4px); transition: transform var(--t-exit) var(--ease-exit); }
+  .mx-pop.mx-pop-in { animation: mx-drop-t var(--t-settle) var(--ease-settle) backwards; animation-delay: var(--pop-t, 0ms); }
+  .mx-pop.mx-pop-in::before, .mx-pop.mx-pop-in > *, .mx-search.mx-pop-in .mx-search-panel::before, .mx-search.mx-pop-in .mx-search-panel > * {
+    animation: mx-fade var(--t-reveal) var(--ease-fade) backwards; animation-delay: var(--pop-t, 0ms); }
+  .mx-search.mx-pop-in { animation: mx-scrim-in var(--t-reveal) var(--ease-fade) backwards; animation-delay: var(--pop-t, 0ms); }
+  .mx-search.mx-pop-in .mx-search-panel { animation: mx-drop-t var(--t-settle) var(--ease-settle) backwards; animation-delay: var(--pop-t, 0ms); }
+  .mx-pop-scrim { animation: mx-scrim-in var(--t-reveal) var(--ease-fade) backwards; }
+  .mx-search.mx-pop-out, .mx-pop-scrim.mx-pop-out { animation: mx-scrim-out var(--t-exit) var(--ease-exit) forwards; pointer-events: none; }
+  .mx-pop.mx-pop-out { pointer-events: none; }
+  .mx-pop.mx-pop-out::before, .mx-pop.mx-pop-out > *, .mx-search.mx-pop-out .mx-search-panel::before, .mx-search.mx-pop-out .mx-search-panel > * { animation: mx-fade-out var(--t-exit) var(--ease-exit) forwards; }
+  .mx-pop.mx-pop-out, .mx-search.mx-pop-out .mx-search-panel { transform: translateY(-4px); box-shadow: none; transition: transform var(--t-exit) var(--ease-exit), box-shadow var(--t-exit) var(--ease-exit); }
 }
+@keyframes mx-scrim-in { from { background-color: rgba(25,21,18,0); } }
+@keyframes mx-scrim-out { to { background-color: rgba(25,21,18,0); } }
 /* the search panel: ↑ / ↓ move a visible active row (chrome.js › .is-active), Enter opens it */
 .mx-pop-row.is-active { background: var(--row-hover); box-shadow: inset 2px 0 0 #c9a962; }
 @keyframes mx-drop { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
@@ -138,30 +149,45 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
    so on a phone a long toast was squeezed into a 195 px column six lines tall. It rises in at the reveal
    timing, lifted off the page by its shadow, and leaves at the exit timing. A toast wider than the window
    wraps (centred) instead of being cut off mid-word — it used to be nowrap above 500 px. */
-.mx-toast { position: fixed; left: 50%; bottom: calc(26px + env(safe-area-inset-bottom)); transform: translateX(-50%) translateY(12px); background: #191512; color: #f7f1e6; padding: 12px 20px;
-  font: 500 14px/20px Inter, sans-serif; letter-spacing: 0; z-index: 70; border-left: 3px solid #c9a962; white-space: normal; text-align: center;
-  width: max-content; max-width: calc(100vw - 36px); box-sizing: border-box; box-shadow: 0 14px 34px -14px rgba(25,21,18,.55);
-  opacity: 0; transition: opacity var(--t-exit) var(--ease-exit), transform var(--t-exit) var(--ease-exit); }
-.mx-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto;
-  transition: opacity var(--t-reveal) var(--ease-fade), transform var(--t-settle) var(--ease-settle); }
+/* Glass Quiet (GLASS-RULES §1.9.4): a dark glass capsule, 44 tall, 14px cream. Glass never fades its own opacity (its blur
+   would go blind mid-fade): it rises in and settles while its glass layer and its words fade, and leaves the same way */
+.mx-toast { position: fixed; left: 50%; bottom: calc(26px + env(safe-area-inset-bottom)); transform: translateX(-50%) translateY(14px) scale(.96); color: transparent; padding: 12px 22px;
+  font: 500 14px/20px Inter, sans-serif; letter-spacing: 0; z-index: 70; white-space: normal; text-align: center; border-radius: var(--r-capsule); isolation: isolate;
+  min-height: 44px; display: flex; align-items: center; justify-content: center;
+  width: max-content; max-width: calc(100vw - 36px); box-sizing: border-box; box-shadow: none;
+  transition: color var(--t-exit) var(--ease-exit), transform var(--t-exit) var(--ease-exit), box-shadow var(--t-exit) var(--ease-exit); }
+.mx-toast::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; background: var(--glass-dark); box-shadow: var(--glass-edge-dark);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  opacity: 0; transition: opacity var(--t-exit) var(--ease-exit); }
+.mx-toast.show { color: #f7f1e6; transform: translateX(-50%); pointer-events: auto; box-shadow: var(--glass-shadow-dark);
+  transition: color var(--t-reveal) var(--ease-fade), transform var(--t-settle) var(--ease-settle), box-shadow var(--t-reveal) var(--ease-fade); }
+.mx-toast.show::before { opacity: 1; transition: opacity var(--t-reveal) var(--ease-fade); }
 /* a faded toast stays in the DOM — it must never catch the taps meant for the tab bar under it */
 .mx-toast:not(.show) { pointer-events: none; }
-.mx-toast.error { border-left-color: #9b1b22; }
-@media (max-width: 500px) { .mx-toast { max-width: 86vw; } }
-/* phones: the toast rides above the ink tab bar (51 px) instead of sitting on it, where ink on ink read as part of the bar */
-@media (max-width: 500px) { body[data-layout="portal"] .mx-toast { bottom: calc(65px + env(safe-area-inset-bottom)); } }
+.mx-toast::before { background: rgba(25,21,18,.80); }   /* a toast floats over cream as often as over photos: the darker tint keeps 14px cream at 4.5:1 (§1.7) */
+.mx-toast.error::before { background: rgba(110,18,24,.84); }
+@media (max-width: 500px) { .mx-toast { max-width: calc(100vw - 32px); } }
+/* phones: the toast floats 12px above the tab bar (--mx-tabbar-h already holds that gap), never under the home indicator */
+@media (max-width: 500px) { body[data-layout="portal"] .mx-toast { bottom: max(var(--mx-tabbar-h), calc(12px + env(safe-area-inset-bottom))); } }
 
 /* ---- modal / confirm (brand vocabulary: ink scrim, cream sheet, hairlines) ---- */
-.mx-modal { position: fixed; inset: 0; z-index: 60; background: rgba(25,21,18,.55); display: flex; align-items: safe center; justify-content: center; padding: 18px; overflow-y: auto; }
+.mx-modal { position: fixed; inset: 0; z-index: 60; background: rgba(25,21,18,.32); display: flex; align-items: safe center; justify-content: center; padding: 18px; overflow-y: auto; }
 /* a sheet taller than the window (REPORT on a small phone, the keyboard up) scrolls inside itself instead of
    running off the top and bottom of the screen with its × out of reach */
-.mx-modal-sheet { background: #f7f1e6; width: 460px; max-width: 100%; box-shadow: 0 10px 34px rgba(25,21,18,.35);
-  max-height: calc(100vh - 36px); max-height: calc(100dvh - 36px); overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box; }
+/* Glass Quiet (GLASS-RULES §1.9.4): the sheet is strong light glass with continuous 24px corners (28 on phones). The glass
+   element never scrolls: the body and the actions scroll inside .mx-modal-scroll, the head (title or nothing, the ×) stays */
+.mx-modal-sheet { width: 460px; max-width: 100%; box-shadow: 0 18px 50px rgba(25,21,18,.26), 0 1px 3px rgba(25,21,18,.10); border-radius: 24px; overflow: hidden;
+  display: flex; flex-direction: column; max-height: calc(100vh - 36px); max-height: calc(100dvh - 36px); box-sizing: border-box; }
+.mx-modal-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .mx-modal-sheet.is-wide { width: 880px; }   /* the photo viewer (ui.lightbox) */
 .mx-modal-sheet:focus { outline: none; }   /* it holds focus on open (ui.modal): a container, not a control, so no ring */
-.mx-modal-head { padding: 4px 8px 4px 22px; min-height: 52px; box-sizing: border-box; border-bottom: 1px solid rgba(25,21,18,.16); font: 600 12px Inter, sans-serif; letter-spacing: .12em; color: #9b1b22; text-transform: uppercase; display: flex; align-items: center; }
-.mx-modal-head [data-act="close"] { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; flex: none; }
-.mx-modal-body { padding: 22px; font-size: 16px; color: #4a4239; line-height: 1.5; }
+/* the head: the sheet's title (Fraunces 22) on the left or nothing, the close × in a 44px glass circle on the right. The caps
+   eyebrow of the old head is gone (the title says it); without a title it stays as the dialog's hidden name */
+.mx-modal-head { position: relative; flex: none; display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 12px 12px 4px 22px; box-sizing: border-box; }
+.mx-modal-head .mx-modal-title { flex: 1 1 auto; min-width: 0; margin: 0; font: 400 22px/28px var(--font-display); color: #191512; text-wrap: balance; }
+.mx-modal-eb { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.mx-modal-head [data-act="close"] { margin-left: auto; flex: none; color: var(--ink); }
+.mx-modal-body { padding: 6px 22px 22px; font-size: 16px; color: #4a4239; line-height: 1.5; }
 .mx-modal-body .mx-modal-title { font-family: Fraunces, serif; font-size: 22px; line-height: 1.15; color: #191512; margin-bottom: 10px; }
 .mx-modal-foot { display: flex; gap: 10px; justify-content: flex-end; padding: 0 22px 22px; flex-wrap: wrap; }
 /* a sheet rises in and settles (--ease-settle) while its scrim fades in; closing, the pair fades out on the exit
@@ -169,11 +195,13 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
    that is already there at full strength — it never dips and fades in again. The leaving one lets its own go at once
    and fades out ABOVE it (.is-handed): one scrim on screen, and the leaving sheet never darkens under the new one */
 @media (prefers-reduced-motion: no-preference) {
-  .mx-modal { animation: mx-fade var(--t-reveal) var(--ease-fade) backwards; }
+  .mx-modal { animation: mx-scrim-in var(--t-reveal) var(--ease-fade) backwards; }
   .mx-modal.is-chained { animation: none; }
-  .mx-modal .mx-modal-sheet { animation: mx-fade var(--t-reveal) var(--ease-fade) backwards, mx-settle-up var(--t-settle) var(--ease-settle) backwards; }
-  .mx-modal.is-leaving { animation: mx-fade-out var(--t-exit) var(--ease-exit) forwards; pointer-events: none; }
-  .mx-modal.is-leaving .mx-modal-sheet { animation: mx-sink var(--t-exit) var(--ease-exit) forwards; }
+  .mx-modal .mx-modal-sheet { animation: mx-settle-up var(--t-settle) var(--ease-settle) backwards; }
+  .mx-modal .mx-modal-sheet::before, .mx-modal .mx-modal-sheet > * { animation: mx-fade var(--t-reveal) var(--ease-fade) backwards; }
+  .mx-modal.is-leaving { animation: mx-scrim-out var(--t-exit) var(--ease-exit) forwards; pointer-events: none; }
+  .mx-modal.is-leaving .mx-modal-sheet { animation: mx-sink var(--t-exit) var(--ease-exit) forwards; box-shadow: none; transition: box-shadow var(--t-exit) var(--ease-exit); }
+  .mx-modal.is-leaving .mx-modal-sheet::before, .mx-modal.is-leaving .mx-modal-sheet > * { animation: mx-fade-out var(--t-exit) var(--ease-exit) forwards; }
 }
 .mx-modal.is-leaving { pointer-events: none; }
 .mx-modal.is-leaving.is-handed { background: transparent; z-index: 61; }
@@ -266,10 +294,12 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
   body[data-layout="portal"] #chrome { position: sticky; top: 0; z-index: 20; }
   body[data-layout="portal"] #mx-desktop-chrome { display: none !important; }
   body[data-layout="portal"] #mx-mobile-top, body[data-layout="portal"] .mx-mobile-only { display: flex !important; }
-  body[data-layout="portal"] #mx-tabbar { display: flex !important; padding-bottom: env(safe-area-inset-bottom); }
+  body[data-layout="portal"] #mx-tabbar { display: flex !important; }
   body[data-layout="portal"] #mx-mobile-top { padding-top: calc(6px + env(safe-area-inset-top)) !important; }
-  body[data-layout="portal"] #view { padding-bottom: calc(86px + env(safe-area-inset-bottom)); }
-  .mx-pop { top: calc(52px + env(safe-area-inset-top)); right: 0; width: 100vw; max-width: 100vw; }
+  /* the space the floating tab bar keeps free (web bar or native bar, GLASS-RULES §1.10) */
+  body[data-layout="portal"] #view { padding-bottom: var(--mx-tabbar-h); }
+  /* ALERTS floats as a glass panel under the bar, 8px off both edges */
+  .mx-pop { top: calc(100% + 4px); left: 8px; right: 8px; width: auto; max-width: none; }
 }
 
 /* Netlify HUD badge iframe overlaps bottom-right controls on the review deploy — hide it (2026-08-28) */
@@ -347,11 +377,11 @@ body.drawer-open #mx-drawer { transform: translateX(312px); box-shadow: 12px 0 4
      EDIT PROFILE →, a link in running text), the logo, the member link, the ⋯ menus and every switch. What already
      draws with ::after keeps it: section tabs (their rule), the whole-card links (their stretched hit area), the
      event app (its own targets), and the PHONE CALM KIT's rows, cards and links (they are 44px+ by design) */
-  #view a[href]:not([style*="padding"]):not(.mx-tab):not(.mx-card-link):not(.mx-proj-card):not(.lv *):not(.mx-week-card > a):not(:is(.mx-row, .mx-person-row, .mx-person, .mx-pcard, .mx-pcard-main, .mx-start-row, .mx-next-media, .mx-next-link, .mx-pcard-cta, .mx-sh-a, .mx-fact-go, .mx-fact, .mx-tile, .mx-tl-row, .mx-iconbtn, .mx-media, .mx-shelf-item, .mx-linkcard, .mx-seg > *)),
-  #view span[data-act]:not([style*="padding"]):not(.mx-tab):not(.chip):not(.lv *):not([data-act="vb"]):not(.mx-ph):not(:is(.mx-row, .mx-person-row, .mx-person, .mx-pcard, .mx-pcard-main, .mx-start-row, .mx-next-media, .mx-next-link, .mx-pcard-cta, .mx-sh-a, .mx-fact-go, .mx-fact, .mx-tile, .mx-tl-row, .mx-iconbtn, .mx-media, .mx-shelf-item, .mx-linkcard, .mx-seg > *)),
+  #view a[href]:not([style*="padding"]):not(.mx-tab):not(.mx-card-link):not(.mx-proj-card):not(.lv *):not(.mx-week-card > a):not(:is(.mx-row, .mx-person-row, .mx-person, .mx-pcard, .mx-pcard-main, .mx-start-row, .mx-next-media, .mx-next-link, .mx-pcard-cta, .mx-sh-a, .mx-fact-go, .mx-fact, .mx-tile, .mx-tl-row, .mx-iconbtn, .mx-media, .mx-shelf-item, .mx-linkcard, .mx-seg > *, .mx-gbtn, .mx-tag--glass)),
+  #view span[data-act]:not([style*="padding"]):not(.mx-tab):not(.chip):not(.lv *):not([data-act="vb"]):not(.mx-ph):not(:is(.mx-row, .mx-person-row, .mx-person, .mx-pcard, .mx-pcard-main, .mx-start-row, .mx-next-media, .mx-next-link, .mx-pcard-cta, .mx-sh-a, .mx-fact-go, .mx-fact, .mx-tile, .mx-tl-row, .mx-iconbtn, .mx-media, .mx-shelf-item, .mx-linkcard, .mx-seg > *, .mx-gbtn, .mx-tag--glass)),
   .mx-brand, .mx-topbar > a[href="/app/me"], .mx-safe-more, [role="switch"]:not(.lv-att) { position: relative; }
-  #view a[href]:not([style*="padding"]):not(.mx-tab):not(.mx-card-link):not(.mx-proj-card):not(.lv *):not(.mx-week-card > a):not(:is(.mx-row, .mx-person-row, .mx-person, .mx-pcard, .mx-pcard-main, .mx-start-row, .mx-next-media, .mx-next-link, .mx-pcard-cta, .mx-sh-a, .mx-fact-go, .mx-fact, .mx-tile, .mx-tl-row, .mx-iconbtn, .mx-media, .mx-shelf-item, .mx-linkcard, .mx-seg > *))::after,
-  #view span[data-act]:not([style*="padding"]):not(.mx-tab):not(.chip):not(.lv *):not([data-act="vb"]):not(.mx-ph):not(:is(.mx-row, .mx-person-row, .mx-person, .mx-pcard, .mx-pcard-main, .mx-start-row, .mx-next-media, .mx-next-link, .mx-pcard-cta, .mx-sh-a, .mx-fact-go, .mx-fact, .mx-tile, .mx-tl-row, .mx-iconbtn, .mx-media, .mx-shelf-item, .mx-linkcard, .mx-seg > *))::after,
+  #view a[href]:not([style*="padding"]):not(.mx-tab):not(.mx-card-link):not(.mx-proj-card):not(.lv *):not(.mx-week-card > a):not(:is(.mx-row, .mx-person-row, .mx-person, .mx-pcard, .mx-pcard-main, .mx-start-row, .mx-next-media, .mx-next-link, .mx-pcard-cta, .mx-sh-a, .mx-fact-go, .mx-fact, .mx-tile, .mx-tl-row, .mx-iconbtn, .mx-media, .mx-shelf-item, .mx-linkcard, .mx-seg > *, .mx-gbtn, .mx-tag--glass))::after,
+  #view span[data-act]:not([style*="padding"]):not(.mx-tab):not(.chip):not(.lv *):not([data-act="vb"]):not(.mx-ph):not(:is(.mx-row, .mx-person-row, .mx-person, .mx-pcard, .mx-pcard-main, .mx-start-row, .mx-next-media, .mx-next-link, .mx-pcard-cta, .mx-sh-a, .mx-fact-go, .mx-fact, .mx-tile, .mx-tl-row, .mx-iconbtn, .mx-media, .mx-shelf-item, .mx-linkcard, .mx-seg > *, .mx-gbtn, .mx-tag--glass))::after,
   .mx-brand::after, .mx-topbar > a[href="/app/me"]::after, .mx-safe-more::after, [role="switch"]:not(.lv-att)::after {
     content: ""; position: absolute; left: 50%; top: 50%; width: max(100%, 44px); height: max(100%, 44px); transform: translate(-50%, -50%);
   }
@@ -648,13 +678,9 @@ img.mx-img-in { transition: opacity var(--t-reveal) var(--ease), transform var(-
 @media (hover: hover) { a:hover > .mx-avatar { box-shadow: 0 0 0 2px #f7f1e6, 0 0 0 3px #c9a962; } }
 /* phone bar + tab bar: touch feedback while pressed (no hover on touch) */
 #mx-mobile-top [data-act], #mx-mobile-top a { transition: opacity var(--t-quick) var(--ease); }
+#mx-mobile-top .mx-mt-back { transition: transform 120ms var(--ease), color var(--t-quick) var(--ease); }
 #mx-mobile-top [data-act]:active, #mx-mobile-top a:active { opacity: .55; }
-/* tab bar (phone calm pass): a pressed tab's icon dips a touch, the way a native tab answers; colours ease */
-#mx-tabbar a { transition: color var(--t-quick) var(--ease); }
-#mx-tabbar .mx-tb-ic { transition: transform var(--t-quick) var(--ease), color var(--t-quick) var(--ease); }
-#mx-tabbar a:active .mx-tb-ic { transform: scale(.88); }
-#mx-tabbar a:active { color: var(--cream); }
-@media (hover: hover) { #mx-tabbar a:hover { color: var(--cream); } }
+/* tab bar: see LIQUID GLASS › the floating tab bar (a pressed item gives a little, the bar never moves) */
 
 /* countdown digits: ui.tick() fades a changed number up into place (Web Animations; skipped for reduced motion).
    Tabular figures, so a changing digit never nudges the units beside it */
@@ -743,15 +769,9 @@ img.mx-img-in { transition: opacity var(--t-reveal) var(--ease), transform var(-
 
 /* ---- section head: 01 + TITLE + optional right link, one line that never wraps ---- */
 .mx-sh { display: flex; align-items: center; gap: 12px; min-width: 0; margin: 0 0 var(--sp-16); }
-.mx-sh-n { flex: none; font: 400 15px/1 var(--font-display); color: var(--crimson); font-variant-numeric: lining-nums tabular-nums; }
-/* the long project pages (.mx-p--num: Gala, Plexus, Accelerator, Forum) number EVERY section head in page order, so
-   "Moments" or "Good to know" never sit unnumbered between 02 and 03; a section a page leaves out takes no number */
-.mx-p--num { counter-reset: mx-sec; }
-.mx-p--num .mx-sec > .mx-sh { counter-increment: mx-sec; }
-.mx-p--num .mx-sec > .mx-sh > .mx-sh-n { display: none; }
-.mx-p--num .mx-sec > .mx-sh::before { content: counter(mx-sec, decimal-leading-zero); flex: none; font: 400 15px/1 var(--font-display); color: var(--crimson);
-  font-variant-numeric: lining-nums tabular-nums; }
-.mx-p--num .mx-dark > .mx-sh::before, .mx-p--num .mx-dark .mx-sec > .mx-sh::before { color: var(--gold); }
+/* Glass Quiet Q2: section heads carry no numerals (the 01 · 02 … counted as words and carried nothing). A view that still
+   writes .mx-sh-n draws nothing there; .mx-p--num numbers nothing */
+.mx-sh-n { display: none !important; }
 .mx-sh-t { flex: 1 1 auto; min-width: 0; margin: 0; font: 600 var(--fs-label)/16px var(--font-ui); letter-spacing: .12em; text-transform: uppercase;
   color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mx-sh-a { flex: none; margin: -12px 0 -12px auto; padding: 0 0 0 8px; min-height: 44px; min-width: 44px; box-sizing: border-box; justify-content: flex-end; display: inline-flex; align-items: center; gap: 4px;
@@ -981,16 +1001,26 @@ a.mx-person-row, .mx-person-row[data-act] { cursor: pointer; transition: backgro
 @media (hover: hover) { .mx-fact .mx-switch[aria-checked="false"]:hover, .mx-row .mx-switch[aria-checked="false"]:hover { background-color: rgba(25,21,18,.3); } }
 
 /* ---- segmented control (section switcher) ---- */
-.mx-seg { display: flex; max-width: 100%; box-sizing: border-box; border: 1px solid var(--hair); background: var(--card); overflow-x: auto; scrollbar-width: none; }
+.mx-seg { display: flex; gap: 0; max-width: 100%; min-height: 44px; padding: 4px; box-sizing: border-box; border-radius: var(--r-capsule); border: 0;
+  background: rgba(25,21,18,.06); box-shadow: inset 0 0 0 .5px rgba(25,21,18,.08); overflow-x: auto; scrollbar-width: none; }
 .mx-seg::-webkit-scrollbar { display: none; }
-.mx-seg > a, .mx-seg > span, .mx-seg > button { flex: 1 0 auto; display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 14px;
-  font: 500 var(--fs-2nd)/20px var(--font-ui); color: var(--soft); white-space: nowrap; text-decoration: none; background: none; border: 0; cursor: pointer;
-  transition: background-color var(--t-quick) var(--ease), color var(--t-quick) var(--ease); }
-.mx-seg > .is-on, .mx-seg > [aria-current="page"] { background: var(--ink); color: var(--cream); }
+.mx-seg > a, .mx-seg > span, .mx-seg > button { position: relative; isolation: isolate; flex: 1 0 auto; display: inline-flex; align-items: center; justify-content: center; min-height: 36px; padding: 0 16px;
+  border-radius: var(--r-capsule); font: 500 var(--fs-2nd)/20px var(--font-ui); color: var(--soft); white-space: nowrap; text-decoration: none; background: none; border: 0; cursor: pointer;
+  transition: color var(--t-quick) var(--ease); }
+/* the raised capsule behind the selected item is its own layer, so it can slide over from the item left (router.js › settleTabs) */
+.mx-seg > .is-on, .mx-seg > [aria-current="page"] { color: var(--ink); font-weight: 600; background: none; }
+.mx-seg > .is-on::before, .mx-seg > [aria-current="page"]::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
+  background: #fffdf8; box-shadow: 0 1px 3px rgba(25,21,18,.16), 0 0 0 .5px rgba(25,21,18,.04); transform-origin: 0 50%; }
+/* a 44 px tap target for a 36 px capsule */
+.mx-seg > a::after, .mx-seg > span[data-act]::after, .mx-seg > button::after { content: ""; position: absolute; left: 0; right: 0; top: -4px; bottom: -4px; }
+@keyframes mx-seg-slide { from { transform: translateX(var(--seg-dx, 0)) scaleX(var(--seg-sx, 1)); } }
+@media (prefers-reduced-motion: no-preference) {
+  .mx-seg > .is-sliding::before { animation: mx-seg-slide 220ms var(--ease) backwards; }
+}
 /* small phones: the items share the row (four fit at 320 without a sideways scroll; ui.js keeps the active one in view) */
-@media (max-width: 400px) { .mx-seg > a, .mx-seg > span, .mx-seg > button { flex: 1 1 auto; padding: 0 8px; } }
-@media (max-width: 360px) { .mx-seg > a, .mx-seg > span, .mx-seg > button { padding: 0 6px; font-size: 13px; } }
-@media (hover: hover) { .mx-seg > :not(.is-on):not([aria-current="page"]):hover { color: var(--ink); background: var(--row-hover); } }
+@media (max-width: 400px) { .mx-seg > a, .mx-seg > span, .mx-seg > button { flex: 1 1 auto; padding: 0 10px; } }
+@media (max-width: 360px) { .mx-seg > a, .mx-seg > span, .mx-seg > button { padding: 0 7px; font-size: 13px; } }
+@media (hover: hover) { .mx-seg > :not(.is-on):not([aria-current="page"]):hover { color: var(--ink); background: rgba(25,21,18,.04); } }
 
 /* ---- icon button (44 × 44) ---- */
 .mx-iconbtn { flex: none; width: 44px; height: 44px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: none; border: 0;
@@ -1074,38 +1104,29 @@ a.mx-person-row, .mx-person-row[data-act] { cursor: pointer; transition: backgro
    SEARCH / ALERTS rows and the sheets. Ids and data-act hooks are unchanged (the iOS layer styles
    #mx-tabbar > a and #mx-mobile-top; medx-native.css adds its own safe-area padding on top of these).
    ========================================================================== */
-/* opaque cream, no backdrop-filter: a filter here would become the containing block of the fixed SEARCH sheet
-   inside the bar and shrink its scrim to the bar's own box */
-#mx-mobile-top.mx-mt { display: flex; align-items: center; gap: 0; position: relative; min-height: 56px; padding: 6px 8px 6px; box-sizing: border-box;
-  background: var(--cream); border-bottom: 1px solid var(--hair-soft); }
+/* the bar itself carries no background and no filter (a filter here would become the containing block of the fixed SEARCH
+   sheet inside it and shrink its scrim to the bar's own box): its glass is a ::before layer (LIQUID GLASS › top bar) */
+#mx-mobile-top.mx-mt { display: flex; align-items: center; gap: 0; position: relative; isolation: isolate; min-height: 56px; padding: 6px 8px 6px; box-sizing: border-box;
+  background: transparent; border-bottom: 0; }
 .mx-mt-brand { margin-left: 12px; display: block; }
 .mx-mt-fill { flex: 1 1 auto; }
 .mx-mt-btn { flex: none; position: relative; width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; color: var(--ink); cursor: pointer; }
 .mx-mt-back { color: var(--crimson); }
-.mx-mt-dot { position: absolute; top: 10px; right: 10px; width: 8px; height: 8px; border-radius: 50%; background: var(--crimson); box-shadow: 0 0 0 2px var(--cream); }
-.mx-mt-title { flex: 1 1 auto; min-width: 0; text-align: center; font: 600 16px/22px var(--font-ui); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; }
+.mx-mt-dot { position: absolute; top: 10px; right: 10px; width: 8px; height: 8px; border-radius: 50%; background: var(--crimson); box-shadow: 0 0 0 2px var(--glass-solid-light); }
+.mx-mt-title { flex: 1 1 auto; min-width: 0; text-align: center; font: 600 16px/22px var(--font-ui); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 8px;
+  transition: opacity 200ms var(--ease-fade), color var(--t-quick) var(--ease); }
 .mx-mt-spacer { cursor: default; }
 .mx-mt-banner { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px 0 20px; box-sizing: border-box; background: var(--banner); border-bottom: 1px solid var(--hair-soft); }
 .mx-mt-banner-t { flex: 1 1 auto; min-width: 0; font: 400 14px/20px var(--font-ui); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mx-mt-banner-a { flex: none; min-height: 44px; padding: 0 8px; display: inline-flex; align-items: center; font: 600 12px/16px var(--font-ui); letter-spacing: .12em; color: var(--crimson); cursor: pointer; }
 
-#mx-tabbar { position: fixed; bottom: 0; left: 0; right: 0; max-width: 500px; margin: 0 auto; z-index: 30; display: flex; box-sizing: border-box;
-  background: var(--ink); border-top: 1px solid rgba(247,241,230,.08); }
-#mx-tabbar > a { flex: 1 1 0; min-width: 0; min-height: 49px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 2px;
-  padding: 6px 2px 5px; box-sizing: border-box; color: rgba(247,241,230,.55); text-decoration: none; cursor: pointer; }
-#mx-tabbar .mx-tb-ic { position: relative; width: 28px; height: 26px; display: flex; align-items: center; justify-content: center; }
-#mx-tabbar .mx-tb-l { font: 500 12px/14px var(--font-ui); letter-spacing: 0; white-space: nowrap; }
-@media (max-width: 340px) { #mx-tabbar > a { padding-left: 0; padding-right: 0; } #mx-tabbar > a:last-child { flex-grow: 1.15; } #mx-tabbar .mx-tb-l { letter-spacing: -.01em; } }
-#mx-tabbar > a[aria-selected="true"] { color: var(--cream); }
-#mx-tabbar > a[aria-selected="true"] .mx-tb-ic { color: var(--gold); }
-#mx-tabbar > a[aria-selected="true"] .mx-ic { stroke-width: 1.85; }
-.mx-tb-badge { position: absolute; top: -3px; left: 17px; min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; border-radius: 9px;
-  background: var(--crimson); color: var(--cream); font: 600 12px/18px var(--font-ui); text-align: center; font-variant-numeric: tabular-nums; box-shadow: 0 0 0 2px var(--ink); }
+/* #mx-tabbar: see LIQUID GLASS › the floating tab bar */
 
 /* SEARCH / ALERTS rows at the calm scale: title 16, detail 14 (one line), date 12, close × a 44 target */
 .mx-pop-head { min-height: 52px; box-sizing: border-box; padding-top: 4px !important; padding-bottom: 4px !important; padding-right: 6px !important; }
-.mx-pop-h { font: 600 12px/16px var(--font-ui); letter-spacing: .12em; color: var(--crimson); }
-.mx-pop-a { font: 600 12px/16px var(--font-ui); letter-spacing: .1em; color: var(--crimson); cursor: pointer; min-height: 44px; display: inline-flex; align-items: center; padding: 0 8px; }
+/* the popover's head reads like a sheet title (sentence case, Glass Quiet), its action a quiet crimson link */
+.mx-pop-h { font: 600 17px/22px var(--font-ui); letter-spacing: 0; color: var(--ink); }
+.mx-pop-a { font: 500 14px/20px var(--font-ui); letter-spacing: 0; color: var(--crimson); cursor: pointer; min-height: 44px; display: inline-flex; align-items: center; padding: 0 8px; }
 .mx-pop-x { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; color: var(--soft); cursor: pointer; flex: none; }
 .mx-pop-row { padding: 12px 20px !important; align-items: center !important; min-height: 56px; box-sizing: border-box; }
 .mx-pop-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--crimson); align-self: flex-start; margin-top: 8px; }
@@ -1124,12 +1145,16 @@ a.mx-person-row, .mx-person-row[data-act] { cursor: pointer; transition: backgro
 /* phones: a sheet rises from the bottom edge, full width, clear of the home indicator (the photo viewer keeps its
    centred frame). Same motion tokens as before: it settles up as the scrim fades in, and sinks as it leaves */
 @media (max-width: 500px) {
-  .mx-modal:not(:has(.is-wide)) { align-items: flex-end; padding: 0; }
-  .mx-modal:not(:has(.is-wide)) .mx-modal-sheet { width: 100%; max-width: 100%; max-height: calc(100vh - 44px); max-height: calc(100dvh - 44px - env(safe-area-inset-top));
-    padding-bottom: env(safe-area-inset-bottom); box-shadow: 0 -12px 40px rgba(25,21,18,.28); }
+  .mx-modal:not(.is-wide) { align-items: flex-end; padding: 0 8px calc(8px + env(safe-area-inset-bottom)); }
+  .mx-modal:not(.is-wide) .mx-modal-sheet { width: 100%; max-width: 100%; border-radius: var(--r-sheet);
+    max-height: calc(100vh - 60px); max-height: calc(100dvh - 60px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); box-shadow: 0 -6px 40px rgba(25,21,18,.22); }
+  /* the grabber: a 36 × 5 capsule centred 8px from the top */
+  .mx-modal:not(.is-wide) .mx-modal-sheet::after { content: ""; position: absolute; z-index: 3; top: 8px; left: 50%; width: 36px; height: 5px; margin-left: -18px; border-radius: 3px;
+    background: rgba(25,21,18,.22); pointer-events: none; }
+  .mx-modal-head { padding: 14px 10px 2px 20px; min-height: 62px; }
   .mx-modal-foot { padding: 4px 20px 20px; }
   .mx-modal-foot > * { flex: 1 1 0; min-height: 48px; display: inline-flex !important; align-items: center; justify-content: center; }
-  .mx-modal-body { padding: 20px; }
+  .mx-modal-body { padding: 4px 20px 20px; }
 }
 
 /* ============================================================================
@@ -1214,3 +1239,214 @@ a.mx-home-proj:hover { color: var(--ink); }
 .mx-stub-eyebrow { display: block; margin-top: 24px; font: 600 var(--fs-label)/16px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--crimson); }
 .mx-stub-cta { margin-top: 24px; }
 @media (min-width: 901px) { .mx-stub-eyebrow { margin-top: 48px; } }
+
+/* ============================================================================
+   LIQUID GLASS (GLASS-RULES.md §1 · Glass Quiet 2026-09-25)
+   Glass is for what FLOATS over content and must stay out of its way: the tab bar, the phone top bar once content
+   runs under it and its buttons, sheets, popovers, the drawer, chips and buttons on photos, segmented controls,
+   toasts. What IS content (cards, rows, facts, photos, the member card, tickets, the in-page action buttons) stays
+   square cream paper. At most three glass surfaces on screen at once.
+   The glass lives on a ::before layer, never on the element: a backdrop-filter (or a transform, a filter) on the element
+   would make it the containing block of every fixed descendant (the top bar hosts the fixed SEARCH sheet). A glass
+   element never animates its own opacity (below 1 it becomes a backdrop root and the blur goes blind): it moves with
+   transform and fades its ::before and its contents. The blur radius is never animated.
+   Kit (views code against these names, §1.11): .mx-glass (+ .is-dark) · .mx-glass--sheet · .mx-glass--chip ·
+   .mx-tag--glass · .mx-gbtn (+ --dark) · .mx-countdown--chip (+ .is-final) · [data-glass-dark] · the tall .mx-hero ·
+   the .mx-seg restyle · the -fill tab icons (js/icons.js) · the tokens (tokens.css).
+   ========================================================================== */
+:where(.mx-glass, .mx-tag--glass, .mx-gbtn, .mx-countdown--chip) { position: relative; }
+.mx-glass, .mx-tag--glass, .mx-gbtn, .mx-countdown--chip { isolation: isolate; }
+.mx-glass { box-shadow: var(--glass-shadow); }
+.mx-glass::before, .mx-tag--glass::before, .mx-gbtn::before, .mx-countdown--chip::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
+  background: var(--glass-light); box-shadow: var(--glass-edge-light);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  transition: background-color var(--t-quick) var(--ease), filter 120ms var(--ease); }
+.mx-glass.is-dark { box-shadow: var(--glass-shadow-dark); }
+.mx-glass.is-dark::before { background: var(--glass-dark); box-shadow: var(--glass-edge-dark); }
+.mx-glass--sheet::before { background: var(--glass-light-strong);
+  -webkit-backdrop-filter: blur(var(--glass-blur-sheet)) saturate(var(--glass-sat)); backdrop-filter: blur(var(--glass-blur-sheet)) saturate(var(--glass-sat)); }
+.mx-glass--chip::before, .mx-tag--glass::before, .mx-gbtn--dark::before, .mx-countdown--chip::before { background: var(--glass-dark-chip); box-shadow: var(--glass-edge-dark);
+  -webkit-backdrop-filter: blur(var(--glass-blur-chip)) saturate(150%); backdrop-filter: blur(var(--glass-blur-chip)) saturate(150%); }
+/* pressed: the control gives a little and its glass brightens (never on the top bar or a host of a fixed layer) */
+.mx-glass:is(a, button, [role="button"], [data-act]), .mx-gbtn { transition: transform 120ms var(--ease); }
+.mx-glass:is(a, button, [role="button"], [data-act]):active, .mx-gbtn:active { transform: scale(var(--glass-press)); }
+.mx-glass:is(a, button, [role="button"], [data-act]):active::before, .mx-gbtn:active::before { filter: brightness(1.06); }
+
+/* ---- chips and buttons on photos (§1.9.5) ---- */
+/* a status tag ON a photo: a dark glass capsule, 28 tall, 12px caps. A tag on cream stays square paper (.mx-tag--gold …) */
+.mx-tag--glass { min-height: 28px; padding: 0 12px; border-radius: var(--r-capsule); color: var(--cream); letter-spacing: .08em; background: none; border: 0;
+  box-shadow: 0 2px 10px rgba(0,0,0,.14); text-shadow: 0 1px 2px rgba(0,0,0,.18); }
+/* a 44px round icon button: light glass on cream, --dark (chip glass, cream icon) on a photo */
+.mx-gbtn { flex: none; width: 44px; height: 44px; padding: 0; box-sizing: border-box; border: 0; border-radius: 50%; background: none; display: inline-flex; align-items: center; justify-content: center;
+  color: var(--ink); cursor: pointer; text-decoration: none; box-shadow: 0 2px 10px rgba(25,21,18,.10); -webkit-tap-highlight-color: transparent; }
+.mx-gbtn--dark { color: var(--cream); box-shadow: 0 2px 10px rgba(0,0,0,.18); }
+@media (hover: hover) { a.mx-gbtn:hover { color: var(--ink); } a.mx-gbtn--dark:hover { color: var(--cream); } }
+
+/* ---- the countdown as a chip on the hero photo (§1.9.3). The view moves its .mx-countdown into the .mx-hero and adds
+   .mx-countdown--chip: on a phone it is a dark glass chip at the top right, level with the clear bar's back button,
+   showing a clock, the days and "days" (the label and the hours and minutes cells stay in the DOM, hidden, so the timers
+   keep writing the same data-cd cells; the label comes first, the days cell right after it). .is-final (the last day):
+   hours and minutes instead of days. From 501px the same element keeps the band look, at the foot of the hero ---- */
+@media (max-width: 500px) {
+  .mx-countdown--chip { display: inline-flex; grid-template-columns: none; align-items: center; gap: 5px; height: 28px; min-height: 0; padding: 0 12px 0 10px; margin: 0;
+    border: 0; border-radius: var(--r-capsule); background: none; color: var(--cream); box-shadow: 0 2px 10px rgba(0,0,0,.16); }
+  .mx-hero > .mx-countdown--chip { position: absolute; z-index: 2; top: calc(env(safe-area-inset-top) + 14px); right: 16px; left: auto; bottom: auto; }
+  .mx-countdown--chip::after { content: ""; order: -1; flex: none; width: 14px; height: 14px; background: currentColor;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2'%3E%3Ccircle cx='12' cy='12' r='8.25'/%3E%3Cpath d='M12 7.5V12l3 2'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2'%3E%3Ccircle cx='12' cy='12' r='8.25'/%3E%3Cpath d='M12 7.5V12l3 2'/%3E%3C/svg%3E") center / contain no-repeat; }
+  .mx-countdown--chip .mx-cd-label { display: none; }
+  .mx-countdown--chip .mx-cd-cell { display: none; align-items: baseline; gap: 4px; }
+  .mx-countdown--chip:not(.is-final) .mx-cd-label + .mx-cd-cell,
+  .mx-countdown--chip.is-final .mx-cd-cell + .mx-cd-cell { display: inline-flex; }
+  .mx-countdown--chip .mx-cd-num { font: 600 13px/16px var(--font-ui); color: var(--cream); letter-spacing: 0; }
+  .mx-countdown--chip .mx-cd-unit { font: 500 13px/16px var(--font-ui); color: rgba(247,241,230,.86); }
+}
+@media (min-width: 501px) {
+  .mx-hero > .mx-countdown--chip { position: relative; z-index: 1; order: 1; flex: none; width: 100%; }
+  .mx-countdown--chip::before { content: none; }
+}
+
+/* ---- the hero on phones (§1.9.3): a photo hero fills the first screen, only the first block below it peeks. A top scrim
+   joins the bottom one, so the clear bar's controls and the status bar read on any photo ---- */
+@media (max-width: 500px) {
+  .mx-hero:not(.mx-hero--ink):not(.mx-hero--cream) { aspect-ratio: auto; min-height: 440px; max-height: 760px;
+    height: calc(100vh - var(--mx-tabbar-h) - 32px); height: calc(100svh - var(--mx-tabbar-h) - 32px); }
+  .mx-hero:not(.mx-hero--ink):not(.mx-hero--cream) > .mx-scrim {
+    background: linear-gradient(180deg, rgba(25,21,18,.42) 0, rgba(25,21,18,0) 140px),
+                linear-gradient(180deg, rgba(25,21,18,.15) 0%, rgba(25,21,18,.35) 45%, rgba(25,21,18,.88) 100%); }
+}
+
+/* ---- the floating tab bar (§1.9.1: in browsers, and in the iOS app below iOS 26) ----
+   A glass capsule 62 tall, 21px in from both edges (12 on a phone under 375), at most 440 wide, 21px over the home
+   indicator (12 without one). Five equal columns: a 24px icon (the line icon idle, the filled one selected) over an
+   11px label, the one exception to the 12px floor (Apple's tab labels are 10 to 11pt). The selected lens is a 54px
+   capsule that slides to a new tab with a little overshoot. Light glass by default, dark over a dark region (chrome.js
+   tone switch). The keys, the five > a children, their hrefs, aria-selected and the Inbox badge are the iOS contract */
+#mx-tabbar { position: fixed; z-index: 30; left: 21px; right: 21px; bottom: max(12px, calc(env(safe-area-inset-bottom) - 13px)); max-width: 440px; margin: 0 auto;
+  height: 62px; padding: 4px; box-sizing: border-box; flex-direction: row; align-items: stretch; border-radius: var(--r-capsule); --i: 0;
+  transition: transform 280ms var(--ease); }
+@media (max-width: 374px) { #mx-tabbar { left: 12px; right: 12px; } }
+#mx-tabbar > .mx-tb-lens { position: absolute; z-index: 0; top: 4px; left: 4px; width: calc((100% - 8px) / 5); height: 54px; border-radius: var(--r-capsule);
+  background: var(--glass-lens-light); pointer-events: none; transform: translateX(calc(var(--i) * 100%));
+  transition: transform 320ms cubic-bezier(.3, 1.25, .5, 1), background-color var(--t-quick) var(--ease), opacity var(--t-quick) var(--ease); }
+#mx-tabbar.is-dark > .mx-tb-lens { background: var(--glass-lens-dark); }
+#mx-tabbar.no-lens > .mx-tb-lens { opacity: 0; }
+#mx-tabbar > a { position: relative; z-index: 1; flex: 1 1 0; min-width: 0; min-height: 0; height: 54px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  padding: 0 2px; box-sizing: border-box; border-radius: var(--r-capsule); color: #4a4239; text-decoration: none; cursor: pointer;
+  transition: color var(--t-quick) var(--ease), transform 120ms var(--ease); }
+#mx-tabbar .mx-tb-ic { position: relative; width: 28px; height: 26px; display: flex; align-items: center; justify-content: center; }
+#mx-tabbar .mx-tb-l { font: 600 11px/13px var(--font-ui); letter-spacing: 0; white-space: nowrap; }
+#mx-tabbar > a[aria-selected="true"] { color: var(--crimson); }
+#mx-tabbar.is-dark > a { color: rgba(247,241,230,.82); }
+#mx-tabbar.is-dark > a[aria-selected="true"] { color: var(--gold); }
+#mx-tabbar > a:active { transform: scale(.92); }
+@media (hover: hover) { #mx-tabbar > a:hover { color: var(--ink); } #mx-tabbar > a[aria-selected="true"]:hover { color: var(--crimson); }
+  #mx-tabbar.is-dark > a:hover { color: var(--cream); } #mx-tabbar.is-dark > a[aria-selected="true"]:hover { color: var(--gold); } }
+@media (max-width: 340px) { #mx-tabbar .mx-tb-l { letter-spacing: -.01em; } }
+.mx-tb-badge { position: absolute; top: -4px; left: 16px; min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; border-radius: 9px;
+  background: var(--crimson); color: var(--cream); font: 600 12px/18px var(--font-ui); text-align: center; font-variant-numeric: tabular-nums; box-shadow: 0 0 0 2px var(--glass-solid-light); }
+#mx-tabbar.is-dark .mx-tb-badge { box-shadow: 0 0 0 2px #3b332c; }
+/* the keyboard is up (chrome.js › html.mx-vkb, the visual viewport shrank by more than 150px): the bar steps down out of the way */
+html.mx-vkb #mx-tabbar { transform: translateY(calc(100% + 40px)); }
+/* the iOS 26 app draws its own native glass bar (medx-native.js sets html.mx-native-tabbar and --mx-tabbar-h inline) */
+:root.mx-native-tabbar body[data-layout] #mx-tabbar { display: none !important; }
+/* while the web bar is the one showing it keeps its own space free: 62 + its gap to the screen edge + 12 over it (95px on a
+   Face ID iPhone, 86 in Safari). html.mx-webbar is set by chrome.js before any view draws (the tall hero reads it) */
+html.mx-webbar:not(.mx-native-tabbar) { --mx-tabbar-h: calc(62px + max(12px, calc(env(safe-area-inset-bottom) - 13px)) + 12px); }
+html.mx-webbar.mx-vkb:not(.mx-native-tabbar) { --mx-tabbar-h: 0px; }
+
+/* ---- the phone top bar (§1.9.2): three modes, set by chrome.js on #mx-mobile-top and mirrored as html[data-mx-bar] ----
+   flat: the page is at its top, nothing under the bar: no layer, no hairline, the bar is part of the page.
+   glass: content runs under it: a light glass layer over the bar and the status bar, feathered 12px at its lower edge
+   (the iOS 26 scroll-edge effect), dark glass when a dark region sits under it (.is-dark).
+   clear: a pushed screen that opens on a photo hero, at its top: no layer, no title, the controls on dark chip glass. */
+#mx-mobile-top.mx-mt::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: 0;
+  background: var(--glass-light); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 12px), transparent); mask-image: linear-gradient(180deg, #000 calc(100% - 12px), transparent);
+  transition: opacity 200ms var(--ease-fade), background-color var(--t-quick) var(--ease); }
+#mx-mobile-top.mx-mt.is-glass::before { opacity: 1; }
+#mx-mobile-top.mx-mt.is-glass.is-dark::before { background: var(--glass-dark); }
+#mx-mobile-top.is-clear .mx-mt-title { opacity: 0; }
+#mx-mobile-top.is-glass.is-dark .mx-mt-title { color: var(--cream); }
+/* the controls: the back chevron in a 44px glass circle (crimson on light glass; cream on dark chip glass over a photo or a
+   dark region); search and alerts share one 88 × 44 glass capsule; the logo stays plain */
+#mx-mobile-top .mx-mt-back { color: var(--crimson); }
+#mx-mobile-top.is-clear .mx-mt-back, #mx-mobile-top.is-glass.is-dark .mx-mt-back { color: var(--cream); }
+#mx-mobile-top.is-clear .mx-mt-back::before, #mx-mobile-top.is-glass.is-dark .mx-mt-back::before,
+#mx-mobile-top.is-glass.is-dark .mx-mt-caps::before { background: var(--glass-dark-chip); box-shadow: var(--glass-edge-dark);
+  -webkit-backdrop-filter: blur(var(--glass-blur-chip)) saturate(150%); backdrop-filter: blur(var(--glass-blur-chip)) saturate(150%); }
+#mx-mobile-top.is-glass.is-dark .mx-mt-caps .mx-mt-btn { color: var(--cream); }
+#mx-mobile-top.is-glass.is-dark .mx-mt-dot { box-shadow: 0 0 0 2px #3b332c; }
+.mx-mt-caps { flex: none; display: inline-flex; align-items: center; height: 44px; border-radius: var(--r-capsule); box-shadow: 0 2px 10px rgba(25,21,18,.10); margin-right: 4px; }
+.mx-mt-caps .mx-mt-btn { width: 44px; height: 44px; border-radius: 50%; }
+#mx-mobile-top .mx-mt-caps .mx-mt-btn:active, #mx-mobile-top .mx-mt-back:active { opacity: 1; }
+.mx-mt-caps .mx-mt-btn:active .mx-ic { transform: scale(.88); }
+.mx-mt-caps .mx-ic { transition: transform 120ms var(--ease); }
+#mx-mobile-top .mx-mt-back { margin-left: 4px; }
+#mx-mobile-top .mx-mt-spacer { margin-right: 4px; }
+/* over a photo hero the bar floats: #chrome leaves the flow (fixed), so the photo starts at the very top of the screen,
+   under the status bar (chrome.js › body.mx-over-hero, never while the email line shows) */
+@media (max-width: 500px) {
+  body.mx-over-hero[data-layout="portal"] #chrome { position: fixed; top: 0; left: 0; right: 0; }
+  /* SEARCH or ALERTS open: the bar and its sheet rise above the tab bar (the native layer does this with :has) */
+  body.mx-pop-open[data-layout="portal"] #chrome { z-index: 40; }
+}
+
+/* ---- sheets, popovers and search on phones (§1.9.4): they float 8px off the edges ---- */
+@media (max-width: 500px) {
+  .mx-search { padding: calc(8px + env(safe-area-inset-top)) 8px 0; }
+  .mx-search-panel { width: 100%; }
+}
+@media (max-width: 500px) and (prefers-reduced-motion: no-preference) {
+  .mx-modal:not(.is-wide) .mx-modal-sheet { animation: mx-sheet-up var(--t-settle) var(--ease-settle) backwards; }
+  .mx-modal.is-leaving:not(.is-wide) .mx-modal-sheet { animation: mx-sheet-down var(--t-exit) var(--ease-exit) forwards; }
+  .mx-modal:not(.is-wide) .mx-modal-sheet::before, .mx-modal:not(.is-wide) .mx-modal-sheet > * { animation: none; }
+  .mx-modal.is-leaving:not(.is-wide) .mx-modal-sheet::before, .mx-modal.is-leaving:not(.is-wide) .mx-modal-sheet > * { animation: none; }
+}
+@keyframes mx-sheet-up { from { transform: translateY(calc(100% + 24px)); } }
+@keyframes mx-sheet-down { to { transform: translateY(calc(100% + 24px)); } }
+
+/* ---- fallbacks (§1.6): no backdrop-filter, Reduce Transparency (the media query, and html.mx-rt from the iOS app),
+   Increase Contrast (the media query, and html.mx-hc from the iOS app) ---- */
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .mx-glass::before, .mx-gbtn::before, #mx-mobile-top.mx-mt::before, .mx-seg { background-color: var(--glass-solid-light); }
+  .mx-glass.is-dark::before, .mx-glass--chip::before, .mx-tag--glass::before, .mx-gbtn--dark::before, .mx-countdown--chip::before, .mx-toast::before, #mx-drawer::before,
+  #mx-mobile-top.is-clear .mx-mt-back::before, #mx-mobile-top.is-glass.is-dark::before, #mx-mobile-top.is-glass.is-dark .mx-mt-back::before, #mx-mobile-top.is-glass.is-dark .mx-mt-caps::before { background: var(--glass-solid-dark); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .mx-glass::before, .mx-gbtn::before, #mx-mobile-top.mx-mt::before, .mx-glass--chip::before, .mx-tag--glass::before, .mx-countdown--chip::before, .mx-toast::before, #mx-drawer::before,
+  #mx-mobile-top .mx-mt-back::before, #mx-mobile-top .mx-mt-caps::before { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+  .mx-glass::before, .mx-gbtn::before, #mx-mobile-top.mx-mt::before { background: var(--glass-solid-light); }
+  #mx-mobile-top.mx-mt::before { -webkit-mask-image: none; mask-image: none; }
+  .mx-glass.is-dark::before, .mx-glass--chip::before, .mx-tag--glass::before, .mx-gbtn--dark::before, .mx-countdown--chip::before, .mx-toast::before, #mx-drawer::before,
+  #mx-mobile-top.is-clear .mx-mt-back::before, #mx-mobile-top.is-glass.is-dark::before, #mx-mobile-top.is-glass.is-dark .mx-mt-back::before, #mx-mobile-top.is-glass.is-dark .mx-mt-caps::before { background: var(--glass-solid-dark); }
+}
+html.mx-rt .mx-glass::before, html.mx-rt .mx-gbtn::before, html.mx-rt #mx-mobile-top.mx-mt::before, html.mx-rt .mx-glass--chip::before, html.mx-rt .mx-tag--glass::before,
+html.mx-rt .mx-countdown--chip::before, html.mx-rt .mx-toast::before, html.mx-rt #mx-drawer::before, html.mx-rt #mx-mobile-top .mx-mt-back::before, html.mx-rt #mx-mobile-top .mx-mt-caps::before {
+  -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+html.mx-rt .mx-glass::before, html.mx-rt .mx-gbtn::before, html.mx-rt #mx-mobile-top.mx-mt::before { background: var(--glass-solid-light); }
+html.mx-rt #mx-mobile-top.mx-mt::before { -webkit-mask-image: none; mask-image: none; }
+html.mx-rt .mx-glass.is-dark::before, html.mx-rt .mx-glass--chip::before, html.mx-rt .mx-tag--glass::before, html.mx-rt .mx-gbtn--dark::before, html.mx-rt .mx-countdown--chip::before,
+html.mx-rt .mx-toast::before, html.mx-rt #mx-drawer::before, html.mx-rt #mx-mobile-top.is-clear .mx-mt-back::before, html.mx-rt #mx-mobile-top.is-glass.is-dark::before,
+html.mx-rt #mx-mobile-top.is-glass.is-dark .mx-mt-back::before, html.mx-rt #mx-mobile-top.is-glass.is-dark .mx-mt-caps::before { background: var(--glass-solid-dark); }
+@media (prefers-contrast: more) {
+  .mx-glass::before, .mx-gbtn::before, #mx-mobile-top.mx-mt::before { background: var(--glass-solid-light); box-shadow: inset 0 0 0 1px rgba(25,21,18,.55); }
+  .mx-glass.is-dark::before, .mx-glass--chip::before, .mx-tag--glass::before, .mx-gbtn--dark::before, .mx-countdown--chip::before, .mx-toast::before, #mx-drawer::before,
+  #mx-mobile-top.is-clear .mx-mt-back::before, #mx-mobile-top.is-glass.is-dark::before { background: var(--glass-solid-dark); box-shadow: inset 0 0 0 1px rgba(247,241,230,.55); }
+  #mx-tabbar > a:not([aria-selected="true"]) { color: var(--ink); }
+  #mx-tabbar.is-dark > a:not([aria-selected="true"]) { color: var(--cream); }
+}
+html.mx-hc .mx-glass::before, html.mx-hc .mx-gbtn::before, html.mx-hc #mx-mobile-top.mx-mt::before { background: var(--glass-solid-light); box-shadow: inset 0 0 0 1px rgba(25,21,18,.55); }
+html.mx-hc .mx-glass.is-dark::before, html.mx-hc .mx-glass--chip::before, html.mx-hc .mx-tag--glass::before, html.mx-hc .mx-gbtn--dark::before, html.mx-hc .mx-countdown--chip::before,
+html.mx-hc .mx-toast::before, html.mx-hc #mx-drawer::before, html.mx-hc #mx-mobile-top.is-clear .mx-mt-back::before, html.mx-hc #mx-mobile-top.is-glass.is-dark::before {
+  background: var(--glass-solid-dark); box-shadow: inset 0 0 0 1px rgba(247,241,230,.55); }
+html.mx-hc #mx-tabbar > a:not([aria-selected="true"]) { color: var(--ink); }
+html.mx-hc #mx-tabbar.is-dark > a:not([aria-selected="true"]) { color: var(--cream); }
+
+/* ---- reduced motion (§1.4): no press scale, no lens slide, no capsule slide; a 120ms colour change instead ---- */
+@media (prefers-reduced-motion: reduce) {
+  .mx-glass:is(a, button, [role="button"], [data-act]):active, .mx-gbtn:active, #mx-tabbar > a:active { transform: none; }
+  #mx-tabbar > .mx-tb-lens { transition: none !important; }
+  #mx-tabbar > a:active { color: var(--ink); }
+}
