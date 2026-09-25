@@ -11,6 +11,7 @@ import { FACTS, routeFor, CTA, trueDateFor, reconcileEarlyBird, galaPriceNow, se
 import { chrome } from '../chrome.js';
 import { profileCompletion } from '../member.js';
 import router from '../router.js';
+import { projectCard } from './projects.js';
 
 export const SOURCE = 'Med&X Home.dc.html';
 
@@ -27,18 +28,21 @@ export const COPY = {
     // not start that task — two of the three opened an empty wallet and the third was a status
     // dressed as a button. One CTA now: register when they hold nothing, their tickets when they do.
     // Check-in is a date, so it reads as a date until the doors open (item 6: never a third verb).
-    register: `${CTA.register} →`, tickets: 'EVENT TICKETS →', checkIn: 'CHECK IN →',
+    register: `${CTA.register} →`, tickets: 'EVENT TICKETS →', checkIn: 'CHECK IN',
     checkInSoon: `CHECK-IN OPENS ${fmt.upper(fmt.shortDate(FACTS.plexus.start))}`
   },
   start: {
     title: 'GETTING STARTED', left: n => (n === 1 ? '1 STEP LEFT' : n + ' STEPS LEFT'),
     confirm: 'Confirm your email · ', resend: 'RESEND LINK',
     profile: pct => `Complete your profile — <strong style="color:#191512">${pct}%</strong> done · `, edit: 'EDIT PROFILE →',
-    resent: 'Link sent — check your inbox (and spam).'
+    resent: 'Link sent — check your inbox (and spam).',
+    // the one-row nudge (phone calm pass)
+    confirmT: 'Confirm your email', resendT: 'Resend',
+    profileT: 'Complete your profile', profileS: (done, total) => (done != null && total ? `${done} of ${total} done` : 'A few details left')
   },
-  next: { eyebrow: 'NEXT EVENT', free: 'Free entry', schedule: 'VIEW SCHEDULE', mySchedule: 'MY SCHEDULE →', register: `${CTA.register} →`, mine: 'MY TICKET →', units: ['DAYS', 'HOURS', 'MINUTES'] },
+  next: { eyebrow: 'NEXT EVENT', free: 'Free entry', schedule: 'View schedule →', mySchedule: 'My schedule →', register: CTA.register, mine: 'MY TICKET', units: ['days', 'hrs', 'min'], begins: 'Begins in' },
   projects: {
-    n: '01', title: 'OUR PROJECTS', sub: 'Apply, register, and follow every Med&amp;X project from here.',
+    n: '01', title: 'Your projects', all: 'All →', sub: 'Apply, register, and follow every Med&amp;X project from here.',
     cards: {
       // the card carries the conference (its status, 4–5 December, free entry) — Plexus Week itself runs 3–6 December
       plexus: { title: 'Plexus Conference 2026', photo: 'photo-stage.jpg' },
@@ -58,12 +62,13 @@ export const COPY = {
   },
   latest: {
     n: '02', title: 'LATEST FROM MED&amp;X', seeAll: 'SEE ALL →', showLess: 'SHOW LESS', read: 'READ →',
+    titleT: 'Latest', seeAllT: 'All →', showLessT: 'Less', forum: 'Forum', emptyWhyT: 'Calls, dates and announcements appear here first.',
     emptyLine: 'Quiet week at Med&amp;X.',
     emptyWhy: 'When news breaks — calls, dates, announcements — it appears here first. Follow a project to be notified the moment it does.',
     emptyCta: 'EXPLORE THE PROJECTS →'
   },
   keyDates: {
-    title: 'KEY DATES', add: 'ADD →', file: 'medx-key-dates.ics',
+    title: 'KEY DATES', add: 'Add →', file: 'medx-key-dates.ics', titleT: 'Key dates', until: 'Until this date',
     added: 'Calendar file downloaded — open it to add the dates.', none: 'No dates could be exported yet.',
     // shown only when GET /api/plexus/settings carries no key_dates
     fallback: [
@@ -77,7 +82,10 @@ export const COPY = {
   newsletter: {
     title: 'MED&amp;X NEWSLETTER', sub: 'Project news in your inbox — pick topics.',
     topics: ['ALL MED&X', 'PLEXUS', 'GALA EVENING', 'ACCELERATOR', 'BUILDING BRIDGES', 'BIOMEDICAL FORUM'],
-    subscribe: 'SUBSCRIBE →', subscribed: n => `SUBSCRIBED · ${n} ${n === 1 ? 'TOPIC' : 'TOPICS'} · MANAGE IN SETTINGS`,
+    subscribe: 'SUBSCRIBE', subscribed: n => `SUBSCRIBED · ${n} ${n === 1 ? 'TOPIC' : 'TOPICS'} · MANAGE IN SETTINGS`,
+    rowT: 'Newsletter', rowS: 'Choose topics', rowDone: n => `Subscribed · ${n} ${n === 1 ? 'topic' : 'topics'}`,
+    sheetEyebrow: 'NEWSLETTER', sheetTitle: 'Project news in your inbox', emailL: 'Email',
+    topicName: l => (l === 'ALL MED&X' ? 'All of Med&X' : l.charAt(0) + l.slice(1).toLowerCase().replace(/\b(evening|forum|bridges)\b/g, w => w.charAt(0).toUpperCase() + w.slice(1))),
     done: n => `Subscribed to ${n} topic${n === 1 ? '' : 's'} — manage them in Profile & settings.`, pick: 'Pick at least one topic.'
   },
   forum: { label: 'FROM THE FORUM', open: 'OPEN FEED →', tag: 'FORUM UPDATE', spotlightTag: 'MEMBER SPOTLIGHT' },
@@ -85,22 +93,13 @@ export const COPY = {
     eyebrow: '03 · GROW YOUR NETWORK',
     line: 'Med&amp;X is a community <i style="color:#c9a962">first</i>. Meet the people behind the programs.',
     stats: { registrations: 'GUESTS SO FAR', members: 'MEMBERS', countries: 'COUNTRIES', speakers: 'SPEAKERS HOSTED' },
-    cta: 'OPEN THE NETWORK →'
+    cta: 'OPEN THE NETWORK →',
+    titleT: 'Your network', ctaT: 'Open the network',
+    tiles: { members: 'Members', countries: 'Countries', registrations: 'Guests' }
   }
 };
 const TOPIC_KEY = { 'PLEXUS': 'plexus', 'GALA EVENING': 'gala', 'ACCELERATOR': 'accelerator', 'BUILDING BRIDGES': 'bridges', 'BIOMEDICAL FORUM': 'forum' };
 const ALL_TOPIC = 'ALL MED&X';
-const PHOTOS = ['photo-candlelit.jpg', 'photo-ballroom.jpg', 'photo-gala.jpg', 'photo-hall.jpg', 'photo-stage.jpg', 'photo-bridges.jpg'];
-// per-project card treatment — from the artboard (gala = ink card with gold)
-const CARD = {
-  plexus: { wrap: 'border:1px solid rgba(25,21,18,.16);border-top:2px solid #9b1b22;background:#fdfaf3;display:flex;flex-direction:column;box-sizing:border-box', img: 'width:100%;height:110px;object-fit:cover;display:block', status: '#9b1b22', detail: '#4a4239', cta: '#9b1b22' },
-  gala: { wrap: 'border:1px solid rgba(201,169,98,.55);background:#191512;color:#f7f1e6;display:flex;flex-direction:column;box-sizing:border-box', img: 'width:100%;height:110px;object-fit:cover;object-position:top;display:block', status: '#c9a962', detail: 'rgba(247,241,230,.65)', cta: '#c9a962' },
-  accelerator: { wrap: 'border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column;box-sizing:border-box', img: 'width:100%;height:110px;object-fit:cover;display:block', status: '#4a4239', detail: '#4a4239', cta: '#9b1b22' },
-  forum: { wrap: 'border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column;box-sizing:border-box', img: 'width:100%;height:110px;object-fit:cover;display:block', status: '#6e5626', detail: '#4a4239', cta: '#9b1b22' },
-  bridges: { wrap: 'border:1px solid rgba(25,21,18,.16);background:#fdfaf3;display:flex;flex-direction:column;box-sizing:border-box', img: 'width:100%;height:110px;object-fit:cover;display:block', status: '#4a4239', detail: '#4a4239', cta: '#9b1b22' }
-};
-const DOTS = ['#c9a962', '#9b1b22', '#191512'];
-
 // ---- view state ----
 let D = null;               // loaded data
 let st = null;              // ui state
@@ -166,279 +165,231 @@ async function load() {
 }
 
 // ---------------------------------------------------------------- blocks
-function blockHero() {
-  const me = D.me; const c = D.completion;
-  const emailOk = session.emailConfirmed();
-  let dismissed = false; try { dismissed = localStorage.getItem(startDismissKey()) === '1'; } catch (e) {}
-  const showStart = !dismissed && (!emailOk || !c.complete);
-  const steps = (emailOk ? 0 : 1) + (c.complete ? 0 : 1);
-  const hour = new Date().getHours();
+// Phone calm pass (2026-09-25, DESIGN-RULES §11 › /app/home): one focal point. A date line and the greeting; ONE
+// next-event card (photo, title, date · city, the countdown as a line, one primary, the schedule as a text link);
+// the profile nudge as one row; the projects as a shelf; key dates as a timeline; the latest news as rows; the
+// newsletter as one row that opens a sheet; the network as three numbers. No scattered marks, no second button.
+const DAYS_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const MON3 = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const sentence = s => { const t = String(s || '').trim(); return t && t === t.toUpperCase() ? t.charAt(0) + t.slice(1).toLowerCase() : t; };
+
+function blockHead() {
+  const me = D.me; const now = new Date();
+  const hour = now.getHours();
   const greeting = COPY.hero.greetings[hour < 12 ? 0 : hour < 18 ? 1 : 2];
-  const open = D.conf ? !!D.conf.registration_open : true;
-  const pre = /pre-?registration/i.test((D.projects.plexus || {}).status_label || '');
-  const city = (D.conf && D.conf.venue_city) || FACTS.plexus.city;
-  const holdsTicket = !!D.next.registered;
-  const checkInOpen = new Date() >= new Date(FACTS.plexus.start + 'T00:00:00');
   return `
-  <!-- dc: Med&X Home.dc.html › "YOUR NEXT EVENT" -->
-  <div style="border-bottom:1px solid rgba(25,21,18,.16);position:relative;overflow:hidden">
-    <div class="mx-grid-hero" style="display:grid;grid-template-columns:minmax(240px,300px) 1fr minmax(240px,300px);align-items:start;position:relative">
-    <div data-block="start" style="display:flex;flex-direction:column;gap:8px;padding:16px 36px 0 0;order:3">
-      ${showStart ? `
-        <div style="display:flex;flex-direction:column;background:#fdfaf3;border:1px solid rgba(25,21,18,.16)">
-          <div style="display:flex;align-items:center;gap:10px;padding:9px 12px 7px">
-            <span style="width:6px;height:6px;background:#c9a962;flex:none"></span>
-            <span style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#6e5626">${COPY.start.title} · ${COPY.start.left(steps)}</span>
-            <div style="flex:1"></div>
-            <span data-act="hideStart" aria-label="Dismiss" style="color:#4a4239;cursor:pointer;line-height:1" data-hover="color:#191512">×</span>
-          </div>
-          ${emailOk ? '' : `
-            <div style="display:flex;align-items:flex-start;gap:9px;padding:7px 12px;border-top:1px solid rgba(25,21,18,.08)">
-              <span aria-hidden="true" style="width:6px;height:6px;background:#9b1b22;transform:rotate(45deg);flex:none;margin:6px 3px 0 2px"></span>
-              <span style="font-size:12px;line-height:1.5;color:#4a4239;flex:1">${COPY.start.confirm}<span data-act="resend" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer;white-space:nowrap">${COPY.start.resend}</span></span>
-            </div>`}
-          ${c.complete ? '' : `
-            <div style="display:flex;align-items:flex-start;gap:9px;padding:7px 12px 10px;border-top:1px solid rgba(25,21,18,.08)">
-              <span aria-hidden="true" style="width:6px;height:6px;background:#9b1b22;transform:rotate(45deg);flex:none;margin:6px 3px 0 2px"></span>
-              <span style="font-size:12px;line-height:1.5;color:#4a4239;flex:1">${COPY.start.profile(c.pct)}<a href="/app/profile" style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;white-space:nowrap">${COPY.start.edit}</a></span>
-            </div>`}
-        </div>` : ''}
-    </div>
-    <img src="/assets/mark-x.png" alt="" style="position:absolute;left:6%;top:24%;width:52px;opacity:.13;transform:rotate(-12deg);pointer-events:none;user-select:none">
-    <img src="/assets/mark-x.png" alt="" style="position:absolute;left:3%;bottom:16%;width:80px;opacity:.09;transform:rotate(7deg);pointer-events:none;user-select:none">
-    <img src="/assets/mark-x.png" alt="" style="position:absolute;left:14%;bottom:38%;width:34px;opacity:.11;transform:rotate(-4deg);pointer-events:none;user-select:none">
-    <img src="/assets/mark-x.png" alt="" style="position:absolute;right:6%;top:20%;width:66px;opacity:.11;transform:rotate(9deg) scaleX(-1);pointer-events:none;user-select:none">
-    <img src="/assets/mark-x.png" alt="" style="position:absolute;right:12%;bottom:20%;width:44px;opacity:.13;transform:rotate(-8deg);pointer-events:none;user-select:none">
-    <img src="/assets/mark-x.png" alt="" style="position:absolute;right:2.5%;bottom:44%;width:30px;opacity:.1;transform:rotate(14deg) scaleX(-1);pointer-events:none;user-select:none">
-    <div class="mx-pad-hero" style="padding:54px 12px 46px;display:flex;flex-direction:column;align-items:center;text-align:center;position:relative;order:2">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-        <span style="width:28px;height:1px;background:#c9a962"></span>
-        <span style="font:600 11px Inter,sans-serif;letter-spacing:.18em;color:#9b1b22">${COPY.hero.eyebrow} · ${esc(fmt.upper(D.shortName))}</span>
-        <span style="width:28px;height:1px;background:#c9a962"></span>
-      </div>
-      <div class="mx-display-46" style="font-family:Fraunces,serif;font-size:46px;line-height:1.08">${esc(greeting)}, <i>${esc((me.first_name || '').trim() || session.displayName())}</i>.</div>
-      <div style="font-size:15px;line-height:1.6;color:#4a4239;max-width:460px;margin-top:14px">${esc((open ? (pre ? COPY.hero.preOpen : COPY.hero.open) : COPY.hero.soon)(D.shortName, city))}</div>
-      <div class="mx-wrap-center" style="display:flex;gap:12px;margin-top:26px;flex-wrap:wrap;justify-content:center">
-        ${holdsTicket
-          ? `<a href="/app/me" style="padding:12px 20px;background:#9b1b22;color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;text-decoration:none;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.hero.tickets}</a>`
-          : `<a href="/app/plexus/mine" style="padding:12px 20px;background:#9b1b22;color:#f7f1e6;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;text-decoration:none;white-space:nowrap" data-hover="background:#7e151b;color:#f7f1e6">${COPY.hero.register}</a>`}
-        ${holdsTicket && checkInOpen
-          ? `<a href="/app/me?open=qr" style="padding:12px 20px;border:1px solid rgba(25,21,18,.35);font:600 10.5px Inter,sans-serif;letter-spacing:.16em;color:#191512;text-decoration:none;white-space:nowrap" data-hover="border-color:#191512;color:#191512">${COPY.hero.checkIn}</a>`
-          : ''}
-      </div>
-      ${checkInOpen ? '' : `<div style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239;margin-top:12px">${COPY.hero.checkInSoon}</div>`}
-    </div>
-    <span style="order:1"></span>
-    </div>
-  </div>
-  <!-- /dc -->`;
+  <!-- dc: Med&X Home.dc.html › "YOUR NEXT EVENT" (greeting) -->
+  <header class="mx-home-head">
+    <span class="mx-home-date">${DAYS_LONG[now.getDay()]}, ${now.getDate()} ${MONTHS_LONG[now.getMonth()]}</span>
+    <h1 class="mx-lt">${esc(greeting)}, <i>${esc((me.first_name || '').trim() || session.displayName())}</i>.</h1>
+  </header>`;
 }
 
 function blockNextEvent() {
   const c = D.conf; const p = D.projects.plexus || COPY.projects.fallback.plexus;
-  const name = (c && c.name) || FACTS.plexus.name;
+  const name = ((c && c.name) || FACTS.plexus.name);
   const m = name.match(/^(.*?)(\s+\d{4})$/);
-  const titleHtml = m ? esc(m[1]) + ' <i style="color:#c9a962">' + esc(m[2].trim()) + '</i>' : esc(name);
-  const line = [(c && c.date_range) || FACTS.plexus.dateRange, [(c && c.venue_city) || FACTS.plexus.city, (c && c.venue_country) || FACTS.plexus.country].join(', '), COPY.next.free].join(' · ');
-  const cell = (id, unit) => `<span style="display:flex;align-items:baseline;gap:7px"><span data-cd="${id}" style="font-family:Fraunces,serif;font-size:30px;color:#c9a962">—</span><span style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.65)">${unit}</span></span>`;
+  const titleHtml = m ? esc(m[1]) + ' <i>' + esc(m[2].trim()) + '</i>' : esc(name);
+  const date = (() => { const a = fmt.toDate(FACTS.plexus.start), b = fmt.toDate(FACTS.plexus.end); return a && b ? `${a.getDate()}–${b.getDate()} ${MON3[a.getMonth()]}` : FACTS.plexus.dateShort; })();
+  const city = (c && c.venue_city) || FACTS.plexus.city;
+  const holdsTicket = !!D.next.registered;
+  const checkInOpen = new Date() >= new Date(FACTS.plexus.start + 'T00:00:00');
+  // ONE primary: register when they hold nothing, their ticket when they do, check-in once the doors are open
+  // (the same three destinations the hero and the band used to split between two filled buttons)
+  const primary = holdsTicket && checkInOpen
+    ? `<a href="/app/me?open=qr" class="btn-primary btn-block">${COPY.hero.checkIn}</a>`
+    : holdsTicket
+      ? `<a href="/app/plexus/mine" class="btn-primary btn-block">${COPY.next.mine}</a>`
+      : `<a href="/app/plexus/mine" class="btn-primary btn-block">${COPY.next.register}</a>`;
+  const cell = (id, unit) => `<span class="mx-cd-cell"><b class="mx-cd-num" data-cd="${id}">—</b><i class="mx-cd-unit">${unit}</i></span>`;
+  const status = sentence(fmt.detail(p.status_label || ''));
   return `
-  <!-- dc: Med&X Home.dc.html › "NEXT EVENT" -->
-  <div class="mx-next-event mx-pad-band" style="background:#191512;color:#f7f1e6;padding:20px 36px;display:flex;align-items:center;gap:34px;border-bottom:1px solid rgba(25,21,18,.16);box-sizing:border-box">
-      <span style="display:flex;flex-direction:column;gap:4px;flex:none">
-        <span style="font:600 9px Inter,sans-serif;letter-spacing:.18em;color:#c9a962">${COPY.next.eyebrow} · ${esc(fmt.upper(fmt.detail(p.status_label || '')))}</span>
-        <span style="font-family:Fraunces,serif;font-size:23px;line-height:1.15">${titleHtml}</span>
-        <span style="font-size:12px;color:rgba(247,241,230,.65)">${esc(fmt.dash(line))}</span>
-      </span>
-      <span class="mx-vrule" style="width:1px;align-self:stretch;background:rgba(247,241,230,.18)"></span>
-      <span style="display:flex;align-items:baseline;gap:20px">
-        ${cell('days', COPY.next.units[0])}
-        ${cell('hrs', COPY.next.units[1])}
-        ${cell('min', COPY.next.units[2])}
-      </span>
-      <span class="mx-cta-row" style="margin-left:auto;display:flex;gap:12px">
-        <a href="${D.next.registered ? '/app/live' : '/app/plexus/program'}" style="padding:12px 18px;border:1px solid rgba(247,241,230,.35);font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#f7f1e6;white-space:nowrap" data-hover="border-color:#f7f1e6;color:#f7f1e6">${D.next.registered ? COPY.next.mySchedule : COPY.next.schedule}</a>
-        <a href="/app/plexus/mine" style="padding:12px 18px;background:#c9a962;color:#191512;font:600 10px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap" data-hover="background:#b8994f;color:#191512">${D.next.registered ? COPY.next.mine : COPY.next.register}</a>
-      </span>
+  <!-- dc: Med&X Home.dc.html › "NEXT EVENT" (one card) -->
+  <article class="mx-next" aria-label="Your next event">
+    <a class="mx-next-media mx-media r-16x9" href="/app/plexus">
+      <img src="/assets/photo-hall.jpg" alt="" style="object-position:50% 62%">
+      <div class="mx-scrim"></div>
+      ${status ? `<span class="mx-tag mx-tag--gold">${esc(status)}</span>` : ''}
+      <span class="mx-next-over"><span class="mx-next-title">${titleHtml}</span><span class="mx-next-date">${esc(date)} · ${esc(city)}</span></span>
+    </a>
+    <div class="mx-next-body">
+      <div class="mx-countdown mx-countdown--line" aria-label="Countdown to the conference">
+        <span class="mx-cd-label">${COPY.next.begins}</span>${cell('days', COPY.next.units[0])}${cell('hrs', COPY.next.units[1])}${cell('min', COPY.next.units[2])}
+      </div>
+      ${primary}
+      <a class="mx-next-link" href="${holdsTicket ? '/app/live' : '/app/plexus/program'}">${holdsTicket ? COPY.next.mySchedule : COPY.next.schedule}</a>
     </div>
+  </article>
   <!-- /dc -->`;
 }
 
-// The two registration cards say the two verbs (item 6) whatever wording the status feed carries;
-// every other card keeps the admin's own label. Detail lines pass through the early-bird repair so
-// a stale "€150 through 1 Sep" can't outrank the Gala page (item 1).
-// A member who already holds the ticket (or the seat) is not asked to register again — the Home hero and My
-// Plexus already say REGISTERED; the cards now agree.
-function cardCta(key, p) {
-  if (key === 'plexus') return D.next.registered ? 'MY TICKET' : CTA.register;
-  if (key === 'gala') return D.next.has_gala ? 'YOUR SEAT' : CTA.reserve(fmt.eur(D.galaPrice));
-  return fmt.upper(p.cta_label || 'Open');
+function blockStart() {
+  const c = D.completion;
+  const emailOk = session.emailConfirmed();
+  let dismissed = false; try { dismissed = localStorage.getItem(startDismissKey()) === '1'; } catch (e) {}
+  // the phone bar's email line already asks for the confirmation — Home says it only where that line was dismissed
+  let bannerGone = false; try { bannerGone = sessionStorage.getItem('medx_verify_dismissed') === 'true'; } catch (e) {}
+  const askEmail = !emailOk && bannerGone;
+  if (dismissed || ((c.complete || c.pct == null) && !askEmail)) return '<div data-block="start"></div>';
+  const pct = Math.max(0, Math.min(100, Number(c.pct) || 0));
+  return `
+  <!-- dc: Med&X Home.dc.html › "GETTING STARTED" (one row) -->
+  <div data-block="start" class="mx-start">
+    ${askEmail ? `<div class="mx-start-row"><span class="mx-start-ic">${ui.icon('mail', 20)}</span><span class="mx-start-text"><span class="mx-start-t">${COPY.start.confirmT}</span></span><span data-act="resend" role="button" tabindex="0" class="mx-start-go">${COPY.start.resendT}</span></div>` : ''}
+    ${c.complete ? '' : `<a class="mx-start-row" href="/app/profile">
+      <span class="mx-start-ic">${ui.icon('user', 20)}</span>
+      <span class="mx-start-text"><span class="mx-start-t">${COPY.start.profileT}</span><span class="mx-start-bar" aria-hidden="true"><i style="width:${pct}%"></i></span><span class="mx-start-s">${pct}% · ${COPY.start.profileS(c.done, c.total)}</span></span>
+      ${ui.icon('chevron-right', 18)}
+    </a>`}
+    <span data-act="hideStart" role="button" tabindex="0" aria-label="Dismiss" class="mx-iconbtn mx-start-x">${ui.icon('x', 18)}</span>
+  </div>`;
 }
+
 function blockProjects() {
-  const card = key => {
-    const p = D.projects[key] || COPY.projects.fallback[key]; const c = CARD[key]; const meta = COPY.projects.cards[key];
-    const to = key === 'plexus' && D.next.registered ? '/app/plexus/mine' : routeFor(p.cta_target || key, routeFor(key));
-    // the whole card is the door (only the small CTA line used to be clickable)
+  const held = { plexus: !!D.next.registered, gala: !!D.next.has_gala };
+  const item = key => {
+    const f = projectCard(key, D.projects[key] || COPY.projects.fallback[key], held);
     return `
-      <a href="${to}" class="mx-proj-card${key === 'gala' ? ' dark' : ''}" style="${c.wrap};${key === 'gala' ? '' : 'color:#191512;'}text-decoration:none">
-        <span class="mx-proj-photo" style="display:block;overflow:hidden"><img src="/assets/${meta.photo}" alt="" style="${c.img}"></span>
-        <div style="padding:16px;display:flex;flex-direction:column;gap:8px;flex:1">
-          <span class="mx-proj-status" style="font:600 10px Inter,sans-serif;letter-spacing:.14em;color:${c.status}">${esc(fmt.upper(fmt.detail(p.status_label || '')))}</span>
-          <span style="font-family:Fraunces,serif;font-size:19px;line-height:1.15">${meta.title}</span>
-          <span style="font-size:12px;color:${c.detail};line-height:1.5">${esc(fmt.detail(reconcileEarlyBird(p.detail_line || '')))}</span>
-          <span class="mx-proj-cta" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:${c.cta};margin-top:auto;white-space:nowrap">${esc(cardCta(key, p))} →</span>
-        </div>
+      <a href="${f.to}" class="mx-shelf-item mx-home-proj">
+        <span class="mx-media r-4x3"><img src="${esc(f.img)}" alt="" style="object-position:${f.pos}">${f.tag.text ? `<span class="mx-tag mx-tag--${f.tag.kind === 'line' ? 'ink' : f.tag.kind}">${esc(f.tag.text)}</span>` : ''}</span>
+        <span class="mx-shelf-title">${esc(f.name)}</span>
+        <span class="mx-shelf-sub">${esc([f.date, f.place].filter(Boolean).join(' · '))}</span>
       </a>`;
   };
   return `
-    <!-- dc: Med&X Home.dc.html › "01 · OUR PROJECTS" -->
-    <div id="projects" class="mx-wrap-row" style="display:flex;align-items:baseline;gap:14px;padding:24px 0 18px">
-      <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.projects.n}</span>
-      <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.projects.title}</span>
-      <span style="font-size:12.5px;color:#4a4239">${COPY.projects.sub}</span>
-    </div>
-    <div class="mx-grid-5" style="display:grid;grid-template-columns:repeat(5,1fr);gap:16px;padding-bottom:30px">
-      ${FACTS.projectOrder.map(card).join('')}
-    </div>
+    <!-- dc: Med&X Home.dc.html › "01 · OUR PROJECTS" (a shelf of the other four: the conference is the card above) -->
+    <section class="mx-sec" id="projects">
+      <div class="mx-sh"><span class="mx-sh-n">01</span><h2 class="mx-sh-t">${COPY.projects.title}</h2><a class="mx-sh-a" href="/app/projects">${COPY.projects.all}</a></div>
+      <div class="mx-shelf" style="--w:236px">${FACTS.projectOrder.filter(k => k !== 'plexus').map(item).join('')}</div>
+    </section>
+    <!-- /dc -->`;
+}
+
+// a key date: the day in the time column ('4–5 Dec', 'Sat 5 Dec' → '5 Dec', 'December 2026' → 'Dec'), "until" on the sub-line
+function keyDate(r) {
+  const raw = String(trueDateFor(r.label) || r.date || '');
+  const until = /^\s*until\b/i.test(raw);
+  const year = (D.conf && D.conf.year) || FACTS.year;
+  const dmy = raw.match(/\b(\d{1,2})\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b/i);   // '1 Oct' (day first)
+  const d = dmy ? new Date(year, MON3.findIndex(x => x.toLowerCase() === dmy[2].slice(0, 3).toLowerCase()), +dmy[1]) : fmt.parseLooseDate(raw, year);
+  const rg = raw.match(/(\d{1,2})\s?[-–]\s?(\d{1,2})/);
+  const when = d ? (rg ? `${rg[1]}–${rg[2]} ${MON3[d.getMonth()]}` : /\b\d{1,2}\b(?!\d)/.test(raw.replace(/\b20\d{2}\b/, '')) ? `${d.getDate()} ${MON3[d.getMonth()]}` : MON3[d.getMonth()])
+    : (() => { const mm = MONTHS_LONG.findIndex(mo => new RegExp('\\b' + mo + '\\b', 'i').test(raw)); return mm >= 0 ? MON3[mm] : fmt.keyDateLabel(raw); })();
+  return { when, sub: until ? COPY.keyDates.until : '' };
+}
+function blockKeyDates() {
+  const rows = D.keyDates;
+  return `
+    <!-- dc: Med&X Home.dc.html › "KEY DATES" (a timeline) -->
+    <section class="mx-sec">
+      <div class="mx-sh"><span class="mx-sh-n">02</span><h2 class="mx-sh-t">${COPY.keyDates.titleT}</h2><span class="mx-sh-a" data-act="dlIcs" role="button" tabindex="0">${COPY.keyDates.add}</span></div>
+      <ol class="mx-timeline mx-timeline--wide">
+        ${rows.map(r => { const k = keyDate(r); const label = fmt.detail(r.label).split(' — '); return `<li class="mx-tl-row"><time class="mx-tl-time">${esc(k.when)}</time><div class="mx-tl-body"><span class="mx-tl-title">${esc(label[0])}</span>${label[1] || k.sub ? `<span class="mx-tl-sub">${esc([label.slice(1).join(' — '), k.sub].filter(Boolean).join(' · '))}</span>` : ''}</div></li>`; }).join('')}
+      </ol>
+    </section>
     <!-- /dc -->`;
 }
 
 function latestRows() {
   const items = D.feed.slice(0, st.expanded ? 14 : 4);
   if (!items.length) return `
-        <div class="empty" style="padding:26px 0 18px">
-          <span style="width:28px;height:1px;background:#c9a962;margin-bottom:6px"></span>
-          <span style="font-family:Fraunces,serif;font-style:italic;font-size:17px">${COPY.latest.emptyLine}</span>
-          <span style="font-size:12.5px;color:#4a4239;max-width:400px;line-height:1.55">${COPY.latest.emptyWhy}</span>
-          <span data-act="explore" style="margin-top:8px;padding:11px 20px;border:1px solid rgba(25,21,18,.3);font:600 10px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;color:#191512;white-space:nowrap" data-hover="border-color:#191512">${COPY.latest.emptyCta}</span>
+        <div class="empty">
+          <span class="empty-line">${COPY.latest.emptyLine}</span>
+          <span class="empty-why">${COPY.latest.emptyWhyT}</span>
         </div>`;
-  // READ → opens the announcement itself when it has text (it used to jump to the project page and the
-  // body was never shown anywhere); the sheet then offers the project link
-  return items.map((it, i) => `
-        <a href="${it.source === 'forum' ? '/app/forum' : routeFor(it.link_url, '/app/home')}"${it.source !== 'forum' && String(it.body || '').trim() ? ` data-act="readNews" data-i="${i}"` : ''} style="display:flex;gap:16px;align-items:baseline;padding:14px 0;${i < items.length - 1 ? 'border-bottom:1px solid rgba(25,21,18,.1);' : ''}color:#191512" data-hover="color:#9b1b22">
-          <span style="font:600 10px Inter,sans-serif;letter-spacing:.12em;color:#9b8f80;flex:none;width:52px">${esc(fmt.shortDate(it.posted_at))}</span>
-          <span style="font-family:Fraunces,serif;font-size:16.5px;line-height:1.25;flex:1;min-width:0">${esc(fmt.euro(it.title))}</span>
-          <span style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;flex:none">${COPY.latest.read}</span>
-        </a>`).join('');
+  // a row opens the announcement itself when it has text (the sheet then offers the project link)
+  return `<div class="mx-list mx-list--plain">${items.map((it, i) => `
+        <a class="mx-row mx-news" href="${it.source === 'forum' ? '/app/forum' : routeFor(it.link_url, '/app/home')}"${it.source !== 'forum' && String(it.body || '').trim() ? ` data-act="readNews" data-i="${i}"` : ''}>
+          <span class="mx-row-l"><span class="mx-news-t">${esc(fmt.euro(it.title))}</span><span class="mx-row-s">${esc([fmt.shortDate(it.posted_at).replace(/^([A-Z])([A-Z]+)/, (x, a, b) => a + b.toLowerCase()), it.source === 'forum' ? COPY.latest.forum : ''].filter(Boolean).join(' · '))}</span></span>
+          ${ui.icon('chevron-right', 18)}
+        </a>`).join('')}</div>`;
 }
 
 function blockLatest() {
-  const rows = D.keyDates;
   return `
-    <!-- dc: Med&X Home.dc.html › "02 · LATEST FROM MED&X" -->
-    <div class="mx-grid-latest" style="display:grid;grid-template-columns:1.6fr 1fr;gap:34px;border-top:1px solid rgba(25,21,18,.16);padding:22px 0 10px;align-items:start">
-      <div>
-        <div class="mx-wrap-row" style="display:flex;align-items:baseline;gap:12px;padding-bottom:4px">
-          <span style="font-family:Fraunces,serif;font-weight:600;font-size:14px;color:#9b1b22">${COPY.latest.n}</span>
-          <span style="font:600 14px Inter,sans-serif;letter-spacing:.14em">${COPY.latest.title}</span>
-          <div style="flex:1"></div>
-          ${D.feed.length > 4 ? `<span data-act="seeAll" style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;cursor:pointer">${st.expanded ? COPY.latest.showLess : COPY.latest.seeAll}</span>` : ''}
-        </div>
-        <div data-block="latest">${latestRows()}</div>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:20px">
-        <!-- dc: Med&X Home.dc.html › "KEY DATES" -->
-        <div style="border:1px solid rgba(25,21,18,.16);background:#fdfaf3;padding:15px 18px 8px">
-          <div style="display:flex;align-items:baseline;gap:10px;padding-bottom:4px">
-            <span style="font:600 11px Inter,sans-serif;letter-spacing:.15em;color:#6e5626">${COPY.keyDates.title}</span>
-            <div style="flex:1"></div>
-            <span data-act="dlIcs" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer">${COPY.keyDates.add}</span>
-          </div>
-          ${rows.map((r, i) => `
-          <div style="display:flex;gap:12px;align-items:center;padding:9px 0;${i < rows.length - 1 ? 'border-bottom:1px solid rgba(25,21,18,.1)' : ''}">
-            <span style="width:7px;height:7px;background:${DOTS[i % DOTS.length]};flex:none"></span>
-            <span style="font-size:13px;color:#191512;flex:1;line-height:1.3">${esc(fmt.detail(r.label))}</span>
-            <span style="font:600 9px Inter,sans-serif;letter-spacing:.1em;color:#9b8f80;white-space:nowrap">${esc(fmt.keyDateLabel(trueDateFor(r.label) || r.date))}</span>
-          </div>`).join('')}
-        </div>
-        <!-- /dc -->
-      </div>
-    </div>
+    <!-- dc: Med&X Home.dc.html › "02 · LATEST FROM MED&X" (rows) -->
+    <section class="mx-sec">
+      <div class="mx-sh"><span class="mx-sh-n">03</span><h2 class="mx-sh-t">${COPY.latest.titleT}</h2>${D.feed.length > 4 ? `<span class="mx-sh-a" data-act="seeAll" role="button" tabindex="0">${st.expanded ? COPY.latest.showLessT : COPY.latest.seeAllT}</span>` : ''}</div>
+      <div data-block="latest">${latestRows()}</div>
+    </section>
     <!-- /dc -->`;
 }
 
+// the newsletter is one row; its topics, the address and SUBSCRIBE open in a sheet (the same handlers)
+function blockNewsletterRow() {
+  return `
+    <!-- dc: Med&X Home.dc.html › "MED&X NEWSLETTER" (one row) -->
+    <section class="mx-sec mx-sec--tight" data-block="nl-row">
+      <div class="mx-list">
+        <span class="mx-row" data-act="nlOpen" role="button" tabindex="0">${ui.icon('mail')}<span class="mx-row-l">${COPY.newsletter.rowT}<span class="mx-row-s">${st.nlDone ? COPY.newsletter.rowDone(st.nlCount) : COPY.newsletter.rowS}</span></span>${ui.icon('chevron-right', 18)}</span>
+      </div>
+    </section>
+    <!-- /dc -->`;
+}
 function blockNewsletter() {
   const picked = st.nlTopics;
-  const chip = label => { const on = picked.includes(label); return `<span data-act="nlTg" data-topic="${esc(label)}" role="checkbox" aria-checked="${on}" style="padding:5px 9px;border:1px solid ${on ? '#9b1b22' : 'rgba(25,21,18,.22)'};background:${on ? '#9b1b22' : 'transparent'};color:${on ? '#f7f1e6' : '#191512'};font:600 8.5px Inter,sans-serif;letter-spacing:.12em;cursor:pointer;white-space:nowrap"${on ? '' : ' data-hover="border-color:#191512"'}>${esc(label)}</span>`; };
+  const chip = label => { const on = picked.includes(label); return `<span data-act="nlTg" data-topic="${esc(label)}" role="checkbox" aria-checked="${on}" class="chip${on ? ' on' : ''}">${esc(COPY.newsletter.topicName(label))}</span>`; };
   return `
-    <!-- dc: Med&X Home.dc.html › "MED&X NEWSLETTER" -->
-    <div data-block="newsletter" class="mx-nl" style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;border:1px solid rgba(25,21,18,.16);border-left:3px solid #c9a962;background:#fdfaf3;padding:14px 18px;margin-bottom:28px">
-      <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;flex:none">${COPY.newsletter.title}</span>
-      <span class="mx-nl-sub" style="font-size:12px;color:#4a4239;flex:none">${COPY.newsletter.sub}</span>
-      <div class="mx-nl-chips" style="display:flex;gap:6px;flex-wrap:wrap;flex:1;min-width:220px">
-        ${COPY.newsletter.topics.map(chip).join('\n        ')}
-      </div>
-      ${st.nlDone ? `
-      <span style="padding:6px 10px;border:1px solid rgba(201,169,98,.65);color:#6e5626;font:600 8.5px Inter,sans-serif;letter-spacing:.13em;flex:none">${COPY.newsletter.subscribed(st.nlCount)}</span>` : `
-      <input data-role="nlEmail" type="email" aria-label="Email for the newsletter" value="${esc(D.me.email || '')}" placeholder="${esc(D.me.email || 'you@institution.edu')}" class="mx-w250" style="border:1px solid rgba(25,21,18,.25);background:#fff;padding:9px 12px;font:13px Inter,sans-serif;color:#191512;width:250px;flex:none">
-      <span data-act="nlSub" style="padding:10px 16px;background:#9b1b22;color:#f7f1e6;font:600 9.5px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;white-space:nowrap;flex:none" data-hover="background:#7e151b">${COPY.newsletter.subscribe}</span>`}
-    </div>
-    <!-- /dc -->`;
-}
-
-function blockForum() {
-  const f = D.forumTop; if (!f) return `<!-- dc: Med&X Home.dc.html › "FROM THE FORUM" --><!-- hidden: no forum post in GET /api/feed/home --><!-- /dc -->`;
-  const isSpot = f.type === 'spotlight';
-  return `
-    <!-- dc: Med&X Home.dc.html › "FROM THE FORUM" -->
-    <a href="/app/forum" class="mx-fstrip" style="display:flex;align-items:center;gap:14px;border:1px solid rgba(25,21,18,.16);border-left:3px solid #c9a962;background:#fdfaf3;padding:14px 18px;margin-bottom:26px;color:#191512" data-hover="background:#f7efdf">
-      <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#6e5626;flex:none">${COPY.forum.label}</span>
-      <span class="mx-fstrip-div" style="width:1px;height:26px;background:rgba(25,21,18,.15);flex:none"></span>
-      ${isSpot && f.init ? `<span style="width:34px;height:34px;flex:none;background:#191512;color:#c9a962;display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif">${esc(f.init)}</span>` : ''}
-      <span class="mx-fstrip-title" style="flex:1;min-width:0"><span style="display:block;font:600 8px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22">${isSpot ? COPY.forum.spotlightTag : COPY.forum.tag}</span><span style="display:block;font-family:Fraunces,serif;font-size:16px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(f.title)}</span></span>
-      <span style="font-size:11px;color:#4a4239;white-space:nowrap;flex:none">${esc(ago(f.posted_at))}</span>
-      <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;flex:none;white-space:nowrap">${COPY.forum.open}</span>
-    </a>
-    <!-- /dc -->`;
+    <div data-block="newsletter" class="mx-nl-sheet">
+      <div class="mx-nl-chips">${COPY.newsletter.topics.map(chip).join('')}</div>
+      ${st.nlDone ? `<p class="mx-nl-done">${ui.icon('check', 18)}<span>${COPY.newsletter.done(st.nlCount)}</span></p>` : `
+      <label class="label" for="mx-nl-email">${COPY.newsletter.emailL}</label>
+      <input id="mx-nl-email" data-role="nlEmail" type="email" class="input" aria-label="Email for the newsletter" value="${esc(D.me.email || '')}" placeholder="${esc(D.me.email || 'you@institution.edu')}">
+      <span data-act="nlSub" role="button" tabindex="0" class="btn-primary btn-block">${COPY.newsletter.subscribe}</span>`}
+    </div>`;
 }
 
 function blockNetwork() {
   const im = D.impact;
-  // a headline number under 10 ("4 SPEAKERS HOSTED") undersells the band it sits in — leave it out
-  const stat = (n, l) => (n == null || Number(n) < 10) ? '' : `<span style="display:flex;align-items:baseline;gap:7px"><span style="font-family:Fraunces,serif;font-size:24px;color:#c9a962">${esc(fmt.num(n))}</span><span style="font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:rgba(247,241,230,.7)">${l}</span></span>`;
+  // a headline number under 10 undersells the band it sits in — leave it out
+  const tile = (n, l) => (n == null || Number(n) < 10) ? '' : `<div class="mx-tile"><span class="mx-tile-n">${esc(fmt.num(n))}</span><span class="mx-tile-l">${l}</span></div>`;
+  const tiles = im ? [tile(im.members, COPY.network.tiles.members), tile(im.countries, COPY.network.tiles.countries), tile(im.registrations, COPY.network.tiles.registrations)].filter(Boolean) : [];
   return `
-  <!-- dc: Med&X Home.dc.html › "03 · GROW YOUR NETWORK" -->
-  <div class="mx-rotator" style="position:relative;overflow:hidden">
-    <img data-role="rot-a" src="/assets/${PHOTOS[0]}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
-    <img data-role="rot-b" src="/assets/${PHOTOS[1]}" alt="" class="out" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
-    <div style="position:absolute;inset:0;background:rgba(25,21,18,.8)"></div>
-    <div class="mx-pad-36" style="position:relative;padding:36px;display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center;color:#f7f1e6">
-      <span style="font:600 10.5px Inter,sans-serif;letter-spacing:.18em;color:#c9a962">${COPY.network.eyebrow}</span>
-      <span class="mx-display-26" style="font-family:Fraunces,serif;font-size:26px;line-height:1.3;max-width:640px">${COPY.network.line}</span>
-      ${im ? `<div style="display:flex;flex-wrap:wrap;gap:12px 30px;align-items:baseline;justify-content:center">
-        ${stat(im.registrations, COPY.network.stats.registrations)}
-        ${stat(im.members, COPY.network.stats.members)}
-        ${stat(im.countries, COPY.network.stats.countries)}
-        ${stat(im.speakers, COPY.network.stats.speakers)}
-      </div>` : ''}
-      <a href="/app/network" style="padding:12px 22px;background:#c9a962;color:#191512;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;white-space:nowrap" data-hover="background:#b8994f;color:#191512">${COPY.network.cta}</a>
-    </div>
-  </div>
+  <!-- dc: Med&X Home.dc.html › "03 · GROW YOUR NETWORK" (three numbers) -->
+  <section class="mx-sec">
+    <div class="mx-sh"><span class="mx-sh-n">04</span><h2 class="mx-sh-t">${COPY.network.titleT}</h2></div>
+    ${tiles.length ? `<div class="mx-tiles${tiles.length === 3 ? ' mx-tiles--3' : ''}">${tiles.join('')}</div>` : ''}
+    <a href="/app/network" class="btn-ghost btn-block mx-home-net">${COPY.network.ctaT}</a>
+  </section>
   <!-- /dc -->`;
 }
 
 function template() {
   return `
-<div data-screen-label="Home" style="position:relative;overflow:hidden;font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
-  ${blockHero()}
-  ${blockNextEvent()}
-  <div class="mx-gutter" style="padding:0 36px">
+<div data-screen-label="Home" class="mx-home" style="position:relative;font-family:Inter,sans-serif;color:#191512;background:#f7f1e6;min-height:100vh">
+  <div class="mx-p">
+    ${blockHead()}
+    <div class="mx-home-top">
+      ${blockNextEvent()}
+      ${blockStart()}
+    </div>
     ${blockProjects()}
-    ${blockLatest()}
-    ${blockNewsletter()}
-    ${blockForum()}
+    <div class="mx-home-cols">
+      ${blockKeyDates()}
+      ${blockLatest()}
+    </div>
+    ${blockNewsletterRow()}
+    ${blockNetwork()}
   </div>
-  ${blockNetwork()}
 </div>`;
 }
 
 // ---------------------------------------------------------------- behaviour
 function rerender(sel, html) { const el = rootEl && rootEl.querySelector(sel); if (el) el.outerHTML = html; }
+// the newsletter sheet lives outside the screen root: its block is re-drawn in the sheet
+let nlSheet = null;
+function rerenderNl() {
+  const host = nlSheet && nlSheet.el && nlSheet.el.isConnected ? nlSheet.el : null;
+  const el = host && host.querySelector('[data-block="newsletter"]'); if (el) el.outerHTML = blockNewsletter();
+  rerender('[data-block="nl-row"]', blockNewsletterRow());
+}
 
 const handlers = {
   hideStart: () => {
     try { localStorage.setItem(startDismissKey(), '1'); } catch (e) {}
     api.post('/api/member/profile-nudge/dismiss').catch(() => {});
-    const el = rootEl.querySelector('[data-block="start"]'); if (el) el.innerHTML = '';
+    const el = rootEl.querySelector('[data-block="start"]'); if (el) { el.innerHTML = ''; el.className = ''; }
   },
   resend: async (el) => {
     const email = D.me.email; if (!email) return;
@@ -447,12 +398,12 @@ const handlers = {
     catch (e) { ui.toast(e.message, { kind: 'error' }); }
     setTimeout(() => el.removeAttribute('aria-disabled'), 30000);
   },
-  seeAll: () => { st.expanded = !st.expanded; rerender('[data-block="latest"]', `<div data-block="latest">${latestRows()}</div>`); const b = rootEl.querySelector('[data-act="seeAll"]'); if (b) b.textContent = st.expanded ? COPY.latest.showLess : COPY.latest.seeAll; },
+  seeAll: () => { st.expanded = !st.expanded; rerender('[data-block="latest"]', `<div data-block="latest">${latestRows()}</div>`); const b = rootEl.querySelector('[data-act="seeAll"]'); if (b) b.textContent = st.expanded ? COPY.latest.showLessT : COPY.latest.seeAllT; },
   readNews: (el) => {
     const it = D.feed[Number(el.dataset.i)];
     if (!it) return;
     const to = routeFor(it.link_url, '');
-    const paras = String(it.body || '').trim().split(/\n{2,}/).map(p => `<p style="margin:0 0 10px;font-size:13.5px;line-height:1.65;color:#191512">${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
+    const paras = String(it.body || '').trim().split(/\n{2,}/).map(p => `<p style="margin:0 0 12px;font-size:16px;line-height:1.55;color:#191512">${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
     ui.modal({
       eyebrow: 'LATEST FROM MED&X · ' + fmt.shortDate(it.posted_at),
       title: esc(fmt.euro(it.title)),
@@ -478,17 +429,21 @@ const handlers = {
     const label = el.dataset.topic; const on = st.nlTopics.includes(label);
     if (on) st.nlTopics = st.nlTopics.filter(x => x !== label);
     else st.nlTopics = label === ALL_TOPIC ? [ALL_TOPIC] : st.nlTopics.filter(x => x !== ALL_TOPIC).concat([label]);
-    rerender('[data-block="newsletter"]', blockNewsletter());
+    rerenderNl();
+  },
+  nlOpen: () => {
+    nlSheet = ui.modal({ eyebrow: COPY.newsletter.sheetEyebrow, title: COPY.newsletter.sheetTitle, body: blockNewsletter() });
+    ui.bind(nlSheet.el, { nlTg: handlers.nlTg, nlSub: handlers.nlSub });
   },
   nlSub: async (el) => {
     if (!st.nlTopics.length) return ui.toast(COPY.newsletter.pick, { kind: 'error' });
     const topics = st.nlTopics.includes(ALL_TOPIC) ? ['all'] : st.nlTopics.map(l => TOPIC_KEY[l]).filter(Boolean);
-    const typed = ((rootEl.querySelector('[data-role="nlEmail"]') || {}).value || '').trim();
+    const typed = (((nlSheet && nlSheet.el && nlSheet.el.querySelector('[data-role="nlEmail"]')) || rootEl.querySelector('[data-role="nlEmail"]') || {}).value || '').trim();
     el.setAttribute('aria-disabled', 'true');
     try {
       const r = await api.post('/api/v2/newsletter/subscribe', typed ? { topics, email: typed } : { topics });
       st.nlDone = true; st.nlCount = st.nlTopics.length;
-      rerender('[data-block="newsletter"]', blockNewsletter());
+      rerenderNl();
       ui.toast(r && r.pending_confirmation ? 'Check that inbox — one click there confirms the subscription.' : COPY.newsletter.done(st.nlCount));
     } catch (e) { el.removeAttribute('aria-disabled'); ui.toast(e.message, { kind: 'error' }); }
   }
@@ -500,19 +455,6 @@ function startTimers() {
     const set = (k, v) => ui.tick(rootEl && rootEl.querySelector(`[data-cd="${k}"]`), v);
     set('days', days); set('hrs', hrs); set('min', min);
   }, 30000));
-  // photo band rotation every 6 s (crossfade); the current artboard's hero has no photo, so the
-  // rotation lives on the only photo surface of the screen — see ARCHITECTURE.md
-  let idx = 0, front = 'a';
-  const rot = setInterval(() => {
-    const a = rootEl && rootEl.querySelector('[data-role="rot-a"]'), b = rootEl && rootEl.querySelector('[data-role="rot-b"]');
-    if (!a || !b) return;
-    idx = (idx + 1) % PHOTOS.length;
-    const back = front === 'a' ? b : a, cur = front === 'a' ? a : b;
-    back.src = '/assets/' + PHOTOS[idx];
-    back.classList.remove('out'); cur.classList.add('out');
-    front = front === 'a' ? 'b' : 'a';
-  }, 6000);
-  timers.push(() => clearInterval(rot));
 }
 
 export default {
@@ -533,6 +475,6 @@ export default {
   },
   destroy() {
     timers.forEach(stop => { try { stop(); } catch (e) {} }); timers = [];
-    if (unbind) unbind(); unbind = null; rootEl = null; D = null; st = null;
+    if (unbind) unbind(); unbind = null; rootEl = null; D = null; st = null; nlSheet = null;
   }
 };

@@ -26,7 +26,11 @@ export const COPY = {
   alertsPanel: { title: 'ALERTS', markAll: 'MARK ALL READ', emptyLine: 'All quiet.', emptyWhy: 'Announcements and replies land here the moment they arrive.' },
   // title: the artboard's label for Home. At 390 px it ran out of room beside the logo ('MEMBER PORT…'),
   // so Home shows `home` — the logo already names the portal, and every other root tab shows its own name
-  mobile: { title: 'MEMBER PORTAL', home: 'HOME', tabs: ['HOME', 'PROJECTS', 'PEOPLE', 'INBOX', 'MY M&X'] },
+  mobile: { title: 'MEMBER PORTAL', home: 'HOME', tabs: ['HOME', 'PROJECTS', 'PEOPLE', 'INBOX', 'MY M&X'],
+    // the tab bar's own words and line icons (sentence case, 12px — DESIGN-RULES §9); keys stay the TAB_ROOTS keys
+    labels: { HOME: 'Home', PROJECTS: 'Projects', PEOPLE: 'People', INBOX: 'Inbox', 'MY M&X': 'My Med&amp;X' },
+    icons: { HOME: 'home', PROJECTS: 'grid', PEOPLE: 'users', INBOX: 'inbox', 'MY M&X': 'card' },
+    back: 'Back', search: 'Search', alerts: 'Alerts' },
   talksRetired: 'The Talk Library was retired — recordings return when real Plexus talks exist.'
 };
 
@@ -103,7 +107,7 @@ function topBar() {
     <span data-act="alerts" aria-label="Alerts" style="display:flex;align-items:center;gap:6px;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;color:#4a4239;cursor:pointer" data-hover="color:#191512">${COPY.alerts}<span data-role="unread-dot" style="width:6px;height:6px;background:#c9a962;display:${s.unread > 0 ? 'inline-block' : 'none'}"></span></span>
     <span style="width:1px;height:18px;background:rgba(25,21,18,.16)"></span>
     <a href="/app/me" style="display:flex;align-items:center;gap:10px;text-decoration:none;color:#191512" data-hover="color:#191512">
-      <span class="mx-avatar" style="width:30px;height:30px;background:#191512;color:#f7f1e6;display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif">${esc(session.initials())}</span>
+      <span class="mx-avatar" style="width:30px;height:30px;background:#191512;color:#f7f1e6;display:inline-flex;align-items:center;justify-content:center;font:600 12px Fraunces,serif;border-radius:50%">${esc(session.initials())}</span>
       <span class="mx-identity-text" style="display:flex;flex-direction:column;line-height:1.25"><span style="font-size:12.5px;font-weight:600">${esc(session.displayName())}</span><span style="font-size:10.5px;color:#4a4239">${COPY.memberLabel}</span></span>
     </a>
     <div data-role="popover"></div>
@@ -172,22 +176,24 @@ function drawer() {
 function mobileTop() {
   // the bar belongs to the screen on view: its back arrow and title change when the new screen draws (the router's
   // stage, state.shownPath), not at the tap while the screen being left is still up. The tab bar lights at once.
+  // Root tabs: the logo, then search and alerts (the page carries its own large title; the My Med&X tab is the
+  // member's own door, so no avatar here). Pushed screens: a back chevron, the screen's name centred, nothing else.
   const s = state.get(); const path = s.shownPath || router.path;
   const isRoot = Object.values(TAB_ROOTS).includes(path.replace(/\/$/, '')) || path === '/' || path === '/app';
-  const title = path === '/app/home' || path === '/' || path === '/app' ? COPY.mobile.home : fmt.upper(s.viewTitle || '');
+  const title = String(s.viewTitle || '').replace(/<[^>]+>/g, '');
   return `
-  <!-- dc: Mobile Portal.dc.html › "Top bar" -->
+  <!-- dc: Mobile Portal.dc.html › "Top bar" (phone calm pass 2026-09-25: icons, no caps title, no avatar) -->
   <!-- the bar sticks through its host: app.css makes #chrome sticky at phone widths (a sticky bar inside a header
-       exactly its own height had no room to stick). Search and alerts are 44 px targets drawn at 36 (-4 px margin) -->
-  <div id="mx-mobile-top" style="display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid rgba(25,21,18,.16);position:relative;background:#f7f1e6">
+       exactly its own height had no room to stick). Every control is a 44 px target -->
+  <div id="mx-mobile-top" class="mx-mt${isRoot ? ' is-root' : ' is-pushed'}">
     ${isRoot
-      ? `<a href="/app/home" class="mx-brand" style="display:block"><img src="/assets/logo.png" alt="med&amp;X" style="width:auto;height:17px;display:block"></a>`
-      : `<span data-act="back" aria-label="Back" style="font-size:17px;cursor:pointer;color:#9b1b22;min-width:44px;min-height:44px;margin:-10px 0;display:inline-flex;align-items:center">←</span>`}
-    <span style="font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#4a4239;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">${esc(title)}</span>
-    <div style="flex:1"></div>
-    <span data-act="search" role="button" aria-label="Search" style="width:44px;height:44px;margin:-4px;display:inline-flex;align-items:center;justify-content:center;color:#191512;cursor:pointer"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21" stroke-linecap="square"/></svg></span>
-    <span data-act="alerts" role="button" aria-label="Alerts" style="position:relative;width:44px;height:44px;margin:-4px;display:inline-flex;align-items:center;justify-content:center;color:#191512;cursor:pointer"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2H4.5z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg><span style="position:absolute;top:12px;right:12px;width:6px;height:6px;background:#c9a962;display:${s.unread > 0 ? 'block' : 'none'}"></span></span>
-    <a href="/app/me" aria-label="My Med&X" style="width:30px;height:30px;background:#191512;color:#f7f1e6;display:inline-flex;align-items:center;justify-content:center;font:600 10.5px Fraunces,serif;text-decoration:none">${esc(session.initials())}</a>
+      ? `<a href="/app/home" class="mx-brand mx-mt-brand" aria-label="Med&amp;X home"><img src="/assets/logo.png" alt="med&amp;X" style="width:auto;height:18px;display:block"></a>
+    <div class="mx-mt-fill"></div>
+    <span data-act="search" role="button" tabindex="0" aria-label="${COPY.mobile.search}" class="mx-mt-btn">${ui.icon('search', 22)}</span>
+    <span data-act="alerts" role="button" tabindex="0" aria-label="${COPY.mobile.alerts}" class="mx-mt-btn">${ui.icon('bell', 22)}<span class="mx-mt-dot" data-role="unread-dot-m"${s.unread > 0 ? '' : ' hidden'}></span></span>`
+      : `<span data-act="back" role="button" tabindex="0" aria-label="${COPY.mobile.back}" class="mx-mt-btn mx-mt-back">${ui.icon('chevron-left', 24)}</span>
+    <span class="mx-mt-title">${esc(title)}</span>
+    <span class="mx-mt-btn mx-mt-spacer" aria-hidden="true"></span>`}
     <div data-role="popover-m"></div>
   </div>
   <!-- /dc -->
@@ -197,12 +203,10 @@ function mobileBanner() {
   let dismissed = false; try { dismissed = sessionStorage.getItem(VERIFY_DISMISS_KEY) === 'true'; } catch (e) {}
   if (session.emailConfirmed() || dismissed) return '';
   return `
-  <!-- dc: Mobile Portal.dc.html › "Email-confirm banner" -->
-  <div class="mx-mobile-only" data-role="banner-m" style="display:flex;align-items:center;gap:10px;padding:8px 18px;background:#f1e8d3;border-bottom:1px solid rgba(25,21,18,.16)">
-    <span style="width:5px;height:5px;background:#c9a962;flex:none"></span>
-    <span style="font-size:11px;color:#4a4239;line-height:1.4">${COPY.banner.leadShort}</span>
-    <div style="flex:1"></div>
-    <span data-act="resend" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;white-space:nowrap;cursor:pointer">${COPY.banner.resendShort}</span>
+  <!-- dc: Mobile Portal.dc.html › "Email-confirm banner" — one 14px line, RESEND as a 12 caps link -->
+  <div class="mx-mobile-only mx-mt-banner" data-role="banner-m">
+    <span class="mx-mt-banner-t">${COPY.banner.leadShort.replace(' to unlock everything', '')}</span>
+    <span data-act="resend" role="button" tabindex="0" class="mx-mt-banner-a">${COPY.banner.resendShort}</span>
   </div>
   <!-- /dc -->`;
 }
@@ -210,13 +214,15 @@ function tabBar() {
   const path = router.path;
   const under = root => path === root || path.startsWith(root + '/');
   const on = label => under(TAB_ROOTS[label]) || (label === 'HOME' && (path === '/' || path === '/app')) || (label === 'PROJECTS' && PROJECT_ROOTS.some(under)) || (TAB_EXTRA[label] || []).some(under);
+  const inbox = Number(state.get().msgUnread) || 0;
+  // a 22px line icon over a 12px sentence-case label; the lit tab is a gold icon and a cream label, the others cream
+  // at 55 %. The markup is the same lit or not (css reads aria-selected), so a tab change only moves one attribute and
+  // the colours ease across. Inbox carries the unread count
   return `
-  <!-- dc: Mobile Portal.dc.html › "Tab bar" -->
-  <div id="mx-tabbar" role="tablist" style="position:fixed;bottom:0;left:0;right:0;max-width:500px;margin:0 auto;background:#191512;display:flex;z-index:30">
-    ${COPY.mobile.tabs.map(label => { const a = on(label); return `<a href="${TAB_ROOTS[label]}" role="tab" aria-selected="${a}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;padding:13px 0 16px;cursor:pointer;border-top:2px solid ${a ? '#c9a962' : 'transparent'};min-height:44px;box-sizing:border-box;text-decoration:none">
-        <span style="width:5px;height:5px;background:${a ? '#c9a962' : 'rgba(247,241,230,.28)'};transform:rotate(45deg)"></span>
-        <span style="font:600 8px Inter,sans-serif;letter-spacing:.14em;color:${a ? '#f7f1e6' : 'rgba(247,241,230,.55)'};white-space:nowrap">${label}</span>
-      </a>`; }).join('')}
+  <!-- dc: Mobile Portal.dc.html › "Tab bar" (phone calm pass 2026-09-25: line icons, readable labels, no diamonds) -->
+  <div id="mx-tabbar" role="tablist" aria-label="Sections">
+    ${COPY.mobile.tabs.map(key => { const a = on(key); const badge = key === 'INBOX' && inbox > 0 ? `<span class="mx-tb-badge" aria-label="${inbox} unread">${inbox > 99 ? '99+' : inbox}</span>` : '';
+      return `<a href="${TAB_ROOTS[key]}" role="tab" aria-selected="${a}" class="mx-tb"><span class="mx-tb-ic">${ui.icon(COPY.mobile.icons[key], 24)}${badge}</span><span class="mx-tb-l">${COPY.mobile.labels[key]}</span></a>`; }).join('\n    ')}
   </div>
   <!-- /dc -->`;
 }
@@ -224,21 +230,22 @@ function tabBar() {
 // ---------------------------------------------------------------- popovers (no artboard — brand vocabulary)
 function alertsPanel() {
   const s = state.get(); const list = s.notifications || [];
+  // rows at the calm scale: title 16, message 14 (one line), date 12; the unread mark is a crimson dot
   const row = n => `<div class="mx-pop-row" data-act="openAlert" data-id="${esc(n.id)}" data-link="${esc(n.link || '')}">
-      <span style="width:7px;height:7px;flex:none;margin-top:5px;background:${n.is_read ? 'transparent' : '#9b1b22'};border:1px solid ${n.is_read ? 'rgba(25,21,18,.25)' : '#9b1b22'}"></span>
-      <span style="flex:1;min-width:0"><span style="display:block;font-size:13px;font-weight:600;line-height:1.3">${esc(n.title || 'Update')}</span>${n.message ? `<span style="display:block;font-size:12px;color:#4a4239;line-height:1.5;margin-top:2px">${esc(n.message)}</span>` : ''}</span>
-      <span style="font:600 8px Inter,sans-serif;letter-spacing:.12em;color:#9b8f80;white-space:nowrap">${fmt.shortDate(n.created_at)}</span>
+      <span class="mx-pop-dot${n.is_read ? ' is-read' : ''}"></span>
+      <span class="mx-pop-text"><span class="mx-pop-t">${esc(n.title || 'Update')}</span>${n.message ? `<span class="mx-pop-s">${esc(n.message)}</span>` : ''}</span>
+      <span class="mx-pop-d">${fmt.shortDate(n.created_at).replace(/^([A-Z])([A-Z]+)/, (m, a, b) => a + b.toLowerCase())}</span>
     </div>`;
   return `<div class="mx-pop" role="dialog" aria-label="Alerts">
-    <div class="mx-pop-head"><span style="font:600 9.5px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22">${COPY.alertsPanel.title}${s.unread ? ' · ' + s.unread + ' NEW' : ''}</span><div style="flex:1"></div>${list.length ? `<span data-act="markAll" style="font:600 9px Inter,sans-serif;letter-spacing:.14em;color:#9b1b22;cursor:pointer">${COPY.alertsPanel.markAll}</span>` : ''}<span data-act="closePop" role="button" tabindex="0" aria-label="Close" style="margin-left:14px;color:#4a4239;cursor:pointer">×</span></div>
-    <div class="mx-pop-list">${s.msgUnread > 0 ? `<div class="mx-pop-row" data-act="openInbox"><span style="width:7px;height:7px;flex:none;margin-top:5px;background:#c9a962"></span><span style="flex:1;min-width:0;font-size:13px;font-weight:600;line-height:1.3">${s.msgUnread} unread message${s.msgUnread === 1 ? '' : 's'}</span><span style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;white-space:nowrap">OPEN →</span></div>` : ''}${list.length ? list.map(row).join('') : s.msgUnread > 0 ? '' : `<div class="empty"><span class="rule-gold" style="margin-bottom:6px"></span><span class="empty-line">${COPY.alertsPanel.emptyLine}</span><span class="empty-why">${COPY.alertsPanel.emptyWhy}</span></div>`}</div>
+    <div class="mx-pop-head"><span class="mx-pop-h">${COPY.alertsPanel.title}${s.unread ? ' · ' + s.unread + ' NEW' : ''}</span><div style="flex:1"></div>${list.length ? `<span data-act="markAll" class="mx-pop-a">${COPY.alertsPanel.markAll}</span>` : ''}<span data-act="closePop" role="button" tabindex="0" aria-label="Close" class="mx-pop-x">${ui.icon('x', 20)}</span></div>
+    <div class="mx-pop-list">${s.msgUnread > 0 ? `<div class="mx-pop-row" data-act="openInbox"><span class="mx-pop-dot is-gold"></span><span class="mx-pop-text"><span class="mx-pop-t">${s.msgUnread} unread message${s.msgUnread === 1 ? '' : 's'}</span></span><span class="mx-pop-go">Open →</span></div>` : ''}${list.length ? list.map(row).join('') : s.msgUnread > 0 ? '' : `<div class="empty"><span class="empty-line">${COPY.alertsPanel.emptyLine}</span><span class="empty-why">${COPY.alertsPanel.emptyWhy}</span></div>`}</div>
   </div>`;
 }
 function searchOverlay() {
   return `<div class="mx-search" data-act="closePop" tabindex="-1" role="dialog" aria-label="Search">
     <div class="mx-search-panel" data-stop="1">
       <input data-role="q" type="search" placeholder="${esc(COPY.searchPanel.placeholder)}" aria-label="Search" autocomplete="off">
-      <div data-role="results" class="mx-pop-list"><div style="padding:14px 20px;font-size:12px;color:#4a4239">${COPY.searchPanel.hint}</div></div>
+      <div data-role="results" class="mx-pop-list"><div class="mx-pop-hint">${COPY.searchPanel.hint}</div></div>
     </div>
   </div>`;
 }
@@ -258,8 +265,8 @@ function searchResults(res) {
   const groups = ['projects', 'events', 'members', 'mine'].filter(g => res[g] && res[g].length);
   if (!groups.length) return `<div class="empty"><span class="empty-line">${COPY.searchPanel.none}</span></div>`;
   return groups.map(g => `<div class="mx-search-group">${COPY.searchPanel.groups[g]}</div>` + res[g].map(it => `<div class="mx-pop-row" data-act="openResult" data-section="${esc(it.section || '')}" data-kind="${esc(it.kind || '')}"${it.to ? ` data-to="${esc(it.to)}"` : ''}>
-      <span style="flex:1;min-width:0"><span style="display:block;font-family:Fraunces,serif;font-size:15px;line-height:1.25">${esc(it.title)}</span><span style="display:block;font-size:11.5px;color:#4a4239;margin-top:2px">${esc(it.detail || '')}</span></span>
-      <span style="font:600 9px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;white-space:nowrap">OPEN →</span></div>`).join('')).join('');
+      <span class="mx-pop-text"><span class="mx-pop-t is-serif">${esc(it.title)}</span>${it.detail ? `<span class="mx-pop-s">${esc(it.detail)}</span>` : ''}</span>
+      ${ui.icon('chevron-right', 18, 'mx-pop-chev')}</div>`).join('')).join('');
 }
 
 // ---------------------------------------------------------------- render + behaviour
@@ -292,8 +299,9 @@ function patchTabs(el, next) {
   if (!want.length || now.length !== want.length || now.some((a, i) => a.getAttribute('href') !== want[i].getAttribute('href'))) { el.replaceWith(next); return; }
   now.forEach((a, i) => {
     const b = want[i];
-    ['aria-selected', 'style'].forEach(k => { if (a.getAttribute(k) !== b.getAttribute(k)) a.setAttribute(k, b.getAttribute(k)); });
-    [...a.children].forEach((c, j) => { const w = b.children[j]; if (w && c.getAttribute('style') !== w.getAttribute('style')) c.setAttribute('style', w.getAttribute('style')); });
+    ['aria-selected', 'style', 'class'].forEach(k => { const v = b.getAttribute(k); if (a.getAttribute(k) !== v) { if (v == null) a.removeAttribute(k); else a.setAttribute(k, v); } });
+    // the unread badge came or went (or its number changed): only then is the tab's inside re-drawn
+    if (a.innerHTML !== b.innerHTML) a.innerHTML = b.innerHTML;
   });
 }
 function renderPopover() {
@@ -354,7 +362,7 @@ function onSearchInput(e) {
   const q = e.target.value.trim();
   clearTimeout(searchTimer);
   const box = els.chrome.querySelector('[data-role="results"]');
-  if (q.length < 2) { searchActive = -1; if (box) box.innerHTML = `<div style="padding:14px 20px;font-size:12px;color:#4a4239">${COPY.searchPanel.hint}</div>`; return; }
+  if (q.length < 2) { searchActive = -1; if (box) box.innerHTML = `<div class="mx-pop-hint">${COPY.searchPanel.hint}</div>`; return; }
   searchTimer = setTimeout(async () => {
     try {
       // the server's search only knew confirmed Plexus registrants as people — the member directory
@@ -377,7 +385,7 @@ function onSearchInput(e) {
       delete res.talks;   // the Talk Library is retired
       if (box && popover === 'search') { box.innerHTML = searchResults(res); searchActive = -1; }
     }
-    catch (err) { if (box) box.innerHTML = `<div style="padding:14px 20px;font-size:12px;color:#9b1b22">${esc(err.message)}</div>`; }
+    catch (err) { if (box) box.innerHTML = `<div class="mx-pop-hint is-error">${esc(err.message)}</div>`; }
   }, 250);
 }
 

@@ -209,7 +209,7 @@ function modal({ eyebrow = 'MED&X', title = '', body = '', actions = [], closeOn
   wrap.setAttribute('role', 'dialog'); wrap.setAttribute('aria-modal', 'true'); wrap.setAttribute('aria-labelledby', lid);
   wrap.innerHTML = `
     <div class="mx-modal-sheet${wide ? ' is-wide' : ''}" tabindex="-1">
-      <div class="mx-modal-head"><span${title ? '' : ` id="${lid}"`}>${esc(eyebrow)}</span><div style="flex:1"></div><span data-act="close" role="button" tabindex="0" aria-label="Close" style="color:#4a4239;cursor:pointer;font:400 18px Inter,sans-serif;letter-spacing:0">×</span></div>
+      <div class="mx-modal-head"><span${title ? '' : ` id="${lid}"`}>${esc(eyebrow)}</span><div style="flex:1"></div><span data-act="close" role="button" tabindex="0" aria-label="Close" style="color:#4a4239;cursor:pointer;letter-spacing:0">${iconSvg('x', 20)}</span></div>
       <div class="mx-modal-body">${title ? `<div class="mx-modal-title" id="${lid}">${title}</div>` : ''}${body}</div>
       ${actions.length ? `<div class="mx-modal-foot">${actions.map((a, i) => `<span data-act="a${i}" role="button" tabindex="0" class="${a.kind === 'primary' ? 'btn-primary' : a.kind === 'gold' ? 'btn-gold' : 'btn-ghost'}">${esc(a.label)}</span>`).join('')}</div>` : ''}
     </div>`;
@@ -249,16 +249,16 @@ function lightbox(photos, { start = 0, eyebrow = 'PHOTOS', title = '', note = ''
   const list = (photos || []).filter(p => p && p.src);
   if (!list.length) return null;
   let i = Math.max(0, Math.min(list.length - 1, Number(start) || 0));
-  const m = modal({ eyebrow, title, wide: true, body: `<div data-role="lb"></div>${note ? `<p style="margin:12px 0 0;font-size:12px;color:#4a4239">${note}</p>` : ''}` });
+  const m = modal({ eyebrow, title, wide: true, body: `<div data-role="lb"></div>${note ? `<p style="margin:12px 0 0;font-size:14px;color:#4a4239">${note}</p>` : ''}` });
   const box = m.el.querySelector('[data-role="lb"]');
-  const ctl = 'font:600 10px Inter,sans-serif;letter-spacing:.16em;color:#9b1b22;cursor:pointer;white-space:nowrap;padding:12px 0';
+  const ctl = 'font:600 12px Inter,sans-serif;letter-spacing:.12em;color:#9b1b22;cursor:pointer;white-space:nowrap;padding:14px 0;min-height:44px;box-sizing:border-box';
   const paint = () => {
     const p = list[i];
     box.innerHTML = `<figure style="margin:0;background:#191512"><img src="${esc(p.src)}" alt="${esc(p.alt || '')}" style="display:block;width:100%;height:min(62vh,560px);object-fit:contain"></figure>
-      ${p.caption ? `<div style="font-size:11.5px;color:#4a4239;margin-top:6px">${esc(p.caption)}</div>` : ''}
+      ${p.caption ? `<div style="font-size:14px;color:#4a4239;margin-top:8px">${esc(p.caption)}</div>` : ''}
       ${list.length > 1 ? `<div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px">
         <span data-act="lbPrev" role="button" tabindex="0" aria-label="Previous photo" style="${ctl}">← PREV</span>
-        <span style="font:600 9.5px Inter,sans-serif;letter-spacing:.14em;color:#4a4239;font-variant-numeric:tabular-nums">${i + 1} / ${list.length}</span>
+        <span style="font:500 14px Inter,sans-serif;color:#4a4239;font-variant-numeric:tabular-nums">${i + 1} / ${list.length}</span>
         <span data-act="lbNext" role="button" tabindex="0" aria-label="Next photo" style="${ctl}">NEXT →</span></div>` : ''}`;
   };
   const go = d => { i = (i + d + list.length) % list.length; paint(); };
