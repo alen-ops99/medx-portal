@@ -7634,6 +7634,9 @@ async function initializeApp() {
         parent_id TEXT,
         FOREIGN KEY (parent_id) REFERENCES project_tasks(id) ON DELETE CASCADE
     )`);
+    // The people tagged on a task (more than one per task; the redesign writes it, every task reader
+    // here joins it through shared/task-visibility.js), so it must exist before the first read.
+    db.run(taskVis.TASK_PEOPLE_DDL);
 
     // Sequence tasks table
     db.run(`CREATE TABLE IF NOT EXISTS task_sequences (
@@ -19578,6 +19581,7 @@ By applying to this program, I provide the following consents:
     // Delete task
     app.delete('/api/tasks/:id', auth, adminOnly, (req, res) => {
         if (!taskVis.findVisibleTask(query.get, req.user.id, req.params.id)) return res.status(404).json({ error: taskVis.TASK_404 });
+        db.run(taskVis.FORGET_TASK_PEOPLE_SQL, [req.params.id, req.params.id]); // its tag rows + its subtasks', first
         db.run('DELETE FROM project_tasks WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });

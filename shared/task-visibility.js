@@ -7,13 +7,18 @@ const path = require('path');
  *    because some of it's gonna be personal."
  *
  * A project_tasks row is visible ONLY to
- *   (a) its creator  : project_tasks.created_by = the caller's users.id, and
+ *   (a) its creator  : project_tasks.created_by = the caller's users.id,
  *   (b) its assignee : project_tasks.assigned_to is ANY team_members row whose user_id is the
  *                      caller (joined on user_id, never a cached member id, so duplicate member
- *                      rows still match).
+ *                      rows still match), and
+ *   (c) its tagged people (owner request, same day: "let us tag more than one person"): any
+ *                      v2_task_people row of the task whose member_id is a team_members row of
+ *                      the caller (same user_id join). The redesign portal writes that table
+ *                      (assigned_to stays its first tagged person); this portal only reads it, so
+ *                      a second tagged person sees the task here too.
  * A subtask follows its parent task. There is NO founder, president or section override.
  * A task the caller cannot see answers exactly like a missing one (same 404, same body) on reads
- * AND writes, so its existence never leaks. Reassigning a task moves visibility with it.
+ * AND writes, so its existence never leaks. Reassigning or untagging moves visibility with it.
  *
  * Both portals read the same database, so every task reader in both servers goes through here,
  * and so does every side channel that used to carry task text (Action Center nudges, the audit
@@ -28,11 +33,24 @@ const TASK_NAG_KINDS = new Set(['task_overdue', 'task_due_soon']);
 
 const NO_USER = '__task_visibility_no_user__'; // never equals a stored id, so a caller without an id sees nothing
 
+// The people tagged on a task (one row per person; assigned_to is always also one of them when the
+// redesign writes). Created at boot by BOTH servers next to project_tasks, because every task
+// reader below joins it. Same columns as the redesign backend, which shares this database, and no
+// foreign keys: whichever service boots first creates it.
+const TASK_PEOPLE_DDL = `CREATE TABLE IF NOT EXISTS v2_task_people (
+        task_id TEXT NOT NULL,
+        member_id TEXT NOT NULL,
+        added_by TEXT,
+        added_at TEXT,
+        PRIMARY KEY (task_id, member_id)
+    )`;
+
 /**
  * SQL fragment + params that keep only the rows of `alias` (a project_tasks alias in the caller's
  * FROM clause) the user may see. Always alias the outer project_tasks table.
  *   const v = visibleTaskSql('pt', req.user.id);
  *   query.all(`SELECT pt.* FROM project_tasks pt WHERE pt.project = ? AND ${v.sql}`, [p, ...v.params]);
+ * Tags are read on the TOP-level task, so a subtask follows its parent's people.
  */
 function visibleTaskSql(alias, userId) {
     const a = alias || 'pt';
@@ -41,10 +59,20 @@ function visibleTaskSql(alias, userId) {
         sql: `EXISTS (SELECT 1 FROM project_tasks vis_top
                 WHERE vis_top.id = COALESCE(NULLIF(${a}.parent_id, ''), ${a}.id)
                   AND (vis_top.created_by = ?
-                       OR vis_top.assigned_to IN (SELECT vis_tm.id FROM team_members vis_tm WHERE vis_tm.user_id = ?)))`,
-        params: [uid, uid]
+                       OR vis_top.assigned_to IN (SELECT vis_tm.id FROM team_members vis_tm WHERE vis_tm.user_id = ?)
+                       OR EXISTS (SELECT 1 FROM v2_task_people vis_tp
+                                  JOIN team_members vis_ptm ON vis_ptm.id = vis_tp.member_id
+                                  WHERE vis_tp.task_id = vis_top.id AND vis_ptm.user_id = ?)))`,
+        params: [uid, uid, uid]
     };
 }
+
+/**
+ * Tag rows to drop when a task is deleted: its own and its subtasks'. Run it BEFORE deleting the
+ * project_tasks row (the parent delete cascades the subtasks away, and with them their ids).
+ *   db.run(taskVis.FORGET_TASK_PEOPLE_SQL, [id, id]);
+ */
+const FORGET_TASK_PEOPLE_SQL = 'DELETE FROM v2_task_people WHERE task_id = ? OR task_id IN (SELECT id FROM project_tasks WHERE parent_id = ?)';
 
 /**
  * The task row when the user may see it, else null (identical for "missing" and "not yours").
@@ -132,6 +160,8 @@ function techRowScope(table, alias, user) {
             return visibleTaskSql(a, uid);
         case 'task_files':
             return viaTask('task_id', 'scope_t');
+        case 'v2_task_people': // no text, but "these people are on task X" is the task's own business
+            return viaTask('task_id', 'scope_t');
         case 'nag_items': {
             const v = viaTask('subject_id', 'scope_t');
             return { sql: `(${a}.kind NOT IN (${taskKinds}) OR ${v.sql})`, params: v.params };
@@ -177,6 +207,7 @@ function taskFileOnDisk(file, uploadsDir) {
 
 module.exports = {
     TASK_404, TASK_NAG_KINDS, TASK_REMINDER_TITLE, TASK_REMINDER_BODY,
+    TASK_PEOPLE_DDL, FORGET_TASK_PEOPLE_SQL,
     visibleTaskSql, findVisibleTask, nagItemVisible,
     redactTaskReminderDm, taskReminderDmScope, redactAuditRow, techRowScope,
     isTaskUploadPath, taskFileOnDisk

@@ -16,6 +16,12 @@
  * audit-log feed, the /nag/run counts, the tech DB tools (a test TECH_PASSWORD) and the task file
  * gate carry no task text to a non-participant, including older rows written before the fix.
  *
+ * More than one person (owner request, same day): tag rows in v2_task_people (written by the
+ * redesign; inserted straight into the scratch DB here) put a second person on T on both backends
+ * (board, search, summary, dashboard, Action Center, file gate, tech tools), while the founder stays
+ * an outsider with the missing-task 404. Untagging takes it away again, a subtask's own tag row
+ * grants nothing, and every delete route of this portal drops the task's (and subtasks') tag rows.
+ *
  *   node tests/task-visibility.test.js
  *
  * Exits 1 on any failure. Cleans up its servers + scratch dir.
@@ -394,11 +400,116 @@ const listFiles = (dir) => { try { return fs.readdirSync(dir).sort(); } catch (e
         x = await dl(C, Fid);
         check('after reassignment C downloads F', x.status === 200 && x.text === 'private file body', x.status);
 
+        // ================= more than one person on a task (v2_task_people) =================
+        // Owner request, same day: "let us tag more than one person". The redesign writes the tag
+        // rows (assigned_to = the first tagged person); this portal only reads them, so they are
+        // written straight into the scratch DB. T now: creator A, assigned_to C (first tagged),
+        // B tagged second, the founder on nothing. A subtask's own tag row grants nothing: S
+        // follows T's people.
+        const tagDb = new Database(env.DATABASE_PATH);
+        const cols = tagDb.prepare('PRAGMA table_info(v2_task_people)').all();
+        check('boot created v2_task_people with the shared columns and key',
+            JSON.stringify(cols.map(c => c.name)) === JSON.stringify(['task_id', 'member_id', 'added_by', 'added_at'])
+            && JSON.stringify(cols.filter(c => c.pk).map(c => c.name)) === JSON.stringify(['task_id', 'member_id']), JSON.stringify(cols));
+        const tagRows = (ids) => tagDb.prepare(`SELECT COUNT(*) AS c FROM v2_task_people WHERE task_id IN (${ids.map(() => '?').join(',')})`).get(...ids).c;
+        const tag = (taskId, P) => tagDb.prepare("INSERT OR IGNORE INTO v2_task_people (task_id, member_id, added_by, added_at) VALUES (?, ?, ?, datetime('now'))").run(taskId, P.tm, aId);
+        const untag = (taskId, P) => tagDb.prepare('DELETE FROM v2_task_people WHERE task_id = ? AND member_id = ?').run(taskId, P.tm);
+        check('unit: the rule reads the tag table for all three disjuncts', taskVis.visibleTaskSql('pt', 'u').params.length === 3 && /v2_task_people/.test(taskVis.visibleTaskSql('pt', 'u').sql));
+
+        r = await api(ADMIN, '/api/dashboard/summary', { token: B.token });
+        const bTotalBefore = r.d && r.d.tasks && r.d.tasks.total;
+        r = await api(ADMIN, '/api/admin/nag/items', { token: B.token });
+        check('before tagging, B has no Action Center item for T', r.status === 200 && !(r.d.items || []).some(it => it.subject_id === T));
+
+        tag(T, C); // the first person, the same as assigned_to
+        tag(T, B); // a second tagged person, not the assignee, not the creator
+        tag(S, B); // a subtask's own tag row (the redesign may write one); dropped with T below
+
+        for (const [label, base] of [['admin', ADMIN], ['member', USER]]) {
+            for (const P of [B, C]) {
+                r = await api(base, '/api/tasks/plexus', { token: P.token });
+                const t = (r.d || []).find(y => y.id === T);
+                check(`tagged ${P.name} @${label}: board lists T with subtask S and file F`, t && (t.subtasks || []).some(s => s.id === S) && (t.files || []).some(f => f.id === Fid));
+                r = await api(base, '/api/search?q=' + encodeURIComponent(SECRET), { token: P.token });
+                const ids = (r.d && r.d.tasks || []).map(y => y.id);
+                check(`tagged ${P.name} @${label}: search finds T and S`, ids.includes(T) && ids.includes(S), JSON.stringify(ids));
+            }
+            r = await api(base, '/api/tasks', { token: B.token });
+            check(`tagged Bob @${label}: /api/tasks summary includes T`, r.d && r.d.by_project && r.d.by_project.plexus.some(y => y.id === T));
+            // two tagged, one outsider: the founder still sees nothing, and T answers like a missing task
+            r = await api(base, '/api/tasks/plexus', { token: F.token });
+            check(`outsider ${F.name} @${label}: board has no trace of T while two people are tagged`, r.status === 200 && !r.text.includes(T) && !r.text.includes(SECRET));
+            r = await api(base, '/api/search?q=' + encodeURIComponent(SECRET), { token: F.token });
+            check(`outsider ${F.name} @${label}: search finds nothing`, r.status === 200 && r.d && r.d.tasks.length === 0);
+            const miss = await api(base, `/api/tasks/${missing}`, { method: 'PUT', token: F.token, body: { title: 'x' } });
+            const hid = await api(base, `/api/tasks/${T}`, { method: 'PUT', token: F.token, body: { title: 'hijacked' } });
+            check(`outsider ${F.name} @${label}: PUT T answers exactly like a missing task`, hid.status === 404 && hid.text === miss.text, hid.text);
+        }
+        r = await api(ADMIN, '/api/dashboard/summary', { token: B.token });
+        check('tagged Bob: dashboard counts T and its subtask S (+2)', r.d && r.d.tasks && r.d.tasks.total === bTotalBefore + 2, `${bTotalBefore} -> ${r.d && r.d.tasks && r.d.tasks.total}`);
+        r = await api(ADMIN, '/api/admin/nag/items', { token: B.token });
+        check('tagged Bob: the Action Center shows T\'s overdue item', r.status === 200 && (r.d.items || []).some(it => it.subject_id === T));
+        r = await api(ADMIN, '/api/admin/nag/items', { token: F.token });
+        check(`outsider ${F.name}: the Action Center has no trace of T`, r.status === 200 && !r.text.includes(T) && !r.text.includes(SECRET));
+        x = await dl(B, Fid);
+        check('tagged Bob downloads F through the gate', x.status === 200 && x.text === 'private file body', x.status);
+        x = await dl(F, Fid);
+        const fMissDl = await dl(F, missing);
+        check(`outsider ${F.name}: download F answers exactly like a missing file`, x.status === 404 && x.text === fMissDl.text, x.status);
+        r = await api(ADMIN, '/api/admin/tech/tables/v2_task_people?limit=500', { token: B.token, headers: TECH });
+        check('tagged Bob: tech table v2_task_people shows T\'s people', r.status === 200 && r.text.includes(T) && r.d.total === 3, r.status + ' total ' + (r.d && r.d.total));
+        r = await api(ADMIN, '/api/admin/tech/tables/v2_task_people?limit=500', { token: F.token, headers: TECH });
+        check(`outsider ${F.name}: tech table v2_task_people shows nobody on T (total 0)`, r.status === 200 && !r.text.includes(T) && !r.text.includes(S) && r.d.total === 0, r.status + ' total ' + (r.d && r.d.total));
+        r = await api(ADMIN, '/api/admin/tech/export-all', { token: F.token, headers: TECH });
+        check(`outsider ${F.name}: tech export-all carries no tag row of T`, r.status === 200 && Array.isArray(r.d.tables.v2_task_people) && r.d.tables.v2_task_people.length === 0 && !r.text.includes(SECRET), r.status);
+
+        // B writes T as a tagged person (keeps C as the assignee), then is untagged and loses it.
+        r = await api(ADMIN, `/api/tasks/${T}`, { method: 'PUT', token: B.token, body: { title: SECRET + 'T doctor appointment', description: SECRET + 'desc private', assigned_to: C.tm, priority: 'high', status: 'todo', due_date: yesterday, project: 'plexus' } });
+        check('tagged Bob may edit T', r.status === 200, r.text);
+        untag(T, B);
+        for (const [label, base] of [['admin', ADMIN], ['member', USER]]) {
+            r = await api(base, '/api/tasks/plexus', { token: B.token });
+            check(`untagged Bob @${label}: board lost T (he keeps his own checklist task K)`, r.status === 200 && !r.text.includes(T) && !r.text.includes(S));
+            r = await api(base, '/api/search?q=' + encodeURIComponent(SECRET), { token: B.token });
+            const ids = (r.d && r.d.tasks || []).map(y => y.id);
+            check(`untagged Bob @${label}: search finds neither T nor S (S's own tag row grants nothing)`, r.status === 200 && !ids.includes(T) && !ids.includes(S) && ids.includes(K), JSON.stringify(ids));
+            const miss = await api(base, `/api/tasks/${missing}`, { method: 'PUT', token: B.token, body: { title: 'x' } });
+            const hid = await api(base, `/api/tasks/${T}`, { method: 'PUT', token: B.token, body: { title: 'late edit' } });
+            check(`untagged Bob @${label}: PUT T answers exactly like a missing task`, hid.status === 404 && hid.text === miss.text, hid.text);
+            r = await api(base, '/api/tasks/plexus', { token: C.token });
+            check(`C (first tagged, the assignee) @${label}: still sees T`, (r.d || []).some(y => y.id === T));
+        }
+        x = await dl(B, Fid);
+        check('untagged Bob can no longer download F', x.status === 404, x.status);
+        r = await api(ADMIN, '/api/dashboard/summary', { token: B.token });
+        check('untagged Bob: dashboard back to his own count', r.d && r.d.tasks && r.d.tasks.total === bTotalBefore, `${bTotalBefore} vs ${r.d && r.d.tasks && r.d.tasks.total}`);
+        r = await api(ADMIN, '/api/admin/nag/items', { token: B.token });
+        check('untagged Bob: the Action Center lost T\'s item', r.status === 200 && !(r.d.items || []).some(it => it.subject_id === T));
+        r = await api(ADMIN, '/api/tasks/plexus', { token: A.token });
+        check('A (creator) still sees T', (r.d || []).some(y => y.id === T));
+
+        // Tag rows on K (checklist route) and on a task T3 made on the member backend, for the
+        // delete checks below: every delete route of this portal drops the task's tag rows.
+        tag(K, C);
+        r = await api(USER, '/api/tasks', { method: 'POST', token: A.token, body: { project: 'plexus', title: SECRET + 'T3 member-side', assigned_to: B.tm } });
+        const T3 = r.d && r.d.id;
+        check('A creates T3 on the member backend', r.status === 200 && T3, r.text);
+        tag(T3, B); tag(T3, C);
+        r = await api(USER, '/api/tasks/plexus', { token: C.token });
+        check('C (tagged second on T3) sees T3 on the member backend', (r.d || []).some(y => y.id === T3));
+
         // ---- cleanup through the API (removes the uploaded file from disk) ----
         r = await api(ADMIN, `/api/tasks/files/${Fid}`, { method: 'DELETE', token: A.token });
         check('creator can delete file F', r.status === 200, r.text);
+        check('before the delete, T and S carry tag rows', tagRows([T, S]) === 2, tagRows([T, S]));
         r = await api(ADMIN, `/api/tasks/${T}`, { method: 'DELETE', token: C.token });
         check('new assignee C can delete T', r.status === 200, r.text);
+        check('deleting T dropped its tag rows and its subtask S\'s', tagRows([T, S]) === 0, tagRows([T, S]));
+        r = await api(ADMIN, `/api/admin/tasks/${K}`, { method: 'DELETE', token: A.token });
+        check('checklist delete of K dropped its tag row', r.status === 200 && tagRows([K]) === 0, r.text + ' rows ' + tagRows([K]));
+        r = await api(USER, `/api/tasks/${T3}`, { method: 'DELETE', token: C.token });
+        check('member-backend delete of T3 (by C, tagged second) dropped its tag rows', r.status === 200 && tagRows([T3]) === 0, r.text + ' rows ' + tagRows([T3]));
+        tagDb.close();
     } catch (e) {
         check('unexpected error: ' + e.message, false);
     } finally {
