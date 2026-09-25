@@ -14,7 +14,7 @@ const Database = require('libsql');
 const { createDatabase } = require('../../shared/db');
 const { aiDraft } = require('../../shared/ai');
 const caMerge = require('../../shared/ca-merge');
-// WHO SEES A TASK (25 Sept 2026): only its creator and its assignee — every project_tasks reader in
+// WHO SEES A TASK (25 Sept 2026): only its creator and the people on it — every project_tasks reader in
 // this file filters through this one helper (list, search, counts, the Action Center, the digest)
 const taskVis = require('../../shared/task-visibility');
 const wallet = require('../../shared/wallet'); // Google Wallet event-ticket passes (env-gated; no-op until configured)
@@ -1982,15 +1982,21 @@ function generateTeamDigest() {
         for (const m of members) {
             // a task item names the task, so it is listed only to someone who may see that task
             const nv = taskVis.visibleNagSql('nag_items', m.user_id);
-            const items = query.all("SELECT kind, title FROM nag_items WHERE assignee = ? AND status IN ('open','actioned') AND " + nv.sql + " ORDER BY created_at DESC", [m.tm_id, ...nv.params]);
+            // their items: filed under their team row, or a task item for a task they are tagged on
+            const on = taskVis.onTaskMemberSql('dg_pt', m.tm_id);
+            const kinds = taskVis.TASK_NAG_KINDS;
+            const items = query.all(`SELECT kind, title, subject_id FROM nag_items WHERE (assignee = ?
+                    OR (kind IN (${kinds.map(() => '?').join(',')}) AND EXISTS (SELECT 1 FROM project_tasks dg_pt WHERE dg_pt.id = nag_items.subject_id AND ${on.sql})))
+                  AND status IN ('open','actioned') AND ` + nv.sql + " ORDER BY created_at DESC", [m.tm_id, ...kinds, ...on.params, ...nv.params]);
             if (!items.length) continue;
-            const taskCount = items.filter((it) => taskVis.isTaskNag(it.kind)).length;
+            const taskCount = new Set(items.filter((it) => taskVis.isTaskNag(it.kind)).map((it) => it.subject_id)).size;   // tasks, not rows
             const lis = items.filter((it) => !taskVis.isTaskNag(it.kind)).map((it) => `<li style="margin:6px 0;">${nagEscape(it.title)}</li>`).join('')
                 + (taskCount ? `<li style="margin:6px 0;">${taskCount} of your task${taskCount === 1 ? ' is' : 's are'} overdue or due soon: <a href="${nagEscape(ADMIN_PORTAL_URL.replace(/\/+$/, '') + '/tasks')}" style="color:#c14b52;">open your task board</a></li>` : '');
+            const openCount = items.filter((it) => !taskVis.isTaskNag(it.kind)).length + taskCount;
             const subject = 'Your Med&X action items';
             const html = `<div style="font-family:Georgia,serif;color:#2b2622;line-height:1.6;">
                 <p>Hi ${nagEscape(m.name || 'there')},</p>
-                <p>You have ${items.length} open item${items.length === 1 ? '' : 's'} in the Med&amp;X portal:</p>
+                <p>You have ${openCount} open item${openCount === 1 ? '' : 's'} in the Med&amp;X portal:</p>
                 <ul style="padding-left:18px;">${lis}</ul>
                 <p><a href="${nagEscape(ADMIN_PORTAL_URL)}" style="color:#c14b52;font-weight:600;">Open your dashboard</a></p>
                 <p style="color:#8a8178;">— Med&amp;X Action Center</p></div>`;
@@ -6641,6 +6647,9 @@ async function initializeApp() {
     // plus seen/archived stamps. Guarded here too so the counters above never see a missing column.
     ['result_text TEXT', 'result_links TEXT', 'seen_at TEXT', 'seen_by TEXT', 'updated_at TEXT', 'archived_at TEXT']
         .forEach(col => { try { db.run('ALTER TABLE project_tasks ADD COLUMN ' + col); } catch (e) {} });
+    // Everyone tagged on a task (25 Sept 2026, "let us tag more than one person"): the visibility rule
+    // reads it, so it exists before the first request (shared/task-visibility.js; guarded, idempotent)
+    try { taskVis.ensureTaskPeopleTable((sql, p) => db.run(sql, p)); } catch (e) { console.error('[tasks] v2_task_people schema:', e.message); }
 
     // Project timeline events table
     db.run(`CREATE TABLE IF NOT EXISTS project_timeline_events (
@@ -12629,6 +12638,7 @@ async function initializeApp() {
                 db.run(`INSERT INTO project_tasks (id, project, title, assigned_to, due_date, status, created_by)
                     VALUES (?,?,?,?,?, 'todo', ?)`,
                     [id, (it.project || 'general'), title.slice(0, 200), it.assigned_to || null, it.due_date || null, req.user.id]);
+                if (it.assigned_to) taskVis.setTaskPeople((sql, p) => db.run(sql, p), id, [it.assigned_to], req.user.id);   // one person, and its tag row
                 created++;
             });
             saveDb();
@@ -18573,7 +18583,7 @@ By applying to this program, I provide the following consents:
         // Tasks WITHOUT a due date must never count as overdue: in SQLite '' < date('now')
         // is true, so the old predicate inflated the chip with every no-due-date task.
         // Same predicate as the advisor pack query at ~41238.
-        // Only the caller's own tasks (creator or assignee — shared/task-visibility.js).
+        // Only the caller's own tasks (creator or on it — shared/task-visibility.js).
         const tvStats = taskVis.visibleTaskSql('pt', req.user && req.user.id);
         const overdueTasks = query.get("SELECT COUNT(*) as c FROM project_tasks pt WHERE status NOT IN ('done','seen') AND archived_at IS NULL AND due_date IS NOT NULL AND TRIM(due_date) <> '' AND date(due_date) < date('now') AND " + tvStats.sql, tvStats.params)?.c || 0;
         const urgentTasks = query.get("SELECT COUNT(*) as c FROM project_tasks pt WHERE status NOT IN ('done','seen') AND archived_at IS NULL AND priority = 'high' AND " + tvStats.sql, tvStats.params)?.c || 0;
@@ -18651,6 +18661,9 @@ By applying to this program, I provide the following consents:
     // own tasks, and a task the caller may not see answers exactly like a missing one.
     const visTasks = (req, alias) => taskVis.visibleTaskSql(alias || 'pt', req.user && req.user.id);
     const visTaskRow = (req, id, cols) => taskVis.visibleTaskRow(query.get.bind(query), req.user && req.user.id, id, cols);
+    // these routes know one person per task: a change of assigned_to makes that person the task's only one
+    // (v2_task_people follows, so nobody tagged earlier keeps it — shared/task-visibility.js)
+    const taskPeopleRun = (sql, p) => db.run(sql, p);
 
     // Get tasks for a project
     app.get('/api/tasks/:project', auth, adminOnly, (req, res) => {
@@ -18701,13 +18714,15 @@ By applying to this program, I provide the following consents:
         db.run(`INSERT INTO project_tasks (id, project, title, description, assigned_to, priority, due_date, created_by, parent_id)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [id, project || 'general', title, description, assigned_to || null, priority || 'medium', due_date, req.user.id, parent_id || null]);
+        if (assigned_to) taskVis.setTaskPeople(taskPeopleRun, id, [assigned_to], req.user.id);
         saveDb();
         res.json({ success: true, id, task_id: id });
     });
 
     // Update task
     app.put('/api/tasks/:id', auth, adminOnly, (req, res) => {
-        if (!visTaskRow(req, req.params.id, 'pt.id')) return res.status(404).json({ error: 'Task not found' });
+        const before = visTaskRow(req, req.params.id, 'pt.id, pt.assigned_to');
+        if (!before) return res.status(404).json({ error: 'Task not found' });
         const { title, description, assigned_to, priority, status, due_date, project } = req.body;
         db.run(`UPDATE project_tasks SET
             title = COALESCE(?, title),
@@ -18720,6 +18735,8 @@ By applying to this program, I provide the following consents:
             completed_at = ${status === 'done' ? "datetime('now')" : 'NULL'}
             WHERE id = ?`,
             [title, description, assigned_to, priority, status, due_date, project, req.params.id]);
+        const after = (query.get('SELECT assigned_to FROM project_tasks WHERE id = ?', [req.params.id]) || {}).assigned_to || null;
+        if ((after || null) !== (before.assigned_to || null)) taskVis.setTaskPeople(taskPeopleRun, req.params.id, after ? [after] : [], req.user.id);
         saveDb();
         res.json({ success: true, id: req.params.id });
     });
@@ -18780,6 +18797,7 @@ By applying to this program, I provide the following consents:
     // Delete task
     app.delete('/api/tasks/:id', auth, adminOnly, (req, res) => {
         if (!visTaskRow(req, req.params.id, 'pt.id')) return res.status(404).json({ error: 'Task not found' });
+        taskVis.deleteTaskPeople(taskPeopleRun, req.params.id);   // its tag rows and its subtasks'
         db.run('DELETE FROM project_tasks WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });
@@ -19175,7 +19193,7 @@ By applying to this program, I provide the following consents:
         if (!q || q.length < 2) return res.json({ tasks: [], files: [], folders: [] });
 
         const searchTerm = `%${q}%`;
-        // tasks: only the caller's own (creator or assignee — shared/task-visibility.js)
+        // tasks: only the caller's own (creator or on it — shared/task-visibility.js)
         const tv = taskVis.visibleTaskSql('pt', req.user && req.user.id);
         const tasks = query.all(`SELECT pt.* FROM project_tasks pt WHERE (pt.title LIKE ? OR pt.description LIKE ?) AND ${tv.sql} LIMIT 10`,
             [searchTerm, searchTerm, ...tv.params]);

@@ -211,11 +211,14 @@ async function load(days) {
   const edCities = new Set(((hub && hub.editions) || []).filter(e => e.is_published).map(e => String(e.city || '').toLowerCase().replace(/ü/g, 'u')));
   const pastCount = hub ? edCities.size + dated.filter(b => b.d < today && !edCities.has(String(b.city || '').toLowerCase().replace(/ü/g, 'u'))).length
     : dated.filter(b => b.d < today).length;
-  // the board's cards: open = todo/doing (the overdue attention row counts everyone's); mine = assigned to me
+  // the board's cards: open = todo/doing (the overdue attention row counts everyone's); mine = the ones
+  // I am on (first or tagged — the board's MINE; an older backend sends only assigned_to)
   const boardRows = r.tasks && Array.isArray(r.tasks.tasks) ? r.tasks.tasks : [];
   const myMember = r.tasks && r.tasks.me ? r.tasks.me.member_id : null;
+  const myUser = r.tasks && r.tasks.me ? r.tasks.me.id : null;
   const tasks = boardRows.filter(t => t.status === 'todo' || t.status === 'doing');
-  const myTasks = myMember ? tasks.filter(t => t.assigned_to === myMember) : [];
+  const onMe = t => Array.isArray(t.people) ? t.people.some(p => (myUser && p.user_id === myUser) || (myMember && p.id === myMember)) : !!(myMember && t.assigned_to === myMember);
+  const myTasks = tasks.filter(onMe);
   const tasksBadge = { done_unseen: r.tasksBadge ? Number(r.tasksBadge.done_unseen || 0) : 0, assigned_open: r.tasksBadge ? Number(r.tasksBadge.assigned_open || 0) : myTasks.length };
   // Canonical gala numbers (audit #1): /api/v2/gala-ops/summary counts SEATS (1 + guest_count,
   // plus-ones included) over non-cancelled rows — the same block the Gala and Money screens read.

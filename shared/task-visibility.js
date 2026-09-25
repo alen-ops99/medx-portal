@@ -10,18 +10,33 @@
  *
  * A task is visible ONLY to
  *   (a) its creator   — project_tasks.created_by = the caller's users.id, and
- *   (b) its assignee  — project_tasks.assigned_to is a team_members row whose user_id is the caller
- *                       (joined on user_id every time, never a cached member id, so a second team
- *                       row for the same account still matches).
+ *   (b) its people    — project_tasks.assigned_to (the first person tagged) or any team_members row
+ *                       tagged on it in v2_task_people, whose user_id is the caller (joined on user_id
+ *                       every time, never a cached member id, so a second team row for the same
+ *                       account still matches).
  * No founder or section override. A subtask follows its top-level parent. A row whose parent is
- * itself a subtask, or whose parent is gone, is visible to nobody (fail closed). Reassigning a
- * task moves it: the old assignee loses it unless they created it.
+ * itself a subtask, or whose parent is gone, is visible to nobody (fail closed). Taking someone off a
+ * task moves it away from them: they lose it unless they created it.
+ *
+ * MORE THAN ONE PERSON (Alen, 25 Sept 2026: "in tasks please let us tag more than one person"):
+ * v2_task_people (task_id, member_id → team_members.id, added_by, added_at) holds everyone tagged.
+ * project_tasks.assigned_to stays the FIRST of them (Today, Calendar, the nag scan and every legacy
+ * reader keep working) and every write in this tree keeps it in the tag rows too. The tag rows count
+ * only while that holds: the old portals (main) share the database and write assigned_to alone, so a
+ * task whose assigned_to is missing from its tag rows was last moved by a one-person writer — its tag
+ * rows are stale and ignored, and the task is its one assignee's (fail closed). No boot backfill for
+ * the same reason: it would bless a stale set again after such a move.
  *
  * Callers answer a non-participant exactly as they answer a missing task (same status, same body),
  * so a task's existence never leaks.
  */
 
 const TASK_NAG_KINDS = ['task_overdue', 'task_due_soon'];
+const MAX_TASK_PEOPLE = 12;
+const aliasOk = (a) => { if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(a)) throw new Error('task-visibility: bad alias'); return a; };
+
+// the tag rows of task row `a` are live: its assigned_to is one of them (see MORE THAN ONE PERSON)
+const livePeopleSql = (a, p) => `EXISTS (SELECT 1 FROM v2_task_people ${p} WHERE ${p}.task_id = ${a}.id AND ${p}.member_id = ${a}.assigned_to)`;
 
 /**
  * SQL fragment that is true when the project_tasks row aliased `alias` is visible to `userId`.
@@ -29,17 +44,97 @@ const TASK_NAG_KINDS = ['task_overdue', 'task_due_soon'];
  * the same position. With no user id it is the constant false ('0'), never a match on ''.
  */
 function visibleTaskSql(alias, userId) {
-    const a = String(alias || 'pt');
-    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(a)) throw new Error('task-visibility: bad alias');
+    const a = aliasOk(String(alias || 'pt'));
     const uid = userId == null ? '' : String(userId);
     if (!uid) return { sql: '0', params: [] };
     return {
         sql: `EXISTS (SELECT 1 FROM project_tasks vis_root
                       WHERE vis_root.id = COALESCE(NULLIF(${a}.parent_id, ''), ${a}.id)
                         AND (vis_root.parent_id IS NULL OR vis_root.parent_id = '')
-                        AND (vis_root.created_by = ? OR vis_root.assigned_to IN (SELECT vis_tm.id FROM team_members vis_tm WHERE vis_tm.user_id = ?)))`,
+                        AND (vis_root.created_by = ?
+                             OR vis_root.assigned_to IN (SELECT vis_tm.id FROM team_members vis_tm WHERE vis_tm.user_id = ?)
+                             OR (EXISTS (SELECT 1 FROM v2_task_people vis_tp JOIN team_members vis_tm2 ON vis_tm2.id = vis_tp.member_id
+                                         WHERE vis_tp.task_id = vis_root.id AND vis_tm2.user_id = ?)
+                                 AND ${livePeopleSql('vis_root', 'vis_tp0')})))`,
+        params: [uid, uid, uid]
+    };
+}
+
+/**
+ * True when `userId` is ON the task row aliased `alias` (its first person or a live tag), not merely
+ * its creator — the board's MINE filter and the "open for me" badge. Visibility is still visibleTaskSql's.
+ */
+function onTaskSql(alias, userId) {
+    const a = aliasOk(String(alias || 'pt'));
+    const uid = userId == null ? '' : String(userId);
+    if (!uid) return { sql: '0', params: [] };
+    return {
+        sql: `(${a}.assigned_to IN (SELECT on_tm.id FROM team_members on_tm WHERE on_tm.user_id = ?)
+               OR (EXISTS (SELECT 1 FROM v2_task_people on_tp JOIN team_members on_tm2 ON on_tm2.id = on_tp.member_id
+                           WHERE on_tp.task_id = ${a}.id AND on_tm2.user_id = ?)
+                   AND ${livePeopleSql(a, 'on_tp0')}))`,
         params: [uid, uid]
     };
+}
+
+/** True when team row `memberId` is on the task row aliased `alias` (FOR <NAME>, the daily digest). */
+function onTaskMemberSql(alias, memberId) {
+    const a = aliasOk(String(alias || 'pt'));
+    const mid = memberId == null ? '' : String(memberId);
+    if (!mid) return { sql: '0', params: [] };
+    return {
+        sql: `(${a}.assigned_to = ?
+               OR (EXISTS (SELECT 1 FROM v2_task_people om_tp WHERE om_tp.task_id = ${a}.id AND om_tp.member_id = ?)
+                   AND ${livePeopleSql(a, 'om_tp0')}))`,
+        params: [mid, mid]
+    };
+}
+
+/**
+ * The people on a task, in order (member ids, first person first): `assignedTo` and the task's tag
+ * rows (`tagMemberIds`, already in added order). The same rule as the SQL above — no assigned_to means
+ * no one; an assigned_to missing from the tag rows means the tag rows are stale and only it counts.
+ */
+function orderTaskPeople(assignedTo, tagMemberIds) {
+    const first = assignedTo == null ? '' : String(assignedTo);
+    if (!first) return [];
+    const tags = (tagMemberIds || []).map(String);
+    if (!tags.includes(first)) return [first];
+    return [first, ...tags.filter((m, i) => m !== first && tags.indexOf(m) === i)];
+}
+
+// ---- the tag table (created guarded, at boot, by every backend that reads the rule above) ----
+function ensureTaskPeopleTable(run) {
+    run(`CREATE TABLE IF NOT EXISTS v2_task_people (
+        task_id TEXT NOT NULL,
+        member_id TEXT NOT NULL,
+        added_by TEXT,
+        added_at TEXT,
+        PRIMARY KEY (task_id, member_id)
+    )`);
+    run('CREATE INDEX IF NOT EXISTS idx_v2_task_people_member ON v2_task_people (member_id)');
+}
+
+/**
+ * Write the people on task `taskId`: exactly `memberIds` (first = assigned_to; [] = no one). Rows for
+ * people who stay keep their added_at (so the next one is promoted in the order they were tagged),
+ * new rows are inserted in the order given, everyone else's row goes. `run(sql, params)` is the
+ * caller's writer. A one-person writer (the v1 routes) passes [newAssignee] when it changes assigned_to.
+ */
+function setTaskPeople(run, taskId, memberIds, addedBy, nowIso) {
+    const ids = [];
+    for (const m of memberIds || []) { const s = m == null ? '' : String(m); if (s && !ids.includes(s)) ids.push(s); }
+    const now = nowIso || new Date().toISOString();
+    if (ids.length) run(`DELETE FROM v2_task_people WHERE task_id = ? AND member_id NOT IN (${ids.map(() => '?').join(',')})`, [String(taskId), ...ids]);
+    else run('DELETE FROM v2_task_people WHERE task_id = ?', [String(taskId)]);
+    for (const m of ids) run('INSERT OR IGNORE INTO v2_task_people (task_id, member_id, added_by, added_at) VALUES (?,?,?,?)', [String(taskId), m, addedBy || null, now]);
+    run('UPDATE project_tasks SET assigned_to = ? WHERE id = ?', [ids[0] || null, String(taskId)]);
+    return ids;
+}
+
+/** Deleting a task deletes its tag rows and its subtasks' tag rows (call before the project_tasks delete). */
+function deleteTaskPeople(run, taskId) {
+    run('DELETE FROM v2_task_people WHERE task_id = ? OR task_id IN (SELECT id FROM project_tasks WHERE parent_id = ?)', [String(taskId), String(taskId)]);
 }
 
 /**
@@ -72,8 +167,7 @@ function visibleTaskFile(get, userId, fileId) {
  * WHERE clause over nag_items aliased `alias`.
  */
 function visibleNagSql(alias, userId) {
-    const a = String(alias || 'nag_items');
-    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(a)) throw new Error('task-visibility: bad alias');
+    const a = aliasOk(String(alias || 'nag_items'));
     const v = visibleTaskSql('nag_pt', userId);
     return {
         sql: `(${a}.kind NOT IN (${TASK_NAG_KINDS.map(() => '?').join(',')})
@@ -84,16 +178,16 @@ function visibleNagSql(alias, userId) {
 const isTaskNag = kind => TASK_NAG_KINDS.includes(String(kind || ''));
 
 /**
- * Tables whose rows carry task content (titles, descriptions, results, comments, files, Action
- * Center task titles), and the demo-purge backups of them (_purged_<table>). Whole-table readers
+ * Tables whose rows carry task content (titles, descriptions, results, comments, files, who is on a
+ * task, Action Center task titles), and the demo-purge backups of them (_purged_<table>). Whole-table readers
  * that cannot apply the rule row by row (the tech table browser and JSON export) never hand these out.
  */
-const TASK_PRIVATE_TABLES = ['project_tasks', 'task_files', 'v2_task_comments', 'nag_items'];
+const TASK_PRIVATE_TABLES = ['project_tasks', 'task_files', 'v2_task_comments', 'v2_task_people', 'nag_items'];
 const baseTable = name => String(name || '').toLowerCase().replace(/^_purged_/, '');
 function isTaskPrivateTable(name) { return TASK_PRIVATE_TABLES.includes(baseTable(name)); }
 
 // ---- side channels: places outside project_tasks where task text used to land ----
-const checkAlias = (a) => { if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(a)) throw new Error('task-visibility: bad alias'); return a; };
+const checkAlias = aliasOk;
 
 /**
  * The Action Center nudge is a direct message sent as 'admin' (and a push). Every admin reader of
@@ -159,6 +253,7 @@ function techRowScope(table, alias, user) {
 
 module.exports = {
     visibleTaskSql, visibleTaskRow, canSeeTask, visibleTaskFile, visibleNagSql, isTaskNag, TASK_NAG_KINDS,
+    onTaskSql, onTaskMemberSql, orderTaskPeople, ensureTaskPeopleTable, setTaskPeople, deleteTaskPeople, MAX_TASK_PEOPLE,
     TASK_PRIVATE_TABLES, isTaskPrivateTable,
     TASK_REMINDER_TITLE, TASK_REMINDER_BODY, taskReminderDmScope, taskAuditScope, techRowScope
 };

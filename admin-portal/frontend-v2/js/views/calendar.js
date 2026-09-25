@@ -232,7 +232,10 @@ function blockAdd() {
 // and entry deletion moved to KEY DATES below, where the rows actually read.
 
 function taskMeta(t) {
-  const who = t.assignee_first ? String(t.assignee_first).toUpperCase() : (t.assignee_name ? String(t.assignee_name).split(/\s+/)[0].toUpperCase() : COPY.tasks.team);
+  // who is on it: up to three first names, then +N (the board's card label); an older backend sends one
+  const names = Array.isArray(t.people) ? t.people.map(p => String(p.first || String(p.name || '').split(/\s+/)[0] || '').toUpperCase()).filter(Boolean) : [];
+  const who = names.length ? names.slice(0, 3).join(' · ') + (names.length > 3 ? ` +${names.length - 3}` : '')
+    : t.assignee_first ? String(t.assignee_first).toUpperCase() : (t.assignee_name ? String(t.assignee_name).split(/\s+/)[0].toUpperCase() : COPY.tasks.team);
   if (!t.due_date || !String(t.due_date).trim()) return { who, due: '', dueColor: '#6d6459' };
   const diff = fmt.daysUntil(t.due_date);
   if (diff < 0) return { who, due: COPY.tasks.overdue(Math.abs(diff)), dueColor: '#9b1b22' };

@@ -342,6 +342,123 @@ const waitUp = async (base, ms = 150000) => {
         r = await api(ADMIN, '/api/tasks', { method: 'POST', token: tok.D, body: { project: 'plexus', title: 'Qazwx D subtask', parent_id: 'tp-sub' } });
         const dsub = g(`SELECT parent_id FROM project_tasks WHERE title = 'Qazwx D subtask'`);
         check('admin POST /api/tasks with a subtask as parent: filed under the top-level task', r.status === 200 && dsub && dsub.parent_id === 'tp-task', JSON.stringify(dsub));
+
+        // ============================================================ MORE THAN ONE PERSON (Alen, 25 Sept 2026)
+        // "in tasks please let us tag more than one person": A tags E (first) AND F (tagged) on one task
+        // through the board; F — on it but not its assigned_to — must be treated as on the task by every
+        // server.js reader of both portals; C (on nothing) must get the missing answer everywhere.
+        const PM = { E: 'tp-user-e', F: 'tp-user-f' }; const TMM = { E: 'tp-tm-e', F: 'tp-tm-f' };
+        for (const k of ['E', 'F']) {
+            x(`INSERT INTO users (id, email, password_hash, first_name, last_name, is_admin, must_change_password) VALUES (?,?,?,?,?,1,0)`, [PM[k], `qa.taskprivacy+${k.toLowerCase()}@example.com`, 'x', 'Qa' + k, 'Tester']);
+            x(`INSERT INTO team_members (id, user_id, name, role) VALUES (?,?,?,?)`, [TMM[k], PM[k], 'Qa' + k + ' Tester', 'QA']);
+            tok[k] = jwt.sign({ id: PM[k], email: `qa.taskprivacy+${k.toLowerCase()}@example.com` }, SECRET);
+        }
+        const tagsOf = id => tdb.prepare('SELECT member_id FROM v2_task_people WHERE task_id = ? ORDER BY added_at, rowid').all(id).map(r => r.member_id);
+        check('both portals made the tag table at boot', !!g(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'v2_task_people'`));
+        r = await api(ADMIN, '/api/v2/tasks', { method: 'POST', token: tok.A, body: { title: 'Qmtag harbour permit', description: 'qmtag berth 4', assignees: [TMM.E, TMM.F], due_date: yesterday, priority: 'high', project: 'plexus' } });
+        const MT = r.d && r.d.id;
+        check('admin POST /api/v2/tasks with assignees [E, F]: assigned_to is E, both tagged, the card lists both', r.status === 200 && g(`SELECT assigned_to FROM project_tasks WHERE id = ?`, [MT]).assigned_to === TMM.E
+            && tagsOf(MT).join() === [TMM.E, TMM.F].join() && r.d.task.people.map(p => p.first).join() === 'QaE,QaF', JSON.stringify(r.d).slice(0, 200));
+        x(`INSERT INTO project_tasks (id, project, title, priority, status, created_by, parent_id) VALUES ('tp-mt-sub', 'plexus', 'Qmtag subtask', 'medium', 'todo', ?, ?)`, [P.A, MT]);
+        const mtFile = path.join(scratch, 'qmtag.txt'); fs.writeFileSync(mtFile, 'qm');
+        x(`INSERT INTO task_files (id, task_id, filename, original_name, file_path, file_size, mime_type) VALUES ('tp-mt-file', ?, 'qmtag.txt', 'qmtag.txt', ?, 2, 'text/plain')`, [MT, mtFile]);
+        const hasMt = arr => (arr || []).some(t => t.id === MT);
+        for (const [label, base] of [['admin', ADMIN], ['member', USER]]) {
+            const lf = (await api(base, '/api/tasks/plexus', { token: tok.F })).d || [];
+            const fTask = lf.find(t => t.id === MT);
+            check(`${label} GET /api/tasks/:project: F (tagged, not first) sees it with its subtask and file`, !!fTask && fTask.subtasks.some(s => s.id === 'tp-mt-sub') && fTask.files.some(f => f.id === 'tp-mt-file'), JSON.stringify(titlesIn(lf)));
+            check(`${label} GET /api/tasks/:project: C (on nothing) does not`, !hasMt((await api(base, '/api/tasks/plexus', { token: tok.C })).d));
+            const sf = (await api(base, '/api/tasks', { token: tok.F })).d || {};
+            check(`${label} GET /api/tasks: F's summary holds the task and its subtask`, sf.total === 2, JSON.stringify(sf.total));
+            check(`${label} GET /api/search: F finds it, C does not`, titlesIn(((await api(base, '/api/search?q=qmtag', { token: tok.F })).d || {}).tasks).includes('Qmtag harbour permit')
+                && !titlesIn(((await api(base, '/api/search?q=qmtag', { token: tok.C })).d || {}).tasks).some(t => /Qmtag/.test(t)));
+            const df = (await api(base, '/api/dashboard/summary', { token: tok.F })).d || {};
+            const dc = (await api(base, '/api/dashboard/summary', { token: tok.C })).d || {};
+            check(`${label} GET /api/dashboard/summary: F's counts carry it (total 2, urgent 1), C's do not move`, df.tasks && df.tasks.total === 2 && df.tasks.urgent === 1 && dc.tasks.total === 1, JSON.stringify([df.tasks, dc.tasks]));
+            const pairs = [
+                ['PUT /api/tasks/:id', id => api(base, '/api/tasks/' + id, { method: 'PUT', token: tok.C, body: { title: 'Hijacked', assigned_to: null } })],
+                ['POST /api/tasks/:id/toggle', id => api(base, '/api/tasks/' + id + '/toggle', { method: 'POST', token: tok.C })],
+                ['DELETE /api/tasks/:id', id => api(base, '/api/tasks/' + id, { method: 'DELETE', token: tok.C })],
+            ];
+            for (const [name, fn] of pairs) {
+                const hidden = await fn(MT); const missing = await fn('tp-no-such-task');
+                check(`${label} ${name} on the tagged task: C gets the same 404 as for a missing task`, hidden.status === 404 && same(hidden, missing), JSON.stringify([hidden, missing]));
+            }
+            r = await api(base, '/api/tasks/' + MT + '/toggle', { method: 'POST', token: tok.F });
+            const back = await api(base, '/api/tasks/' + MT + '/toggle', { method: 'POST', token: tok.F });
+            const back2 = await api(base, '/api/tasks/' + MT + '/toggle', { method: 'POST', token: tok.F });
+            check(`${label} POST /api/tasks/:id/toggle: F (tagged) may move it`, r.status === 200 && back.status === 200 && back2.status === 200, JSON.stringify([r.d, back.d, back2.d]));
+            x(`UPDATE project_tasks SET status = 'todo', completed_at = NULL WHERE id = ?`, [MT]);
+        }
+        check('…and nothing C tried moved it', g(`SELECT title FROM project_tasks WHERE id = ?`, [MT]).title === 'Qmtag harbour permit' && tagsOf(MT).length === 2 && !!g(`SELECT id FROM project_tasks WHERE id = 'tp-mt-sub'`));
+        const psF = (await api(ADMIN, '/api/dashboard/portal-stats', { token: tok.F })).d || {};
+        check('admin GET /api/dashboard/portal-stats: F\'s overdue and urgent carry it', psF.tasks && psF.tasks.overdue === 1 && psF.tasks.urgent === 1, JSON.stringify(psF.tasks));
+
+        // the Action Center: one item per task (filed under its first person), and F — tagged — may open and act on it
+        await api(ADMIN, '/api/admin/nag/run', { method: 'POST', token: tok.A });
+        const mtNag = g(`SELECT id, assignee FROM nag_items WHERE subject_id = ? AND kind = 'task_overdue' AND status IN ('open','actioned')`, [MT]);
+        check('the scan filed the tagged task once, under its first person (E)', !!mtNag && mtNag.assignee === TMM.E, JSON.stringify(mtNag));
+        const itemsF = ((await api(ADMIN, '/api/admin/nag/items', { token: tok.F })).d || {}).items || [];
+        const itemsC = ((await api(ADMIN, '/api/admin/nag/items', { token: tok.C })).d || {}).items || [];
+        check('admin GET /api/admin/nag/items: F (tagged) gets the item, C does not', itemsF.some(i => i.subject_id === MT) && !itemsC.some(i => i.subject_id === MT));
+        r = await api(ADMIN, `/api/admin/nag/items/${mtNag.id}/claim`, { method: 'POST', token: tok.F });
+        const unclaim = await api(ADMIN, `/api/admin/nag/items/${mtNag.id}/claim`, { method: 'POST', token: tok.F });
+        const cClaim = await api(ADMIN, `/api/admin/nag/items/${mtNag.id}/claim`, { method: 'POST', token: tok.C });
+        const cMissing = await api(ADMIN, '/api/admin/nag/items/tp-no-such-item/claim', { method: 'POST', token: tok.C });
+        check('admin POST /api/admin/nag/items/:id/claim: F may claim it; C gets the missing answer', r.status === 200 && r.d.claimed === true && unclaim.d.claimed === false && cClaim.status === 404 && same(cClaim, cMissing), JSON.stringify([r.d, cClaim]));
+        r = await api(ADMIN, `/api/admin/nag/items/${mtNag.id}/act`, { method: 'POST', token: tok.F });
+        check('admin POST /api/admin/nag/items/:id/act: F nudges E (the first person); the nudge names no task', r.status === 200 && r.d.action === 'nudge_sent'
+            && (g(`SELECT content FROM direct_messages WHERE sender_id = ? AND receiver_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1`, [PM.F, PM.E]) || {}).content === BODY, JSON.stringify(r.d));
+        // the digest: F (tagged, not first) is told a task of theirs is due, without its title; so is E
+        x(`DELETE FROM scheduled_emails WHERE source_engine = 'nag-digest'`);
+        r = await api(ADMIN, '/api/admin/nag/digest', { method: 'POST', token: tok.A });
+        const dF = digestTo('qa.taskprivacy+f@example.com'), dE = digestTo('qa.taskprivacy+e@example.com');
+        check('digest: F (tagged) and E (first) are each told of one task, with a link to the board, never its title', !!dF && !!dE && /1 of your task is overdue or due soon/.test(dF.payload_json) && /1 of your task is overdue or due soon/.test(dE.payload_json)
+            && !/Qmtag|harbour/i.test(dF.payload_json + dE.payload_json), JSON.stringify([r.d, dF && dF.payload_json.slice(0, 160)]));
+
+        // untag F on the board → F loses it in every portal and side channel; E keeps it
+        r = await api(ADMIN, '/api/v2/tasks/' + MT, { method: 'PUT', token: tok.A, body: { assignees: [TMM.E] } });
+        check('admin PUT /api/v2/tasks/:id assignees [E]: F untagged', r.status === 200 && tagsOf(MT).join() === TMM.E, JSON.stringify(r.d).slice(0, 160));
+        for (const [label, base] of [['admin', ADMIN], ['member', USER]]) {
+            check(`${label} after untagging F: F lost it (list, search), E keeps it`, !hasMt((await api(base, '/api/tasks/plexus', { token: tok.F })).d) && hasMt((await api(base, '/api/tasks/plexus', { token: tok.E })).d)
+                && !titlesIn(((await api(base, '/api/search?q=qmtag', { token: tok.F })).d || {}).tasks).length);
+            const fh = await api(base, '/api/tasks/' + MT + '/toggle', { method: 'POST', token: tok.F }); const fm = await api(base, '/api/tasks/tp-no-such-task/toggle', { method: 'POST', token: tok.F });
+            check(`${label} after untagging F: F gets the missing answer on the task`, fh.status === 404 && same(fh, fm));
+        }
+        const fItems = ((await api(ADMIN, '/api/admin/nag/items', { token: tok.F })).d || {}).items || [];
+        const fClaim = await api(ADMIN, `/api/admin/nag/items/${mtNag.id}/claim`, { method: 'POST', token: tok.F });
+        check('admin Action Center after untagging F: the item is gone for F (list and a direct claim)', !fItems.some(i => i.subject_id === MT) && fClaim.status === 404);
+
+        // a v1 one-person write through the member route (A moves it to B): the tag rows follow, E and F lose it
+        await api(ADMIN, '/api/v2/tasks/' + MT, { method: 'PUT', token: tok.A, body: { assignees: [TMM.E, TMM.F] } });
+        r = await api(USER, '/api/tasks/' + MT, { method: 'PUT', token: tok.A, body: { title: 'Qmtag harbour permit', assigned_to: TM.B, due_date: yesterday } });
+        check('member PUT /api/tasks/:id assigned_to B on a task tagged [E, F]: the task is B\'s alone (tag rows follow)', r.status === 200 && tagsOf(MT).join() === TM.B, JSON.stringify(tagsOf(MT)));
+        for (const [label, base] of [['admin', ADMIN], ['member', USER]]) {
+            check(`${label} after the v1 move: E and F lost it, B has it`, !hasMt((await api(base, '/api/tasks/plexus', { token: tok.E })).d) && !hasMt((await api(base, '/api/tasks/plexus', { token: tok.F })).d)
+                && hasMt((await api(base, '/api/tasks/plexus', { token: tok.B })).d));
+        }
+        // a v1 edit that re-sends the same assigned_to drops no one
+        await api(ADMIN, '/api/v2/tasks/' + MT, { method: 'PUT', token: tok.A, body: { assignees: [TMM.E, TMM.F] } });
+        r = await api(ADMIN, '/api/tasks/' + MT, { method: 'PUT', token: tok.A, body: { title: 'Qmtag harbour permit', assigned_to: TMM.E, due_date: yesterday } });
+        check('admin PUT /api/tasks/:id re-sending the same first person keeps F tagged', r.status === 200 && tagsOf(MT).join() === [TMM.E, TMM.F].join(), JSON.stringify(tagsOf(MT)));
+        // an old-portal write (it knows only assigned_to) moves it to D: the stale tags of E and F grant nothing
+        x(`UPDATE project_tasks SET assigned_to = ? WHERE id = ?`, [TM.D, MT]);
+        for (const [label, base] of [['admin', ADMIN], ['member', USER]]) {
+            check(`${label} after an old-portal move to D: E and F lost it (stale tags), D has it`, !hasMt((await api(base, '/api/tasks/plexus', { token: tok.E })).d) && !hasMt((await api(base, '/api/tasks/plexus', { token: tok.F })).d)
+                && hasMt((await api(base, '/api/tasks/plexus', { token: tok.D })).d) && !titlesIn(((await api(base, '/api/search?q=qmtag', { token: tok.F })).d || {}).tasks).length);
+        }
+        await api(ADMIN, '/api/admin/nag/run', { method: 'POST', token: tok.A });
+        check('admin Action Center after the old-portal move: F no longer gets the item', !((((await api(ADMIN, '/api/admin/nag/items', { token: tok.F })).d || {}).items) || []).some(i => i.subject_id === MT));
+
+        // the tech tools never hand out who is on which task
+        const ttn = (((await tech('C', 'tables')).d || {}).tables || []).map(t => t.name);
+        const tpp = await tech('C', 'tables/v2_task_people');
+        check('admin tech tools: v2_task_people is not listed, and browsing it gets the missing-table answer', !ttn.includes('v2_task_people') && tpp.status === 400 && same(tpp, tMissing), JSON.stringify(tpp));
+
+        // deleting the task (member v1 route, by its creator) deletes its tag rows and its subtask's
+        x(`INSERT OR IGNORE INTO v2_task_people (task_id, member_id, added_by, added_at) VALUES ('tp-mt-sub', ?, ?, datetime('now'))`, [TMM.F, P.A]);
+        r = await api(USER, '/api/tasks/' + MT, { method: 'DELETE', token: tok.A });
+        check('member DELETE /api/tasks/:id: the tag rows of the task and its subtask go with it', r.status === 200 && tdb.prepare(`SELECT COUNT(*) AS c FROM v2_task_people WHERE task_id IN (?, 'tp-mt-sub')`).get(MT).c === 0);
     } catch (e) {
         check('run completed', false, e.stack || e.message);
         procs.forEach(p => { const b = p._errbuf && p._errbuf(); if (b) console.error(b.slice(-1500)); });

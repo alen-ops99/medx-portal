@@ -18,10 +18,16 @@
  * still be picked (`user:<id>`) — the row is created on first assignment.
  *
  * WHO SEES A TASK (Alen, 25 Sept 2026 — "if Laura tags me I only see that task … some of it's gonna
- * be personal"): only its creator and its assignee, through shared/task-visibility.js, on every route
- * below — list, badge, search, detail, every write, comments, files and the legacy surface. Anyone
- * else gets the same 404 / "That task is not here." as a missing task. No founder override.
- * Reassigning moves the task: the old assignee loses it unless they created it.
+ * be personal"): only its creator and the people on it, through shared/task-visibility.js, on every
+ * route below — list, badge, search, detail, every write, comments, files and the legacy surface.
+ * Anyone else gets the same 404 / "That task is not here." as a missing task. No founder override.
+ * Taking someone off a task moves it away from them: they lose it unless they created it.
+ *
+ * MORE THAN ONE PERSON (Alen, 25 Sept 2026 — "in tasks please let us tag more than one person"):
+ * v2_task_people holds everyone tagged; `assigned_to` stays the first of them (so Today, Calendar,
+ * the nag scan and every legacy reader keep working), untagging the first promotes the next one
+ * tagged, untagging everyone clears it. A card carries people: [{ id, user_id, name, first }], first
+ * person first. MINE, FOR <name> and the badge's assigned_open count every task the person is on.
  *
  * Routes (all auth + adminOnly; /api/v2/tasks is deliberately NOT in SECTION_ROUTE_MAP — every
  * admin has a board, and each board holds only that admin's own tasks):
@@ -29,8 +35,9 @@
  *                                              → { tasks, people, me }
  *   GET    /api/v2/tasks/badge                 → { done_unseen, assigned_open } for the caller
  *   GET    /api/v2/tasks/:id                   → { task, comments, files }
- *   POST   /api/v2/tasks                       { title, description?, assigned_to?, due_date?, priority?, project? }
- *   PUT    /api/v2/tasks/:id                   { title?, description?, assigned_to?, due_date?, priority?, status? }
+ *   POST   /api/v2/tasks                       { title, description?, assignees?: [member id | 'user:<id>'] (≤ 12) | assigned_to?, due_date?, priority?, project? }
+ *   PUT    /api/v2/tasks/:id                   { title?, description?, assignees? | assigned_to?, due_date?, priority?, status? }
+ *                                              (assigned_to alone = one person: a different one makes the task theirs alone)
  *   PUT    /api/v2/tasks/:id/result            { result_text?, result_links? }
  *   POST   /api/v2/tasks/:id/seen              → status seen, seen_at/by
  *   POST   /api/v2/tasks/:id/archive · /unarchive
@@ -44,8 +51,9 @@
  * Files: S3 (the BB_S3_* bucket + SigV4 helper the Boston wing owns, under tasks/<task>/) when
  * configured — the Render service has no disk, so local files would vanish on redeploy; otherwise
  * the same uploads root inbox.js uses (user-portal/backend/uploads/tasks). Emails (sendEmail, team
- * only — recipients must be admin users, never guests): on assign → the assignee; on done → the
- * creator, result quoted. Nothing is sent when the actor is the recipient.
+ * only — recipients must be admin users, never guests): on tagging → each person newly tagged (never
+ * someone already on it); on done → the creator, result quoted. Nothing is sent when the actor is the
+ * recipient.
  */
 'use strict';
 const fs = require('fs');
@@ -123,6 +131,8 @@ module.exports = function mountTasks(app, ctx) {
         )`);
         q.run('CREATE INDEX IF NOT EXISTS idx_v2_task_comments_task ON v2_task_comments (task_id, created_at)');
     } catch (e) { log('comments schema failed:', e.message); }
+    // everyone tagged on a task (server.js creates it too — the rule in shared/task-visibility.js reads it)
+    try { taskVis.ensureTaskPeopleTable((sql, p) => q.run(sql, p)); } catch (e) { log('people schema failed:', e.message); }
     // one-time vocabulary normalisation of legacy rows (idempotent). A row the board has written
     // always carries updated_at; a tick-list row never does — so a legacy "done" (ticked in a list
     // where done simply meant "gone for everyone", nobody waiting to review it) files straight to
@@ -147,13 +157,14 @@ module.exports = function mountTasks(app, ctx) {
     // An admin account and an unlinked team row with the same name are one person (the seed
     // creates Laura's user before her team row and the link never lands): join them once, here,
     // so she is offered once and her emails have an address.
-    // Names are self-editable, and a task is seen by its assignee's account (shared/task-visibility.js),
-    // so a row that already carries a task is never linked by name: an admin who renamed themself
+    // Names are self-editable, and a task is seen by the accounts of the people on it (shared/task-visibility.js),
+    // so a row that already carries a task (assigned or tagged) is never linked by name: an admin who renamed themself
     // after it would inherit tasks that until now only their creators could see. Every link is logged.
     function healTeamLinks() {
         const admins = q.all('SELECT id, first_name, last_name, email FROM users WHERE is_admin = 1');
         const loose = q.all(`SELECT tm.id, tm.name FROM team_members tm WHERE (tm.user_id IS NULL OR tm.user_id = '')
-                               AND NOT EXISTS (SELECT 1 FROM project_tasks pt WHERE pt.assigned_to = tm.id)`);
+                               AND NOT EXISTS (SELECT 1 FROM project_tasks pt WHERE pt.assigned_to = tm.id)
+                               AND NOT EXISTS (SELECT 1 FROM v2_task_people tp WHERE tp.member_id = tm.id)`);
         if (!admins.length || !loose.length) return;
         const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z ]/g, ' ').replace(/\s+/g, ' ').trim();
         const linked = new Set(q.all('SELECT user_id FROM team_members WHERE user_id IS NOT NULL').map(r => r.user_id));
@@ -164,7 +175,8 @@ module.exports = function mountTasks(app, ctx) {
             if (!hit) continue;
             try {
                 q.run(`UPDATE team_members SET user_id = ? WHERE id = ? AND (user_id IS NULL OR user_id = '')
-                         AND NOT EXISTS (SELECT 1 FROM project_tasks pt WHERE pt.assigned_to = team_members.id)`, [u.id, hit.id]);
+                         AND NOT EXISTS (SELECT 1 FROM project_tasks pt WHERE pt.assigned_to = team_members.id)
+                         AND NOT EXISTS (SELECT 1 FROM v2_task_people tp WHERE tp.member_id = team_members.id)`, [u.id, hit.id]);
                 loose.splice(loose.indexOf(hit), 1); linked.add(u.id); changed = true;
                 try { q.run('INSERT INTO audit_log (id, actor_id, actor_email, action, detail) VALUES (?,?,?,?,?)', [uuid(), null, 'system', 'team.link', `team row ${hit.id} linked to account ${u.id} (same name, no tasks on the row)`]); } catch (e) { /* best-effort */ }
                 log(`team row ${hit.id} linked to account ${u.id} by name`);
@@ -212,6 +224,70 @@ module.exports = function mountTasks(app, ctx) {
         const m = q.get(`SELECT tm.id, tm.name, tm.user_id, u.email, u.is_admin FROM team_members tm LEFT JOIN users u ON u.id = tm.user_id WHERE tm.id = ?`, [memberId]);
         return m ? { id: m.id, name: m.name, first: firstOf(m.name), user_id: m.user_id || null, email: m.email || null, is_admin: !!Number(m.is_admin || 0) } : null;
     }
+    // assignees: [member id | 'user:<id>'] → { ids } in the order given — each resolved exactly like
+    // resolveAssignee, duplicates collapsed (the same row, or two rows of one account), at most 12 — or
+    // { error }. Every entry is checked before any team row is created for a 'user:<id>'.
+    function resolveAssignees(v) {
+        if (!Array.isArray(v)) return { error: 'Tag people as a list.' };
+        const raw = [];
+        for (const x of v) { const s = String(x == null ? '' : x).trim(); if (s && !raw.includes(s)) raw.push(s); }
+        if (raw.length > taskVis.MAX_TASK_PEOPLE) return { error: `A task can have at most ${taskVis.MAX_TASK_PEOPLE} people on it.` };
+        for (const s of raw) {
+            const ok = s.startsWith('user:') ? q.get('SELECT id FROM users WHERE id = ? AND is_admin = 1', [s.slice(5)]) : q.get('SELECT id FROM team_members WHERE id = ?', [s]);
+            if (!ok) return { error: 'That person is not on the team.' };
+        }
+        const ids = []; const accounts = new Set();
+        for (const s of raw) {
+            const who = resolveAssignee(s);
+            if (who.error) return who;
+            if (!who.id || ids.includes(who.id)) continue;
+            const acct = (q.get('SELECT user_id FROM team_members WHERE id = ?', [who.id]) || {}).user_id;
+            if (acct) { if (accounts.has(acct)) continue; accounts.add(acct); }
+            ids.push(who.id);
+        }
+        return { ids };
+    }
+    // the tag rows of these tasks, in the order they were tagged: Map task id → [member id]
+    function tagRowsOf(taskIds) {
+        const out = new Map(); const ids = Array.from(new Set((taskIds || []).filter(Boolean)));
+        for (let i = 0; i < ids.length; i += 400) {
+            const chunk = ids.slice(i, i + 400);
+            q.all(`SELECT task_id, member_id FROM v2_task_people WHERE task_id IN (${chunk.map(() => '?').join(',')}) ORDER BY added_at, rowid`, chunk)
+                .forEach(t => { if (!out.has(t.task_id)) out.set(t.task_id, []); out.get(t.task_id).push(t.member_id); });
+        }
+        return out;
+    }
+    // the people on one task (member ids, first person first) — the rule is shared/task-visibility.js's
+    const peopleIdsOf = row => taskVis.orderTaskPeople(row.assigned_to, tagRowsOf([row.id]).get(row.id));
+    // the people on each row for the card: Map task id → [{ id, user_id, name, first }], first person first
+    function peopleOf(rows) {
+        const tags = tagRowsOf(rows.map(r => r.id));
+        const order = new Map(); const mids = new Set();
+        for (const r of rows) { const o = taskVis.orderTaskPeople(r.assigned_to, tags.get(r.id)); order.set(r.id, o); o.forEach(m => mids.add(m)); }
+        const members = new Map(); const all = Array.from(mids);
+        for (let i = 0; i < all.length; i += 400) {
+            const chunk = all.slice(i, i + 400);
+            q.all(`SELECT id, name, user_id FROM team_members WHERE id IN (${chunk.map(() => '?').join(',')})`, chunk).forEach(m => members.set(m.id, m));
+        }
+        const out = new Map();
+        for (const r of rows) out.set(r.id, order.get(r.id).map(id => members.get(id)).filter(Boolean).map(m => ({ id: m.id, user_id: m.user_id || null, name: m.name || '', first: firstOf(m.name) })));
+        return out;
+    }
+    // "Alen", "Alen and Miro", "Alen, Miro and Pjero"
+    const nameList = names => names.length <= 1 ? (names[0] || '') : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
+    const isActorMember = (actor, m) => !!m && ((m.user_id && m.user_id === actor.id) || (actor.member_id && m.id === actor.member_id));
+    // the activity rows for a change of people: "Laura tagged Alen and Miro" · "Laura joined the task" ·
+    // "Laura removed Miro" · "Laura left the task"
+    function peopleNotes(actor, added, removed) {
+        const notes = [];
+        const addOthers = added.filter(m => !isActorMember(actor, m)).map(m => m.first || m.name);
+        if (addOthers.length) notes.push(`${actor.first} tagged ${nameList(addOthers)}`);
+        if (added.some(m => isActorMember(actor, m))) notes.push(`${actor.first} joined the task`);
+        const remOthers = removed.filter(m => !isActorMember(actor, m)).map(m => m.first || m.name);
+        if (remOthers.length) notes.push(`${actor.first} removed ${nameList(remOthers)}`);
+        if (removed.some(m => isActorMember(actor, m))) notes.push(`${actor.first} left the task`);
+        return notes;
+    }
 
     // ---- rows ----
     const BASE_SELECT = `SELECT pt.*, tm.name AS assignee_name, tm.user_id AS assignee_user_id,
@@ -224,13 +300,13 @@ module.exports = function mountTasks(app, ctx) {
         LEFT JOIN users cu ON cu.id = pt.created_by
         LEFT JOIN users su ON su.id = pt.seen_by`;
     const TOP_LEVEL = `(pt.parent_id IS NULL OR pt.parent_id = '')`;
-    // the row when the caller may see it (creator or assignee), else null — hidden and missing look alike
+    // the row when the caller may see it (creator or on it), else null — hidden and missing look alike
     const taskRow = (id, userId) => { const v = taskVis.visibleTaskSql('pt', userId); return q.get(BASE_SELECT + ` WHERE pt.id = ? AND ${v.sql}`, [id, ...v.params]); };
     // the row regardless of who asks — server-side use only (notifications), never sent to a caller as is
     const rawTaskRow = id => q.get(BASE_SELECT + ' WHERE pt.id = ?', [id]);
     const uidOf = req => (req && req.user && req.user.id) || null;
     const canSee = (req, id) => taskVis.canSeeTask(q.get, uidOf(req), id);
-    function shape(r) {
+    function shape(r, people) {
         const creatorName = [r.creator_first_name, r.creator_last_name].filter(Boolean).join(' ') || (r.creator_email ? String(r.creator_email).split('@')[0] : '');
         const seenName = [r.seen_first_name, r.seen_last_name].filter(Boolean).join(' ');
         return {
@@ -242,9 +318,12 @@ module.exports = function mountTasks(app, ctx) {
             created_at: r.created_at || null, updated_at: r.updated_at || r.created_at || null, completed_at: r.completed_at || null,
             seen_at: r.seen_at || null, seen_by: r.seen_by || null, seen_by_name: seenName || null, archived_at: r.archived_at || null,
             result_text: r.result_text || '', result_links: parseLinks(r.result_links),
-            file_count: Number(r.file_count || 0), comment_count: Number(r.comment_count || 0)
+            file_count: Number(r.file_count || 0), comment_count: Number(r.comment_count || 0),
+            // everyone on the card, first person (= assigned_to) first: [{ id, user_id, name, first }]
+            people: people || peopleOf([r]).get(r.id) || []
         };
     }
+    const shapeAll = rows => { const ppl = peopleOf(rows); return rows.map(r => shape(r, ppl.get(r.id))); };
     function touch(id) { q.run('UPDATE project_tasks SET updated_at = ? WHERE id = ?', [nowIso(), id]); }
     function activity(taskId, actor, body, kind) {
         q.run('INSERT INTO v2_task_comments (id, task_id, author_id, author_name, body, kind, created_at) VALUES (?,?,?,?,?,?,?)',
@@ -358,28 +437,37 @@ module.exports = function mountTasks(app, ctx) {
         if (due && !isYmd(due)) return { status: 400, body: { error: 'The due date must be YYYY-MM-DD.' } };
         const priority = b.priority === undefined || b.priority === null || b.priority === '' ? 'medium' : String(b.priority).toLowerCase();
         if (!PRIORITIES.includes(priority)) return { status: 400, body: { error: 'Priority is low, medium or high.' } };
-        const who = resolveAssignee(b.assigned_to);
+        // the people: assignees [..] (the first is assigned_to), or assigned_to alone (= one person)
+        let who;
+        if (b.assignees !== undefined && b.assignees !== null) who = resolveAssignees(b.assignees);
+        else { const one = resolveAssignee(b.assigned_to); who = one.error ? one : { ids: one.id ? [one.id] : [] }; }
         if (who.error) return { status: 400, body: { error: who.error } };
         const status = b.status ? normStatus(b.status) : 'todo';
         const project = cleanStr(b.project, 60) || 'general';
         const id = uuid(); const now = nowIso();
         q.run(`INSERT INTO project_tasks (id, project, title, description, assigned_to, priority, status, due_date, created_by, created_at, updated_at, completed_at)
                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-            [id, project, title, description, who.id, priority, status, due, actor.id || null, now, now, status === 'done' || status === 'seen' ? now : null]);
-        const member = memberInfo(who.id);
-        activity(id, actor, `${actor.first} created the task` + (member ? ` and assigned it to ${member.first}` : ''));
+            [id, project, title, description, who.ids[0] || null, priority, status, due, actor.id || null, now, now, status === 'done' || status === 'seen' ? now : null]);
+        taskVis.setTaskPeople((sql, p) => q.run(sql, p), id, who.ids, actor.id, now);
+        const members = who.ids.map(memberInfo).filter(Boolean);
+        // "Laura created the task and tagged Alen and Miro" · "… and joined it" · "…, joined it and tagged Alen"
+        const others = members.filter(m => !isActorMember(actor, m)).map(m => m.first || m.name);
+        const parts = (members.some(m => isActorMember(actor, m)) ? ['joined it'] : []).concat(others.length ? ['tagged ' + nameList(others)] : []);
+        activity(id, actor, `${actor.first} created the task` + (parts.length === 2 ? `, ${parts[0]} and ${parts[1]}` : parts.length ? ' and ' + parts[0] : ''));
         audit(req, 'task.create', 'task ' + id);   // ids only — the audit feed is read by every admin, a title is private
         persist();
         const row = rawTaskRow(id);   // the creator always sees what they just made
-        notifyAssigned(shape(row), actor, member);
-        return { status: 200, body: { success: true, id, task: shape(row) } };
+        const task = shape(row);
+        members.forEach(m => notifyAssigned(task, actor, m));   // each person tagged (never the actor, team admins only)
+        return { status: 200, body: { success: true, id, task } };
     }
-    // patch = { title?, description?, assigned_to?, due_date?, priority?, status? } — each key optional
+    // patch = { title?, description?, assignees?, assigned_to?, due_date?, priority?, status? } — each key optional
     function updateTask(req, id, patch) {
         const actor = actorOf(req);
         const cur = taskRow(id, actor.id);
         if (!cur) return { status: 404, body: { error: 'That task is not here.' } };
-        const sets = []; const vals = []; const notes = []; const fields = []; let newMember = null; let becameDone = false;
+        const sets = []; const vals = []; const notes = []; const fields = []; let becameDone = false;
+        let nextPeople = null; let addedPeople = []; let removedPeople = [];
         if (patch.title !== undefined) {
             const t = cleanStr(patch.title, MAX_TITLE); if (!t) return { status: 400, body: { error: 'Give the task a title.' } };
             if (t !== cur.title) { sets.push('title = ?'); vals.push(t); notes.push(`${actor.first} renamed it to “${t}”`); fields.push('title'); }
@@ -397,14 +485,24 @@ module.exports = function mountTasks(app, ctx) {
             const p = String(patch.priority || 'medium').toLowerCase(); if (!PRIORITIES.includes(p)) return { status: 400, body: { error: 'Priority is low, medium or high.' } };
             if (p !== (cur.priority || 'medium')) { sets.push('priority = ?'); vals.push(p); notes.push(`${actor.first} set priority to ${p}`); fields.push('priority'); }
         }
-        if (patch.assigned_to !== undefined) {
+        // the people. assignees = the whole set: whoever stays keeps their place (the first person stays
+        // first unless taken off, then the next one tagged is promoted), newcomers join in the order given.
+        // assigned_to alone is the one-person write it always was: a different person → the task is theirs
+        // alone; the same first person → nothing changes (a legacy edit that re-sends it drops no one).
+        const curPeople = peopleIdsOf(cur);
+        if (patch.assignees !== undefined && patch.assignees !== null) {
+            const who = resolveAssignees(patch.assignees); if (who.error) return { status: 400, body: { error: who.error } };
+            const next = curPeople.filter(m => who.ids.includes(m)).concat(who.ids.filter(m => !curPeople.includes(m)));
+            if (next.join('|') !== curPeople.join('|')) nextPeople = next;
+        } else if (patch.assigned_to !== undefined) {
             const who = resolveAssignee(patch.assigned_to); if (who.error) return { status: 400, body: { error: who.error } };
-            if ((who.id || null) !== (cur.assigned_to || null)) {
-                sets.push('assigned_to = ?'); vals.push(who.id);
-                newMember = memberInfo(who.id);
-                notes.push(newMember ? `${actor.first} assigned to ${newMember.first}` : `${actor.first} removed the assignee`);
-                fields.push('assignee');
-            }
+            if ((who.id || null) !== (cur.assigned_to || null)) nextPeople = who.id ? [who.id] : [];
+        }
+        if (nextPeople) {
+            addedPeople = nextPeople.filter(m => !curPeople.includes(m)).map(memberInfo).filter(Boolean);
+            removedPeople = curPeople.filter(m => !nextPeople.includes(m)).map(memberInfo).filter(Boolean);
+            notes.push(...peopleNotes(actor, addedPeople, removedPeople));
+            fields.push('people');
         }
         if (patch.status !== undefined) {
             const s = normStatus(patch.status); if (!STATUSES.includes(s)) return { status: 400, body: { error: 'Status is todo, doing, done or seen.' } };
@@ -422,17 +520,23 @@ module.exports = function mountTasks(app, ctx) {
                 fields.push('status ' + s);
             }
         }
-        if (!sets.length) return { status: 200, body: { success: true, task: shape(cur), unchanged: true } };
+        if (!sets.length && !nextPeople) return { status: 200, body: { success: true, task: shape(cur), unchanged: true } };
         sets.push('updated_at = ?'); vals.push(nowIso()); vals.push(id);
         q.run(`UPDATE project_tasks SET ${sets.join(', ')} WHERE id = ?`, vals);
+        if (nextPeople) {
+            // stale tag rows (a one-person writer moved the task since — shared/task-visibility.js) go first,
+            // so anyone tagged again now is tagged afresh, in order
+            q.run(`DELETE FROM v2_task_people WHERE task_id = ?` + (curPeople.length ? ` AND member_id NOT IN (${curPeople.map(() => '?').join(',')})` : ''), [id, ...curPeople]);
+            taskVis.setTaskPeople((sql, p) => q.run(sql, p), id, nextPeople, actor.id, nowIso());
+        }
         notes.forEach(n => activity(id, actor, n));
         audit(req, 'task.update', `task ${id}: ${fields.join(', ')}`);
         persist();
         const row = rawTaskRow(id);
-        if (newMember) notifyAssigned(shape(row), actor, newMember);
+        if (addedPeople.length) { const task = shape(row); addedPeople.forEach(m => notifyAssigned(task, actor, m)); }   // only the newly tagged
         if (becameDone) notifyDone(row, actor);
-        // handing a task you did not create to someone else takes it off your board: from here on only
-        // its creator and its new assignee see it, so the answer carries no card
+        // taking yourself off a task you did not create (or handing it on) takes it off your board: from
+        // here on only its creator and the people on it see it, so the answer carries no card
         const still = taskRow(id, actor.id);
         if (!still) return { status: 200, body: { success: true, task: null, handed_off: true } };
         return { status: 200, body: { success: true, task: shape(still) } };
@@ -444,9 +548,10 @@ module.exports = function mountTasks(app, ctx) {
             const me = actorOf(req);
             const v = taskVis.visibleTaskSql('pt', me.id);
             const done_unseen = count(`SELECT COUNT(*) AS c FROM project_tasks pt WHERE ${TOP_LEVEL} AND pt.archived_at IS NULL AND pt.status = 'done' AND pt.created_by = ? AND ${v.sql}`, [me.id || '', ...v.params]);
-            // assigned to ANY team row of my account (user_id join — a second row for me still counts)
+            // open tasks I am on — first or tagged, through ANY team row of my account (user_id join)
+            const on = taskVis.onTaskSql('pt', me.id);
             const assigned_open = count(`SELECT COUNT(*) AS c FROM project_tasks pt WHERE ${TOP_LEVEL} AND pt.archived_at IS NULL AND pt.status NOT IN ('done','seen')
-                    AND pt.assigned_to IN (SELECT id FROM team_members WHERE user_id = ?) AND ${v.sql}`, [me.id || '', ...v.params]);
+                    AND ${on.sql} AND ${v.sql}`, [...on.params, ...v.params]);
             res.json({ done_unseen, assigned_open, member_id: me.member_id });
         } catch (e) { fail(res, e, 'badge'); }
     });
@@ -460,9 +565,10 @@ module.exports = function mountTasks(app, ctx) {
             where.push(archived ? 'pt.archived_at IS NOT NULL' : 'pt.archived_at IS NULL');
             const assignee = String(req.query.assignee || '').trim();
             if (assignee && assignee !== 'all') {
-                if (assignee === 'me') { if (me.id) { where.push('pt.assigned_to IN (SELECT id FROM team_members WHERE user_id = ?)'); vals.push(me.id); } else where.push('0'); }
+                // MINE / FOR <name>: every task that person is on (first or tagged), among the ones I may see
+                if (assignee === 'me') { const o = taskVis.onTaskSql('pt', me.id); where.push(o.sql); vals.push(...o.params); }
                 else if (assignee === 'none') where.push("(pt.assigned_to IS NULL OR pt.assigned_to = '')");
-                else { const who = resolveAssignee(assignee); if (who.error) return res.status(400).json({ error: who.error }); where.push('pt.assigned_to = ?'); vals.push(who.id); }
+                else { const who = resolveAssignee(assignee); if (who.error) return res.status(400).json({ error: who.error }); const o = taskVis.onTaskMemberSql('pt', who.id); where.push(o.sql); vals.push(...o.params); }
             }
             const status = String(req.query.status || '').trim().toLowerCase();
             if (status) {
@@ -477,7 +583,7 @@ module.exports = function mountTasks(app, ctx) {
                              OR EXISTS (SELECT 1 FROM task_files f WHERE f.task_id = pt.id AND f.original_name LIKE ? ESCAPE '\\'))`);
                 vals.push(like, like, like, like, like, like);
             }
-            const rows = q.all(`${BASE_SELECT} WHERE ${where.join(' AND ')} ORDER BY COALESCE(pt.updated_at, pt.created_at) DESC`, vals).map(shape);
+            const rows = shapeAll(q.all(`${BASE_SELECT} WHERE ${where.join(' AND ')} ORDER BY COALESCE(pt.updated_at, pt.created_at) DESC`, vals));
             res.json({ tasks: rows, people: people(), me: { id: me.id, name: me.name, first: me.first, member_id: me.member_id, email: me.email } });
         } catch (e) { fail(res, e, 'list'); }
     });
@@ -659,8 +765,9 @@ module.exports = function mountTasks(app, ctx) {
             const where = [TOP_LEVEL, 'pt.archived_at IS NULL', vis.sql]; const vals = [...vis.params];
             const project = String(req.query.project || '').trim();
             if (project) { where.push('pt.project = ?'); vals.push(project); }
-            const rows = q.all(`${BASE_SELECT} WHERE ${where.join(' AND ')} ORDER BY (pt.status IN ('done','seen')), (pt.due_date IS NULL), pt.due_date, pt.created_at`, vals)
-                .map(r => { const t = shape(r); return Object.assign({}, r, t, { board_status: t.status, status: t.status === 'seen' ? 'done' : t.status, result_links: JSON.stringify(t.result_links) }); });
+            const raw = q.all(`${BASE_SELECT} WHERE ${where.join(' AND ')} ORDER BY (pt.status IN ('done','seen')), (pt.due_date IS NULL), pt.due_date, pt.created_at`, vals);
+            const ppl = peopleOf(raw);
+            const rows = raw.map(r => { const t = shape(r, ppl.get(r.id)); return Object.assign({}, r, t, { board_status: t.status, status: t.status === 'seen' ? 'done' : t.status, result_links: JSON.stringify(t.result_links) }); });
             res.json(rows);
         } catch (e) { fail(res, e, 'legacy list'); }
     });
@@ -688,6 +795,7 @@ module.exports = function mountTasks(app, ctx) {
             q.run('DELETE FROM v2_task_comments WHERE task_id = ?', [id]);
             q.all('SELECT * FROM task_files WHERE task_id = ?', [id]).forEach(f => { if (f.file_path && !String(f.file_path).startsWith('s3:')) { try { fs.unlinkSync(f.file_path); } catch (e) {} } });
             q.run('DELETE FROM task_files WHERE task_id = ?', [id]);
+            taskVis.deleteTaskPeople((sql, p) => q.run(sql, p), id);   // its tag rows and its subtasks'
             q.run('DELETE FROM project_tasks WHERE id = ?', [id]);
             audit(req, 'task.delete', 'task ' + id);
             persist();

@@ -185,7 +185,9 @@ const sys = id => q.all(`SELECT body, kind, author_name FROM v2_task_comments WH
         assert.strictEqual(task.creator_first, 'Alen');
         assert.strictEqual(task.due_date, '2026-09-22');
         assert.strictEqual(task.priority, 'high');
-        assert.deepStrictEqual(sys(taskId).map(x => x.body), ['Alen created the task and assigned it to Laura']);
+        assert.deepStrictEqual(sys(taskId).map(x => x.body), ['Alen created the task and tagged Laura']);
+        assert.deepStrictEqual(task.people.map(p => [p.id, p.first]), [[M.laura, 'Laura']], 'the card carries its people');
+        assert.deepStrictEqual(q.all('SELECT member_id FROM v2_task_people WHERE task_id = ?', [taskId]).map(r => r.member_id), [M.laura], 'assigned_to alone = one tag row');
         assert.strictEqual(emails.length, 1);
         assert.strictEqual(emails[0].to, 'laura.rodman@medx.hr');
         assert.strictEqual(emails[0].subject, 'Alen gave you a task: Find Turkish Airlines flights for Boston');
@@ -378,7 +380,9 @@ const sys = id => q.all(`SELECT body, kind, author_name FROM v2_task_comments WH
         assert.strictEqual(r.body.task.assignee_first, 'Miro');
         assert.strictEqual(emails.length, 1);
         assert.strictEqual(emails[0].to, 'vp@medx.hr');
-        assert.ok(sys(taskId).some(x => x.body === 'Alen assigned to Miro'));
+        assert.ok(sys(taskId).some(x => x.body === 'Alen tagged Miro'), 'assigned_to alone = the one person: Miro tagged…');
+        assert.ok(sys(taskId).some(x => x.body === 'Alen removed Laura'), '…and Laura taken off');
+        assert.deepStrictEqual(r.body.task.people.map(p => p.first), ['Miro']);
         emails.length = 0;
         await call('PUT', `/api/v2/tasks/:id`, as.alen, { params: { id: taskId }, body: { assigned_to: M.alen } });
         assert.strictEqual(emails.length, 0, 'no email to yourself');
@@ -670,6 +674,8 @@ const sys = id => q.all(`SELECT body, kind, author_name FROM v2_task_comments WH
         d2.run(`CREATE TABLE project_tasks (id TEXT PRIMARY KEY, title TEXT, created_by TEXT, assigned_to TEXT, parent_id TEXT)`);
         d2.run(`CREATE TABLE task_files (id TEXT PRIMARY KEY, task_id TEXT)`);
         d2.run(`CREATE TABLE nag_items (id TEXT PRIMARY KEY, kind TEXT, subject_id TEXT)`);
+        vis.ensureTaskPeopleTable(sql => d2.run(sql));
+        vis.ensureTaskPeopleTable(sql => d2.run(sql));   // idempotent
         const g2 = (sql, p) => { const st = d2.prepare(sql); st.bind(p || []); const r = st.step() ? st.getAsObject() : null; st.free(); return r; };
         const all2 = (sql, p) => { const st = d2.prepare(sql); st.bind(p || []); const o = []; while (st.step()) o.push(st.getAsObject()); st.free(); return o; };
         d2.run(`INSERT INTO team_members VALUES ('tmB1','uB','B'),('tmB2','uB','B again'),('tmD','uD','D'),('tmLoose',NULL,'B stale')`);
@@ -712,12 +718,49 @@ const sys = id => q.all(`SELECT body, kind, author_name FROM v2_task_comments WH
         assert.ok(vis.isTaskPrivateTable('project_tasks') && vis.isTaskPrivateTable('_purged_task_files') && vis.isTaskPrivateTable('V2_TASK_COMMENTS') && !vis.isTaskPrivateTable('registrations'));
         assert.strictEqual(vis.techRowScope('registrations', 't', { id: 'uC' }), null);
         assert.throws(() => vis.visibleTaskSql('pt; DROP TABLE x', 'uA'));
+        assert.ok(vis.isTaskPrivateTable('v2_task_people') && vis.isTaskPrivateTable('_purged_v2_task_people'), 'who is on a task is task content');
+        // MORE THAN ONE PERSON: a tagged account sees the task (and its subtasks) through any of its team
+        // rows; a tag row of a task whose assigned_to is not among its tag rows (an old one-person writer
+        // moved it) is stale and counts for nobody; no assigned_to → no tag counts
+        const run2 = (sql, p) => d2.run(sql, p);
+        d2.run(`INSERT INTO team_members VALUES ('tmE','uE','E'),('tmF','uF','F')`);
+        d2.run(`INSERT INTO project_tasks VALUES ('m1','multi','uA','tmB1',NULL),('m1s','sub of m1','uA',NULL,'m1'),('m2','stale','uA','tmD',NULL),('m3','cleared','uA',NULL,NULL)`);
+        assert.deepStrictEqual(vis.setTaskPeople(run2, 'm1', ['tmB1', 'tmE', 'tmE', '', null, 'tmF'], 'uA', '2026-09-25T10:00:00Z'), ['tmB1', 'tmE', 'tmF'], 'duplicates and blanks collapse');
+        vis.setTaskPeople(run2, 'm1s', ['tmD'], 'uA');                                 // a subtask's own tag row: the subtask follows its parent anyway
+        d2.run(`INSERT INTO v2_task_people VALUES ('m2','tmE','uA','x'),('m2','tmF','uA','x'),('m3','tmE','uA','x')`);   // m2: assigned_to tmD is not tagged → stale
+        assert.deepStrictEqual(sees('uE'), ['m1', 'm1s'], 'E: tagged on m1 (+ its subtask); m2 is stale, m3 has no one');
+        assert.deepStrictEqual(sees('uF'), ['m1', 'm1s']);
+        assert.deepStrictEqual(sees('uD'), ['m2'], 'D: the first person of m2; its own subtask tag on m1s grants nothing');
+        assert.ok(vis.canSeeTask(g2, 'uB', 'm1') && vis.canSeeTask(g2, 'uE', 'm1s') && !vis.canSeeTask(g2, 'uE', 'm2') && !vis.canSeeTask(g2, 'uC', 'm1'));
+        const on = uid => { const v = vis.onTaskSql('pt', uid); return all2(`SELECT pt.id FROM project_tasks pt WHERE pt.parent_id IS NULL AND ${v.sql} ORDER BY pt.id`, v.params).map(r => r.id); };
+        assert.deepStrictEqual(on('uE'), ['m1']); assert.deepStrictEqual(on('uA'), [], 'the creator is not ON a task she only made'); assert.deepStrictEqual(on(null), []);
+        const onM = mid => { const v = vis.onTaskMemberSql('pt', mid); return all2(`SELECT pt.id FROM project_tasks pt WHERE pt.parent_id IS NULL AND ${v.sql} ORDER BY pt.id`, v.params).map(r => r.id); };
+        assert.deepStrictEqual(onM('tmF'), ['m1']); assert.deepStrictEqual(onM('tmD'), ['m2']); assert.deepStrictEqual(onM('tmB1'), ['m1']); assert.deepStrictEqual(onM('tmB2'), ['t1'], 'a team row, not the account');
+        assert.deepStrictEqual(vis.orderTaskPeople('tmB1', ['tmE', 'tmB1', 'tmF']), ['tmB1', 'tmE', 'tmF'], 'the first person first, the rest in tag order');
+        assert.deepStrictEqual(vis.orderTaskPeople('tmD', ['tmE', 'tmF']), ['tmD'], 'stale tags ignored');
+        assert.deepStrictEqual(vis.orderTaskPeople(null, ['tmE']), [], 'no first person, no one');
+        // untag the first person → the next one tagged is the first; untag everyone → assigned_to NULL
+        vis.setTaskPeople(run2, 'm1', ['tmE', 'tmF'], 'uA');
+        assert.strictEqual(g2(`SELECT assigned_to FROM project_tasks WHERE id = 'm1'`).assigned_to, 'tmE');
+        assert.deepStrictEqual(sees('uB'), ['s1', 't1'], 'B lost m1 (and its subtask)');
+        vis.setTaskPeople(run2, 'm1', [], 'uA');
+        assert.strictEqual(g2(`SELECT assigned_to FROM project_tasks WHERE id = 'm1'`).assigned_to, null);
+        assert.strictEqual(g2(`SELECT COUNT(*) AS c FROM v2_task_people WHERE task_id = 'm1'`).c, 0);
+        assert.deepStrictEqual(sees('uE'), [], 'E lost it');
+        assert.ok(vis.canSeeTask(g2, 'uA', 'm1'), 'the creator never does');
+        vis.setTaskPeople(run2, 'm1', ['tmE'], 'uA');
+        vis.deleteTaskPeople(run2, 'm1');
+        assert.strictEqual(g2(`SELECT COUNT(*) AS c FROM v2_task_people WHERE task_id IN ('m1','m1s')`).c, 0, 'deleting a task deletes its tag rows and its subtasks\'');
+        const nags2 = uid => { const v = vis.visibleNagSql('nag_items', uid); return all2(`SELECT id FROM nag_items WHERE ${v.sql} ORDER BY id`, v.params).map(r => r.id); };
+        d2.run(`INSERT INTO nag_items VALUES ('n4','task_overdue','m2')`);
+        assert.deepStrictEqual(nags2('uD'), ['n2', 'n4']); assert.deepStrictEqual(nags2('uE'), ['n2'], 'a stale tag never reaches the Action Center either');
     });
 
     await t('PRIVACY: the board never promises "everyone" and says who can see a card (add bar + drawer)', () => {
         const src = fs.readFileSync(path.join(ROOT, 'admin-portal/frontend-v2/js/views/tasks.js'), 'utf8');
         assert.ok(!/'EVERYONE'/.test(src), 'no EVERYONE filter');
-        assert.ok(/Only you and \$\{who\} will see this task\./.test(src), 'the add bar line');
+        assert.ok(/untagged: 'Only you will see this task until you tag someone\.'/.test(src), 'the add bar line before anyone is tagged');
+        assert.ok(/Only \$\{nameList\(\['you'\]\.concat\(names\)\)\} can see this task\./.test(src), 'the line that names who can see it ("Only you, Laura and Miro …")');
         assert.ok(/data-role="addPrivacy"/.test(src) && /data-role="privacy"/.test(src), 'both lines are rendered');
         assert.ok(!/\bhonest|\bplainly/i.test(src), 'house style');
         const chrome = fs.readFileSync(path.join(ROOT, 'admin-portal/frontend-v2/js/chrome.js'), 'utf8');
@@ -753,6 +796,245 @@ const sys = id => q.all(`SELECT body, kind, author_name FROM v2_task_comments WH
             // no ungated read of a single task by id is left
             assert.ok(!/query\.get\('SELECT (id|status) FROM project_tasks WHERE id = \?'/.test(src), file + ' still reads a task by id without the rule');
         }
+    });
+
+    // ================================================================ MORE THAN ONE PERSON (Alen, 25 Sept 2026)
+    // "in tasks please let us tag more than one person". A = Laura (creates) · B = Bea and C = Cleo (tagged)
+    // · D = Dino (on nothing — the same 404 as a missing task everywhere) · E = Ema (an admin with no team
+    // row, tagged as user:<id>). Fresh people, so every count below is exact.
+    for (const [k, first, last] of [['bea', 'Bea', 'Babic'], ['cleo', 'Cleo', 'Cvitan'], ['dino', 'Dino', 'Dragic'], ['ema', 'Ema', 'Ercegovac']]) {
+        q.run(`INSERT INTO users (id, email, first_name, last_name, is_admin) VALUES (?,?,?,?,1)`, ['u-' + k, k + '@medx.hr', first, last]);
+        if (k !== 'ema') q.run(`INSERT INTO team_members (id, user_id, name, role) VALUES (?,?,?,?)`, ['tm-' + k, 'u-' + k, first + ' ' + last, 'Team']);
+        as[k] = { id: 'u-' + k, email: k + '@medx.hr', is_admin: 1 };
+    }
+    let mid = null, mfid = null;
+    const tags = id => q.all('SELECT member_id FROM v2_task_people WHERE task_id = ? ORDER BY added_at, rowid', [id]).map(r => r.member_id);
+    const assignedTo = id => (q.get('SELECT assigned_to FROM project_tasks WHERE id = ?', [id]) || {}).assigned_to;
+    const detail = async (user, id) => call('GET', '/api/v2/tasks/:id', user, { params: { id } });
+    const put = (user, id, body) => call('PUT', '/api/v2/tasks/:id', user, { params: { id }, body });
+    const badgeOf = async user => (await call('GET', '/api/v2/tasks/badge', user)).body;
+
+    await t('MULTI: Laura tags Bea AND Cleo on one task → assigned_to is Bea (the first), both tag rows, one email to each, one activity row', async () => {
+        emails.length = 0;
+        const r = await call('POST', '/api/v2/tasks', as.laura, { body: { title: 'Qmt Split venue shortlist', description: 'three halls, prices', assignees: ['tm-bea', 'tm-cleo'], due_date: '2026-09-02' } });
+        assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+        mid = r.body.id;
+        assert.strictEqual(assignedTo(mid), 'tm-bea');
+        assert.deepStrictEqual(tags(mid), ['tm-bea', 'tm-cleo']);
+        assert.deepStrictEqual(r.body.task.people, [{ id: 'tm-bea', user_id: 'u-bea', name: 'Bea Babic', first: 'Bea' }, { id: 'tm-cleo', user_id: 'u-cleo', name: 'Cleo Cvitan', first: 'Cleo' }]);
+        assert.strictEqual(r.body.task.assignee_first, 'Bea', 'the legacy fields name the first person');
+        assert.deepStrictEqual(sys(mid).map(x => x.body), ['Laura created the task and tagged Bea and Cleo']);
+        assert.deepStrictEqual(emails.map(e => e.to).sort(), ['bea@medx.hr', 'cleo@medx.hr'], 'each person tagged, once; never the creator');
+        assert.ok(emails.every(e => e.subject === 'Laura gave you a task: Qmt Split venue shortlist'));
+        assert.strictEqual((await call('POST', '/api/v2/tasks/:id/comments', as.laura, { params: { id: mid }, body: { body: 'qmt-comment the one near the Riva' } })).status, 200);
+        const buf = Buffer.from('%PDF-1.7\nqmt halls\n%%EOF');
+        const up = await call('POST', '/api/v2/tasks/:id/files', as.laura, { params: { id: mid }, file: { originalname: 'qmt-halls.pdf', mimetype: 'application/pdf', buffer: buf, size: buf.length } });
+        assert.strictEqual(up.status, 200); mfid = up.body.file.id;
+    });
+
+    await t('MULTI: Bea (first) and Cleo (tagged) both see it everywhere — detail, board, MINE, search, badge, comments, files, the file by Bearer, the legacy list', async () => {
+        for (const k of ['bea', 'cleo']) {
+            const d = await detail(as[k], mid);
+            assert.strictEqual(d.status, 200, k);
+            assert.deepStrictEqual(d.body.task.people.map(p => p.first), ['Bea', 'Cleo'], k);
+            assert.ok((await listIds(as[k])).includes(mid), k + ' board');
+            assert.ok((await listIds(as[k], { assignee: 'me' })).includes(mid), k + ' MINE');
+            assert.ok((await listIds(as[k], { q: 'venue shortlist' })).includes(mid), k + ' search title');
+            assert.ok((await listIds(as[k], { q: 'qmt-comment' })).includes(mid), k + ' search comment');
+            assert.strictEqual((await badgeOf(as[k])).assigned_open, 1, k + ' badge');
+            assert.strictEqual((await call('GET', '/api/v2/tasks/:id/comments', as[k], { params: { id: mid } })).status, 200, k + ' comments');
+            assert.strictEqual((await call('POST', '/api/v2/tasks/:id/comments', as[k], { params: { id: mid }, body: { body: 'on it — ' + k } })).status, 200, k + ' comment');
+            assert.strictEqual((await call('GET', '/api/v2/tasks/:id/files', as[k], { params: { id: mid } })).status, 200, k + ' files');
+            const dl = await call('GET', '/api/v2/tasks/files/:fid', as[k], { params: { fid: mfid }, query: { json: '1' } });
+            assert.strictEqual(dl.status, 200, k + ' file'); assert.strictEqual(dl.body.name, 'qmt-halls.pdf');
+            assert.ok((await legacyIds(as[k])).includes(mid), k + ' legacy list');
+            assert.strictEqual((await put(as[k], mid, { status: 'doing' })).status, 200, k + ' may move it');
+        }
+        // FOR <NAME>: Laura's filter for Cleo (tagged, not first) finds it, as it finds it for Bea
+        assert.ok((await listIds(as.laura, { assignee: 'tm-cleo' })).includes(mid), 'FOR CLEO');
+        assert.ok((await listIds(as.laura, { assignee: 'tm-bea' })).includes(mid), 'FOR BEA');
+        assert.ok(!(await listIds(as.laura, { assignee: 'tm-dino' })).includes(mid), 'not FOR DINO');
+        assert.ok(!(await listIds(as.laura, { assignee: 'me' })).includes(mid), 'Laura made it but is not on it: not in her MINE');
+    });
+
+    await t('MULTI: Dino (on nothing) gets the SAME 404 as a missing task on every route, finds it in no list, search or badge, and nothing changes', async () => {
+        const before = q.get('SELECT title, status, archived_at, result_text, assigned_to FROM project_tasks WHERE id = ?', [mid]);
+        const nTags = tags(mid).length;
+        emails.length = 0;
+        const hidden = await everyRoute(as.dino, mid);
+        const missing = await everyRoute(as.dino, MISSING);
+        for (const k of Object.keys(hidden)) {
+            assert.strictEqual(hidden[k][0], 404, k + ' must be 404, got ' + hidden[k][0]);
+            assert.deepStrictEqual(hidden[k], missing[k], k + ': hidden must answer exactly like missing');
+        }
+        const tagHidden = await put(as.dino, mid, { assignees: ['tm-dino'] });
+        const tagMissing = await put(as.dino, MISSING, { assignees: ['tm-dino'] });
+        assert.deepStrictEqual([tagHidden.status, tagHidden.body], [tagMissing.status, tagMissing.body], 'tagging himself on: the missing answer');
+        const dl = await call('GET', '/api/v2/tasks/files/:fid', as.dino, { params: { fid: mfid }, query: { json: '1' } });
+        const dlMissing = await call('GET', '/api/v2/tasks/files/:fid', as.dino, { params: { fid: 'no-such-file' }, query: { json: '1' } });
+        assert.deepStrictEqual([dl.status, dl.body], [dlMissing.status, dlMissing.body]);
+        for (const query of [{}, { assignee: 'me' }, { assignee: 'tm-bea' }, { assignee: 'tm-cleo' }, { q: 'venue' }, { q: 'qmt-comment' }, { q: 'qmt-halls' }, { archived: '1' }]) {
+            assert.ok(!(await listIds(as.dino, query)).includes(mid), 'Dino sees it with ' + JSON.stringify(query));
+        }
+        assert.ok(!(await legacyIds(as.dino)).includes(mid));
+        assert.deepStrictEqual(await badgeOf(as.dino), { done_unseen: 0, assigned_open: 0, member_id: 'tm-dino' });
+        assert.deepStrictEqual(q.get('SELECT title, status, archived_at, result_text, assigned_to FROM project_tasks WHERE id = ?', [mid]), before);
+        assert.strictEqual(tags(mid).length, nTags);
+        assert.strictEqual(emails.length, 0);
+    });
+
+    await t('MULTI: assignees are resolved like assigned_to — duplicates collapse, user:<id> makes the team row, at most 12, an unknown person is refused before any row is made', async () => {
+        const dup = await call('POST', '/api/v2/tasks', as.laura, { body: { title: 'Qmt dup', assignees: ['tm-bea', 'tm-bea', ' tm-bea ', 'user:u-bea', ''] } });
+        assert.strictEqual(dup.status, 200); assert.deepStrictEqual(tags(dup.body.id), ['tm-bea'], 'one person, once');
+        const rows = q.get('SELECT COUNT(*) AS c FROM team_members').c;
+        const bad = await call('POST', '/api/v2/tasks', as.laura, { body: { title: 'Qmt bad', assignees: ['user:u-ema', 'nobody-here'] } });
+        assert.strictEqual(bad.status, 400); assert.strictEqual(q.get('SELECT COUNT(*) AS c FROM team_members').c, rows, 'no team row made for Ema by a refused request');
+        assert.strictEqual((await call('POST', '/api/v2/tasks', as.laura, { body: { title: 'Qmt notalist', assignees: 'tm-bea' } })).status, 400);
+        for (let i = 0; i < 13; i++) q.run(`INSERT INTO team_members (id, user_id, name, role) VALUES (?,?,?,?)`, ['tm-crowd-' + i, null, 'Crowd Person ' + i, 'Volunteer']);
+        const crowd = Array.from({ length: 13 }, (_, i) => 'tm-crowd-' + i);
+        const tooMany = await call('POST', '/api/v2/tasks', as.laura, { body: { title: 'Qmt crowd', assignees: crowd } });
+        assert.strictEqual(tooMany.status, 400); assert.match(tooMany.body.error, /at most 12/);
+        const twelve = await call('POST', '/api/v2/tasks', as.laura, { body: { title: 'Qmt twelve', assignees: crowd.slice(0, 12) } });
+        assert.strictEqual(twelve.status, 200); assert.strictEqual(tags(twelve.body.id).length, 12);
+        for (const id of [dup.body.id, twelve.body.id]) await call('DELETE', '/api/admin/tasks/:id', as.laura, { params: { id } });
+        q.run(`DELETE FROM team_members WHERE id LIKE 'tm-crowd-%'`);
+    });
+
+    await t('MULTI: untag Cleo → Cleo gets the 404 and loses it everywhere; Bea keeps it; "Laura removed Cleo"; nobody is emailed', async () => {
+        emails.length = 0;
+        const r = await put(as.laura, mid, { assignees: ['tm-bea'] });
+        assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+        assert.deepStrictEqual(r.body.task.people.map(p => p.first), ['Bea']);
+        assert.deepStrictEqual(tags(mid), ['tm-bea']);
+        const c = await detail(as.cleo, mid); const cm = await detail(as.cleo, MISSING);
+        assert.deepStrictEqual([c.status, c.body], [cm.status, cm.body]);
+        assert.ok(!(await listIds(as.cleo)).includes(mid) && !(await listIds(as.cleo, { assignee: 'me' })).includes(mid) && !(await listIds(as.cleo, { q: 'venue' })).includes(mid));
+        assert.strictEqual((await badgeOf(as.cleo)).assigned_open, 0);
+        assert.strictEqual((await call('GET', '/api/v2/tasks/files/:fid', as.cleo, { params: { fid: mfid }, query: { json: '1' } })).status, 404);
+        assert.strictEqual((await detail(as.bea, mid)).status, 200);
+        assert.ok(sys(mid).some(x => x.body === 'Laura removed Cleo'));
+        assert.strictEqual(emails.length, 0);
+    });
+
+    await t('MULTI: tag Cleo again and Ema (user:<id>, no team row yet) → only the two NEWLY tagged are emailed, once; the same set again changes nothing', async () => {
+        emails.length = 0;
+        const r = await put(as.laura, mid, { assignees: ['tm-bea', 'tm-cleo', 'user:u-ema'] });
+        assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+        const emaRow = q.get(`SELECT id FROM team_members WHERE user_id = 'u-ema'`);
+        assert.ok(emaRow, 'Ema\'s team row is made on her first tag');
+        assert.deepStrictEqual(tags(mid), ['tm-bea', 'tm-cleo', emaRow.id]);
+        assert.deepStrictEqual(emails.map(e => e.to).sort(), ['cleo@medx.hr', 'ema@medx.hr'], 'not Bea (already on it), not Laura (the actor)');
+        assert.ok(sys(mid).some(x => x.body === 'Laura tagged Cleo and Ema'));
+        emails.length = 0;
+        const again = await put(as.laura, mid, { assignees: [emaRow.id, 'tm-cleo', 'tm-bea'] });
+        assert.strictEqual(again.body.unchanged, true, 'the same people in another order is no change');
+        assert.strictEqual(emails.length, 0);
+        assert.strictEqual((await detail(as.ema, mid)).status, 200);
+        assert.ok((await listIds(as.ema, { assignee: 'me' })).includes(mid));
+    });
+
+    await t('MULTI: untag Bea (the first person) → assigned_to moves to the next one tagged (Cleo); Bea loses it', async () => {
+        const r = await put(as.laura, mid, { assignees: ['tm-cleo', q.get(`SELECT id FROM team_members WHERE user_id = 'u-ema'`).id] });
+        assert.strictEqual(r.status, 200);
+        assert.strictEqual(assignedTo(mid), 'tm-cleo');
+        assert.strictEqual(r.body.task.assignee_first, 'Cleo');
+        assert.deepStrictEqual(r.body.task.people.map(p => p.first), ['Cleo', 'Ema']);
+        assert.strictEqual((await detail(as.bea, mid)).status, 404);
+        assert.strictEqual((await badgeOf(as.bea)).assigned_open, 0, 'nothing open for Bea any more');
+        assert.ok(!(await listIds(as.bea, { assignee: 'me' })).includes(mid));
+    });
+
+    await t('MULTI: Cleo (not the creator) takes herself off → the answer carries no card (handed_off), "Cleo left the task", she gets the 404; Ema is first now', async () => {
+        const r = await put(as.cleo, mid, { assignees: [q.get(`SELECT id FROM team_members WHERE user_id = 'u-ema'`).id] });
+        assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+        assert.strictEqual(r.body.handed_off, true); assert.strictEqual(r.body.task, null);
+        assert.ok(sys(mid).some(x => x.body === 'Cleo left the task'));
+        assert.strictEqual((await detail(as.cleo, mid)).status, 404);
+        assert.strictEqual(assignedTo(mid), q.get(`SELECT id FROM team_members WHERE user_id = 'u-ema'`).id);
+    });
+
+    await t('MULTI: untag everyone → assigned_to NULL, no tag rows, only Laura (the creator) sees it', async () => {
+        const r = await put(as.laura, mid, { assignees: [] });
+        assert.strictEqual(r.status, 200); assert.deepStrictEqual(r.body.task.people, []);
+        assert.strictEqual(assignedTo(mid), null); assert.deepStrictEqual(tags(mid), []);
+        for (const k of ['bea', 'cleo', 'ema', 'dino']) assert.strictEqual((await detail(as[k], mid)).status, 404, k);
+        assert.strictEqual((await detail(as.laura, mid)).status, 200);
+    });
+
+    await t('MULTI: assigned_to alone is one person — the same first person changes nothing (a legacy edit drops no one); another person makes the task theirs alone', async () => {
+        await put(as.laura, mid, { assignees: ['tm-bea', 'tm-cleo'] });
+        emails.length = 0;
+        const same = await call('PUT', '/api/admin/tasks/:id', as.laura, { params: { id: mid }, body: { title: 'Qmt Split venue shortlist (v2)', assigned_to: 'tm-bea' } });
+        assert.strictEqual(same.status, 200);
+        assert.deepStrictEqual(tags(mid), ['tm-bea', 'tm-cleo'], 'Cleo is still on it');
+        const moved = await put(as.laura, mid, { assigned_to: 'tm-dino' });
+        assert.strictEqual(moved.status, 200);
+        assert.deepStrictEqual(tags(mid), ['tm-dino']); assert.strictEqual(assignedTo(mid), 'tm-dino');
+        assert.strictEqual((await detail(as.bea, mid)).status, 404); assert.strictEqual((await detail(as.cleo, mid)).status, 404);
+        assert.strictEqual((await detail(as.dino, mid)).status, 200);
+        assert.deepStrictEqual(emails.map(e => e.to), ['dino@medx.hr']);
+    });
+
+    await t('MULTI: a one-person writer that knows nothing of tags (the old portals share the DB) moves assigned_to → the stale tag rows grant nothing', async () => {
+        await put(as.laura, mid, { assignees: ['tm-bea', 'tm-cleo'] });
+        assert.strictEqual((await detail(as.cleo, mid)).status, 200);
+        q.run(`UPDATE project_tasks SET assigned_to = 'tm-dino' WHERE id = ?`, [mid]);   // what the old portal's reassign writes
+        assert.strictEqual((await detail(as.bea, mid)).status, 404, 'Bea (old first person) loses it');
+        assert.strictEqual((await detail(as.cleo, mid)).status, 404, 'Cleo (tagged) loses it too: the task moved to one person');
+        const d = await detail(as.dino, mid);
+        assert.strictEqual(d.status, 200); assert.deepStrictEqual(d.body.task.people.map(p => p.first), ['Dino']);
+        assert.ok(!(await listIds(as.cleo, { assignee: 'me' })).includes(mid)); assert.strictEqual((await badgeOf(as.cleo)).assigned_open, 0);
+        // the board's next edit writes a clean set
+        const r = await put(as.laura, mid, { assignees: ['tm-dino', 'tm-cleo'] });
+        assert.deepStrictEqual(tags(mid), ['tm-dino', 'tm-cleo']); assert.deepStrictEqual(r.body.task.people.map(p => p.first), ['Dino', 'Cleo']);
+    });
+
+    await t('MULTI: the creator tagging herself too — "Laura created the task, joined it and tagged Bea"; she is on it (MINE)', async () => {
+        emails.length = 0;
+        const r = await call('POST', '/api/v2/tasks', as.laura, { body: { title: 'Qmt joint errand', assignees: [M.laura, 'tm-bea'] } });
+        assert.deepStrictEqual(sys(r.body.id).map(x => x.body), ['Laura created the task, joined it and tagged Bea']);
+        assert.deepStrictEqual(emails.map(e => e.to), ['bea@medx.hr'], 'never an email to yourself');
+        assert.ok((await listIds(as.laura, { assignee: 'me' })).includes(r.body.id));
+        await call('DELETE', '/api/admin/tasks/:id', as.laura, { params: { id: r.body.id } });
+    });
+
+    await t('MULTI: an unlinked team row that is TAGGED (not first) on a task is never linked to an admin by name', async () => {
+        q.run(`INSERT INTO team_members (id, user_id, name, role) VALUES ('tm-gus', NULL, 'Gus Galic', 'Volunteer')`);
+        const r = await call('POST', '/api/v2/tasks', as.laura, { body: { title: 'Qmt Gus private', assignees: ['tm-bea', 'tm-gus'] } });
+        q.run(`INSERT INTO users (id, email, first_name, last_name, is_admin) VALUES ('u-gus-imp', 'gus@example.com', 'Gus', 'Galic', 1)`);
+        const imp = { id: 'u-gus-imp', email: 'gus@example.com', is_admin: 1 };
+        const list = await call('GET', '/api/v2/tasks', imp);
+        assert.strictEqual(q.get(`SELECT user_id FROM team_members WHERE id = 'tm-gus'`).user_id, null, 'the tagged row stays unlinked');
+        assert.ok(!list.body.tasks.some(x => x.id === r.body.id));
+        assert.strictEqual((await detail(imp, r.body.id)).status, 404);
+        await call('DELETE', '/api/admin/tasks/:id', as.laura, { params: { id: r.body.id } });
+        q.run(`DELETE FROM team_members WHERE id = 'tm-gus'`); q.run(`DELETE FROM users WHERE id = 'u-gus-imp'`);
+    });
+
+    await t('MULTI: deleting a task deletes its tag rows and its subtasks\' tag rows', async () => {
+        const r = await call('POST', '/api/v2/tasks', as.laura, { body: { title: 'Qmt to delete', assignees: ['tm-bea', 'tm-cleo'] } });
+        const id = r.body.id;
+        q.run(`INSERT INTO project_tasks (id, project, title, status, created_by, parent_id) VALUES ('qmt-sub', 'general', 'Qmt sub', 'todo', ?, ?)`, [U.laura, id]);
+        q.run(`INSERT INTO v2_task_people (task_id, member_id, added_by, added_at) VALUES ('qmt-sub', 'tm-cleo', ?, ?)`, [U.laura, new Date().toISOString()]);
+        assert.strictEqual(q.get(`SELECT COUNT(*) AS c FROM v2_task_people WHERE task_id IN (?, 'qmt-sub')`, [id]).c, 3);
+        const d = await call('DELETE', '/api/admin/tasks/:id', as.laura, { params: { id } });
+        assert.strictEqual(d.status, 200);
+        assert.strictEqual(q.get(`SELECT COUNT(*) AS c FROM v2_task_people WHERE task_id IN (?, 'qmt-sub')`, [id]).c, 0);
+        q.run(`DELETE FROM project_tasks WHERE id = 'qmt-sub'`);
+    });
+
+    await t('MULTI: the board view — chips + ADD PERSON in the add bar and the drawer, up to three names on a card, the privacy line never names someone without an account', () => {
+        const src = fs.readFileSync(path.join(ROOT, 'admin-portal/frontend-v2/js/views/tasks.js'), 'utf8');
+        assert.ok(/peopleField\(addChosen\(\), 'addWho', 'untagAdd'\)/.test(src), 'the add bar WHO is the chips field');
+        assert.ok(/peopleField\(peopleOf\(t\), 'who', 'untag'\)/.test(src), 'the drawer WHO is the chips field');
+        assert.ok(/assignees: st\.addPeople/.test(src) && /\{ assignees: ids \}/.test(src), 'both send assignees');
+        assert.ok(/names\.slice\(0, 3\)\.join\(' · '\)/.test(src), 'up to three first names on a card');
+        assert.ok(/if \(!p \|\| !p\.user_id \|\| isMePerson\(p\)/.test(src), 'a person without an account is never named');
+        assert.ok(!/\bhonest|\bplainly/i.test(src));
+        const today = fs.readFileSync(path.join(ROOT, 'admin-portal/frontend-v2/js/views/today.js'), 'utf8');
+        assert.ok(/const myTasks = tasks\.filter\(onMe\)/.test(today), 'Today\'s YOUR TASKS counts a task I am tagged on');
+        const css = fs.readFileSync(path.join(ROOT, 'admin-portal/frontend-v2/css/views/tasks.css'), 'utf8');
+        assert.ok(/\.mx-person, \.mx-person-add \{ height: 44px; \}/.test(css), '44 px targets on a phone');
     });
 
     await t('every write left an audit row', () => {

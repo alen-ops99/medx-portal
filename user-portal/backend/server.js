@@ -13,7 +13,7 @@ const Database = require('libsql');
 const { createDatabase } = require('../../shared/db');
 const { aiDraft } = require('../../shared/ai');
 const caMerge = require('../../shared/ca-merge'); // merged duplicate /plexus registrations follow their survivor
-const taskVis = require('../../shared/task-visibility'); // WHO SEES A TASK (25 Sept 2026): only its creator and its assignee
+const taskVis = require('../../shared/task-visibility'); // WHO SEES A TASK (25 Sept 2026): only its creator and the people on it
 const wallet = require('../../shared/wallet'); // Google Wallet event-ticket passes (env-gated; no-op until configured)
 const safetyCore = require('../../shared/safety-core'); // REPORT / BLOCK / moderation / content filter (App Store 1.2)
 const faqKb = require('./faq-kb'); // Member FAQ Assistant grounding corpus + deterministic retrieval (queue 5a6)
@@ -7848,6 +7848,9 @@ async function initializeApp() {
         uploaded_at TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (task_id) REFERENCES project_tasks(id) ON DELETE CASCADE
     )`);
+    // Everyone tagged on a task (25 Sept 2026): the legacy /api/tasks* routes and search read the task
+    // rule, which reads this table, so it exists before the first request (shared/task-visibility.js)
+    try { taskVis.ensureTaskPeopleTable((sql, p) => db.run(sql, p)); } catch (e) { console.error('[tasks] v2_task_people schema:', e.message); }
 
     // Project timeline events table
     db.run(`CREATE TABLE IF NOT EXISTS project_timeline_events (
@@ -20036,11 +20039,14 @@ By applying to this program, I provide the following consents:
 
     // ========== PROJECT TASKS ROUTES ==========
     // The v1 SPA's per-project task lists (the same rows the admin board uses — one Turso DB). Every
-    // route here follows the task rule (only the creator and the assignee see a task —
+    // route here follows the task rule (only the creator and the people on it see a task —
     // shared/task-visibility.js): lists and summaries hold only the caller's own tasks, and a task the
     // caller may not see answers exactly like a missing one.
     const visTasks = (req, alias) => taskVis.visibleTaskSql(alias || 'pt', req.user && req.user.id);
     const visTaskRow = (req, id, cols) => taskVis.visibleTaskRow(query.get.bind(query), req.user && req.user.id, id, cols);
+    // these routes know one person per task: a change of assigned_to makes that person the task's only one
+    // (v2_task_people follows, so nobody tagged earlier keeps it — shared/task-visibility.js)
+    const taskPeopleRun = (sql, p) => db.run(sql, p);
 
     // Get tasks for a project
     app.get('/api/tasks/:project', auth, adminOnly, (req, res) => {
@@ -20091,13 +20097,15 @@ By applying to this program, I provide the following consents:
         db.run(`INSERT INTO project_tasks (id, project, title, description, assigned_to, priority, due_date, created_by, parent_id)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [id, project || 'general', title, description, assigned_to || null, priority || 'medium', due_date, req.user.id, parent_id || null]);
+        if (assigned_to) taskVis.setTaskPeople(taskPeopleRun, id, [assigned_to], req.user.id);
         saveDb();
         res.json({ success: true, id, task_id: id });
     });
 
     // Update task
     app.put('/api/tasks/:id', auth, adminOnly, (req, res) => {
-        if (!visTaskRow(req, req.params.id, 'pt.id')) return res.status(404).json({ error: 'Task not found' });
+        const before = visTaskRow(req, req.params.id, 'pt.id, pt.assigned_to');
+        if (!before) return res.status(404).json({ error: 'Task not found' });
         const { title, description, assigned_to, priority, status, due_date, project } = req.body;
         db.run(`UPDATE project_tasks SET
             title = COALESCE(?, title),
@@ -20110,6 +20118,8 @@ By applying to this program, I provide the following consents:
             completed_at = ${status === 'done' ? "datetime('now')" : 'NULL'}
             WHERE id = ?`,
             [title, description, assigned_to, priority, status, due_date, project, req.params.id]);
+        const after = (query.get('SELECT assigned_to FROM project_tasks WHERE id = ?', [req.params.id]) || {}).assigned_to || null;
+        if ((after || null) !== (before.assigned_to || null)) taskVis.setTaskPeople(taskPeopleRun, req.params.id, after ? [after] : [], req.user.id);
         saveDb();
         res.json({ success: true, id: req.params.id });
     });
@@ -20170,6 +20180,7 @@ By applying to this program, I provide the following consents:
     // Delete task
     app.delete('/api/tasks/:id', auth, adminOnly, (req, res) => {
         if (!visTaskRow(req, req.params.id, 'pt.id')) return res.status(404).json({ error: 'Task not found' });
+        taskVis.deleteTaskPeople(taskPeopleRun, req.params.id);   // its tag rows and its subtasks'
         db.run('DELETE FROM project_tasks WHERE id = ?', [req.params.id]);
         saveDb();
         res.json({ success: true });
@@ -20448,7 +20459,7 @@ By applying to this program, I provide the following consents:
         if (!q || q.length < 2) return res.json({ tasks: [], files: [], folders: [] });
 
         const searchTerm = `%${q}%`;
-        // tasks: only the caller's own (creator or assignee — shared/task-visibility.js)
+        // tasks: only the caller's own (creator or on it — shared/task-visibility.js)
         const tv = taskVis.visibleTaskSql('pt', req.user && req.user.id);
         const tasks = query.all(`SELECT pt.* FROM project_tasks pt WHERE (pt.title LIKE ? OR pt.description LIKE ?) AND ${tv.sql} LIMIT 10`,
             [searchTerm, searchTerm, ...tv.params]);
