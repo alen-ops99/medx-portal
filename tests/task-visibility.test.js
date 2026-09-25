@@ -157,6 +157,9 @@ const listFiles = (dir) => { try { return fs.readdirSync(dir).sort(); } catch (e
             r = await api(ADMIN, '/api/admin/tasks', { token: P.token });
             const cl = (r.d || []).map(x => x.id);
             check(`${P.name}: checklist lists T and K`, cl.includes(T) && cl.includes(K));
+            r = await api(ADMIN, '/api/admin/tasks?project=plexus', { token: P.token });
+            const clp = (r.d || []).map(x => x.id);
+            check(`${P.name}: project-filtered checklist lists T and K`, clp.includes(T) && clp.includes(K));
         }
         r = await api(ADMIN, '/api/dashboard/summary', { token: B.token });
         check('B: dashboard counts his three open tasks (T, S, K)', r.d && r.d.tasks && r.d.tasks.total === 3 && r.d.plexus.pending_tasks === 3, JSON.stringify(r.d && r.d.tasks));
@@ -179,6 +182,8 @@ const listFiles = (dir) => { try { return fs.readdirSync(dir).sort(); } catch (e
             }
             r = await api(ADMIN, '/api/admin/tasks', { token: P.token });
             check(`${P.name}: checklist has no trace of T/K`, r.status === 200 && !r.text.includes(SECRET));
+            r = await api(ADMIN, '/api/admin/tasks?project=plexus', { token: P.token });
+            check(`${P.name}: project-filtered checklist has no trace of T/K`, r.status === 200 && !r.text.includes(SECRET));
         }
         r = await api(ADMIN, '/api/dashboard/portal-stats', { token: C.token });
         check('C: portal-stats overdue/urgent are zero', r.d && r.d.tasks && r.d.tasks.overdue === 0 && r.d.tasks.urgent === 0, JSON.stringify(r.d && r.d.tasks));
