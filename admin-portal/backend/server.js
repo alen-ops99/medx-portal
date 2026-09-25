@@ -36225,10 +36225,14 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             const tables = query.all("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
             const result = tables.map(t => {
                 // a task table's count is the caller's own rows, the same scope as the rows route below
+                // (a count that cannot be scoped reads 0, never the unfiltered count)
                 const scope = taskVis.techRowScope(t.name, 'tt', req.user);
-                const countRow = scope
-                    ? query.get(`SELECT COUNT(*) as cnt FROM "${t.name}" tt WHERE ${scope.sql}`, scope.params)
-                    : query.get(`SELECT COUNT(*) as cnt FROM "${t.name}"`);
+                let countRow = null;
+                try {
+                    countRow = scope
+                        ? query.get(`SELECT COUNT(*) as cnt FROM "${t.name}" tt WHERE ${scope.sql}`, scope.params)
+                        : query.get(`SELECT COUNT(*) as cnt FROM "${t.name}"`);
+                } catch (e) { countRow = null; }
                 const columns = query.all(`PRAGMA table_info("${t.name}")`);
                 return {
                     name: t.name,
