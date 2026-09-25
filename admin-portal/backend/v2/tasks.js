@@ -549,6 +549,10 @@ module.exports = function mountTasks(app, ctx) {
             const stored = `${fid}.${ext}`;
             const mime = String(file.mimetype || 'application/octet-stream').slice(0, 120);
             let filePath;
+            // production disk is ephemeral: a task file is kept only in S3, never on local disk
+            if (!s3Ready() && (process.env.NODE_ENV === 'production' || process.env.RENDER)) {
+                return res.status(503).json({ error: 'File storage is not configured, so the file was not saved. The task itself is saved.' });
+            }
             if (s3Ready()) {
                 const key = `tasks/${id}/${stored}`;
                 await s3().putObject(key, file.buffer, mime);   // S3 first — a DB row only for a stored file
