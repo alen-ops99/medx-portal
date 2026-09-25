@@ -449,6 +449,32 @@ const waitUp = async (base, ms = 150000) => {
         }
         await api(ADMIN, '/api/admin/nag/run', { method: 'POST', token: tok.A });
         check('admin Action Center after the old-portal move: F no longer gets the item', !((((await api(ADMIN, '/api/admin/nag/items', { token: tok.F })).d || {}).items) || []).some(i => i.subject_id === MT));
+        // the database itself collapsed the set (the one-person trigger, created at boot): nothing is left dormant
+        check('after the old-portal move to D the tag rows are D alone (no dormant E/F rows)', tagsOf(MT).join() === TM.D, JSON.stringify(tagsOf(MT)));
+        // D writes on it while it is D's alone; the old portal moves it back to E: F stays off it and never reads D's note
+        r = await api(ADMIN, '/api/v2/tasks/' + MT + '/comments', { method: 'POST', token: tok.D, body: { body: 'Qmtag D private note while it was mine' } });
+        check('admin POST /api/v2/tasks/:id/comments: D (its one person now) writes a note', r.status === 200, JSON.stringify(r.d).slice(0, 160));
+        x(`UPDATE project_tasks SET assigned_to = ? WHERE id = ?`, [TMM.E, MT]);
+        check('after the old portal moves it back to E the tag rows are E alone (F is not revived)', tagsOf(MT).join() === TMM.E, JSON.stringify(tagsOf(MT)));
+        {
+            const fc = await api(ADMIN, '/api/v2/tasks/' + MT + '/comments', { token: tok.F }); const fcm = await api(ADMIN, '/api/v2/tasks/tp-no-such-task/comments', { token: tok.F });
+            check('admin GET /api/v2/tasks/:id/comments after the round trip: F gets the missing answer (never D\'s note)', fc.status === 404 && same(fc, fcm), JSON.stringify(fc.d).slice(0, 160));
+        }
+        for (const [label, base] of [['admin', ADMIN], ['member', USER]]) {
+            check(`${label} after the old-portal round trip D→E: F and D do not have it, E does`, !hasMt((await api(base, '/api/tasks/plexus', { token: tok.F })).d) && !hasMt((await api(base, '/api/tasks/plexus', { token: tok.D })).d)
+                && hasMt((await api(base, '/api/tasks/plexus', { token: tok.E })).d) && !titlesIn(((await api(base, '/api/search?q=qmtag', { token: tok.F })).d || {}).tasks).length);
+        }
+        // the old portal moves it to someone ALREADY tagged (E, F → F): E, the previous first person, loses it
+        await api(ADMIN, '/api/v2/tasks/' + MT, { method: 'PUT', token: tok.A, body: { assignees: [TMM.E, TMM.F] } });
+        x(`UPDATE project_tasks SET assigned_to = ? WHERE id = ?`, [TMM.F, MT]);
+        check('an old-portal move to F (already tagged) makes it F\'s alone', tagsOf(MT).join() === TMM.F, JSON.stringify(tagsOf(MT)));
+        for (const [label, base] of [['admin', ADMIN], ['member', USER]]) {
+            check(`${label} after the old-portal move E→F: E lost it, F has it`, !hasMt((await api(base, '/api/tasks/plexus', { token: tok.E })).d) && hasMt((await api(base, '/api/tasks/plexus', { token: tok.F })).d));
+        }
+        // an old-portal edit that re-sends the same first person drops no one
+        await api(ADMIN, '/api/v2/tasks/' + MT, { method: 'PUT', token: tok.A, body: { assignees: [TMM.F, TMM.E] } });
+        x(`UPDATE project_tasks SET title = title, assigned_to = ? WHERE id = ?`, [TMM.F, MT]);
+        check('an old-portal edit that re-sends the same first person keeps E tagged', tagsOf(MT).join() === [TMM.F, TMM.E].join(), JSON.stringify(tagsOf(MT)));
 
         // the tech tools never hand out who is on which task
         const ttn = (((await tech('C', 'tables')).d || {}).tables || []).map(t => t.name);

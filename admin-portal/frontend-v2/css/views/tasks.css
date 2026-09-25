@@ -109,9 +109,11 @@
   /* touch: every chip, × and picker is a 44 px target */
   .mx-person, .mx-person-add { height: 44px; }
   .mx-person-name { padding-left: 12px; font-size: 10px; }
-  .mx-person-x { width: 40px; }
+  /* the × itself is 44 × 44: it stretches over the chip's hairline (top, bottom, right) */
+  .mx-person-x { width: 44px; margin: -1px -1px -1px 0; }
   .mx-person-x::after { inset: 0; }
   .mx-person-add { padding: 0 14px; font-size: 10px; }
+  .mx-person-add select { inset: -1px; width: auto; height: auto; max-width: none; }   /* the picker fills the whole 44 px button, hairline included */
   .mx-tasks-filters { gap: 6px !important; }
   .mx-tasks-search { flex: 1 1 100% !important; min-width: 0 !important; }
   /* the drawer becomes the whole screen; the page underneath stops scrolling */

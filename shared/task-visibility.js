@@ -21,11 +21,17 @@
  * MORE THAN ONE PERSON (Alen, 25 Sept 2026: "in tasks please let us tag more than one person"):
  * v2_task_people (task_id, member_id → team_members.id, added_by, added_at) holds everyone tagged.
  * project_tasks.assigned_to stays the FIRST of them (Today, Calendar, the nag scan and every legacy
- * reader keep working) and every write in this tree keeps it in the tag rows too. The tag rows count
- * only while that holds: the old portals (main) share the database and write assigned_to alone, so a
- * task whose assigned_to is missing from its tag rows was last moved by a one-person writer — its tag
- * rows are stale and ignored, and the task is its one assignee's (fail closed). No boot backfill for
- * the same reason: it would bless a stale set again after such a move.
+ * reader keep working) and every write in this tree keeps it in the tag rows too.
+ * The old portals (main) share the database and know one person per task: they write assigned_to
+ * alone. A trigger in the database (ensureTaskPeopleTable) turns such a write into what it means there,
+ * "this task is now this one person's": when assigned_to changes and either the new person is not
+ * tagged or the previous first person still is (so the write did not come through setTaskPeople,
+ * which always takes the previous first person off before it promotes the next), every other tag row
+ * of the task is deleted at once and the new person's row is written. Nobody is left dormant, so a
+ * later move back never hands the task to people who were taken off it.
+ * Second line of defence (a database without the trigger, a hand edit): a tag row counts only while
+ * the task's assigned_to is among its tag rows; otherwise the task is its one assignee's. No boot
+ * backfill, for the same reason.
  *
  * Callers answer a non-participant exactly as they answer a missing task (same status, same body),
  * so a task's existence never leaks.
@@ -35,7 +41,8 @@ const TASK_NAG_KINDS = ['task_overdue', 'task_due_soon'];
 const MAX_TASK_PEOPLE = 12;
 const aliasOk = (a) => { if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(a)) throw new Error('task-visibility: bad alias'); return a; };
 
-// the tag rows of task row `a` are live: its assigned_to is one of them (see MORE THAN ONE PERSON)
+// the tag rows of task row `a` are live: its assigned_to is one of them (see MORE THAN ONE PERSON —
+// the trigger keeps this true; the check is the fallback if a database ever lacks it)
 const livePeopleSql = (a, p) => `EXISTS (SELECT 1 FROM v2_task_people ${p} WHERE ${p}.task_id = ${a}.id AND ${p}.member_id = ${a}.assigned_to)`;
 
 /**
@@ -113,6 +120,23 @@ function ensureTaskPeopleTable(run) {
         PRIMARY KEY (task_id, member_id)
     )`);
     run('CREATE INDEX IF NOT EXISTS idx_v2_task_people_member ON v2_task_people (member_id)');
+    // A one-person write (the old portals on main, or this tree's own v1 routes) that changes assigned_to
+    // makes the task that person's alone, inside the database, so no tag row is ever left dormant
+    // (see MORE THAN ONE PERSON). setTaskPeople never matches the WHEN: before its UPDATE the new first
+    // person is already tagged and the previous first person's row is already gone. A write that leaves
+    // assigned_to as it was never fires (a legacy edit that re-sends the first person drops no one).
+    run(`CREATE TRIGGER IF NOT EXISTS trg_task_people_one_person_write
+        AFTER UPDATE OF assigned_to ON project_tasks
+        FOR EACH ROW
+        WHEN NEW.assigned_to IS NOT OLD.assigned_to
+         AND (NOT EXISTS (SELECT 1 FROM v2_task_people WHERE task_id = NEW.id AND member_id = NEW.assigned_to)
+              OR EXISTS (SELECT 1 FROM v2_task_people WHERE task_id = NEW.id AND member_id = OLD.assigned_to))
+        BEGIN
+            DELETE FROM v2_task_people WHERE task_id = NEW.id AND member_id IS NOT NEW.assigned_to;
+            INSERT OR IGNORE INTO v2_task_people (task_id, member_id, added_by, added_at)
+                SELECT NEW.id, NEW.assigned_to, NULL, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                WHERE NEW.assigned_to IS NOT NULL AND NEW.assigned_to <> '';
+        END`);
 }
 
 /**
@@ -120,15 +144,28 @@ function ensureTaskPeopleTable(run) {
  * people who stay keep their added_at (so the next one is promoted in the order they were tagged),
  * new rows are inserted in the order given, everyone else's row goes. `run(sql, params)` is the
  * caller's writer. A one-person writer (the v1 routes) passes [newAssignee] when it changes assigned_to.
+ * The UPDATE of assigned_to comes last and never trips the one-person trigger (ensureTaskPeopleTable):
+ * by then the new first person is tagged and the previous first person's row is gone — when that
+ * person stays on in a later place, their row steps aside for the UPDATE and is written again after it.
  */
 function setTaskPeople(run, taskId, memberIds, addedBy, nowIso) {
     const ids = [];
     for (const m of memberIds || []) { const s = m == null ? '' : String(m); if (s && !ids.includes(s)) ids.push(s); }
     const now = nowIso || new Date().toISOString();
-    if (ids.length) run(`DELETE FROM v2_task_people WHERE task_id = ? AND member_id NOT IN (${ids.map(() => '?').join(',')})`, [String(taskId), ...ids]);
-    else run('DELETE FROM v2_task_people WHERE task_id = ?', [String(taskId)]);
-    for (const m of ids) run('INSERT OR IGNORE INTO v2_task_people (task_id, member_id, added_by, added_at) VALUES (?,?,?,?)', [String(taskId), m, addedBy || null, now]);
-    run('UPDATE project_tasks SET assigned_to = ? WHERE id = ?', [ids[0] || null, String(taskId)]);
+    const tid = String(taskId);
+    if (!ids.length) {
+        run('DELETE FROM v2_task_people WHERE task_id = ?', [tid]);
+        run('UPDATE project_tasks SET assigned_to = NULL WHERE id = ?', [tid]);
+        return ids;
+    }
+    // one statement, rows in the order given (same added_at, so rowid keeps the order)
+    const tagAll = () => run(`INSERT OR IGNORE INTO v2_task_people (task_id, member_id, added_by, added_at) VALUES ${ids.map(() => '(?,?,?,?)').join(',')}`,
+        ids.flatMap(m => [tid, m, addedBy || null, now]));
+    run(`DELETE FROM v2_task_people WHERE task_id = ? AND member_id NOT IN (${ids.map(() => '?').join(',')})`, [tid, ...ids]);
+    tagAll();
+    run('DELETE FROM v2_task_people WHERE task_id = ? AND member_id = (SELECT assigned_to FROM project_tasks WHERE id = ?) AND member_id <> ?', [tid, tid, ids[0]]);
+    run('UPDATE project_tasks SET assigned_to = ? WHERE id = ?', [ids[0], tid]);
+    tagAll();   // the previous first person, when they stay on in a later place
     return ids;
 }
 

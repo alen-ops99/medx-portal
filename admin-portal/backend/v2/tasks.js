@@ -231,11 +231,23 @@ module.exports = function mountTasks(app, ctx) {
         if (!Array.isArray(v)) return { error: 'Tag people as a list.' };
         const raw = [];
         for (const x of v) { const s = String(x == null ? '' : x).trim(); if (s && !raw.includes(s)) raw.push(s); }
-        if (raw.length > taskVis.MAX_TASK_PEOPLE) return { error: `A task can have at most ${taskVis.MAX_TASK_PEOPLE} people on it.` };
+        const tooMany = { error: `A task can have at most ${taskVis.MAX_TASK_PEOPLE} people on it.` };
+        if (raw.length > taskVis.MAX_TASK_PEOPLE * 4) return tooMany;   // an abuse bound on entries; the cap below counts people
+        // the cap counts people, not entries: 'user:<id>' and a team row of that account (or two team rows
+        // of one account) are one person
+        const persons = new Set();
         for (const s of raw) {
-            const ok = s.startsWith('user:') ? q.get('SELECT id FROM users WHERE id = ? AND is_admin = 1', [s.slice(5)]) : q.get('SELECT id FROM team_members WHERE id = ?', [s]);
-            if (!ok) return { error: 'That person is not on the team.' };
+            if (s.startsWith('user:')) {
+                const ok = q.get('SELECT id FROM users WHERE id = ? AND is_admin = 1', [s.slice(5)]);
+                if (!ok) return { error: 'That person is not on the team.' };
+                persons.add('acct:' + ok.id);
+            } else {
+                const ok = q.get('SELECT id, user_id FROM team_members WHERE id = ?', [s]);
+                if (!ok) return { error: 'That person is not on the team.' };
+                persons.add(ok.user_id ? 'acct:' + ok.user_id : 'row:' + ok.id);
+            }
         }
+        if (persons.size > taskVis.MAX_TASK_PEOPLE) return tooMany;
         const ids = []; const accounts = new Set();
         for (const s of raw) {
             const who = resolveAssignee(s);
@@ -524,8 +536,8 @@ module.exports = function mountTasks(app, ctx) {
         sets.push('updated_at = ?'); vals.push(nowIso()); vals.push(id);
         q.run(`UPDATE project_tasks SET ${sets.join(', ')} WHERE id = ?`, vals);
         if (nextPeople) {
-            // stale tag rows (a one-person writer moved the task since — shared/task-visibility.js) go first,
-            // so anyone tagged again now is tagged afresh, in order
+            // stale tag rows go first, so anyone tagged again now is tagged afresh, in order (the database's
+            // one-person trigger leaves none; this covers a database without it — shared/task-visibility.js)
             q.run(`DELETE FROM v2_task_people WHERE task_id = ?` + (curPeople.length ? ` AND member_id NOT IN (${curPeople.map(() => '?').join(',')})` : ''), [id, ...curPeople]);
             taskVis.setTaskPeople((sql, p) => q.run(sql, p), id, nextPeople, actor.id, nowIso());
         }

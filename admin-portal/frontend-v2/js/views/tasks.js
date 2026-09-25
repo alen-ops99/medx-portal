@@ -158,6 +158,7 @@ function addPrivacyText(ids) {
 // the drawer's line: its creator and the people on it, never me
 function drawerPrivacyText(t) {
   const list = peopleOf(t).slice();
+  if (!list.length && (!t.created_by || t.created_by === me().id)) return COPY.privacy.untagged;   // my card, no one on it yet
   if (t.created_by && t.created_by !== me().id && t.creator_first) list.unshift({ user_id: t.created_by, first: t.creator_first });
   return COPY.privacy.line(seers(list));
 }
