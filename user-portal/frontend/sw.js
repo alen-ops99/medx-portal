@@ -1,5 +1,5 @@
 // Med&X Portal Service Worker
-const CACHE_NAME = 'medx-portal-v9';
+const CACHE_NAME = 'medx-portal-v10';
 
 // App-shell assets to precache. (icon-512 is install-only and 740KB — left out of precache
 // so it isn't fetched on every first load; the browser pulls it from the manifest on install.)
@@ -68,6 +68,9 @@ self.addEventListener('fetch', (event) => {
     if (url.pathname.startsWith('/api/')) {
         return;
     }
+
+    // The legal pages are read live by the checkout pop-up: never serve an old Terms or Privacy text.
+    if (url.pathname === '/terms' || url.pathname === '/privacy') return;
 
     // Navigations: network-first, fall back to the cached APP SHELL only. We do NOT cache the
     // per-URL document — every tokenized /invite/<base64> and /invite-success?session_id=...
