@@ -551,10 +551,10 @@ async function savePeople(delta, what) {
     await load();   // a first-time pick gets a team row → the people list changes; MINE / FOR <name> may change
     saved = true;
   } catch (e) {
-    ui.toast(e.message, { kind: 'error' });
-    // 409: the people kept moving under this change (the other portal handed the task on). Nothing was saved, so
-    // the drawer and the board reload to show who is on it now (a task that left me closes with its own toast)
-    if (e && e.status === 409 && st && st.open === t.id) { await loadDetail(t.id, { quiet: true }); try { await load(); } catch (x) { /* the 60 s poll catches up */ } reloaded = true; }
+    // 409: the people kept moving under this change (the other portal handed the task on), 404: it left me meanwhile.
+    // Nothing was saved, so the drawer and the board reload to show who is on it now
+    if (e && (e.status === 409 || e.status === 404) && st && st.open === t.id) { await loadDetail(t.id, { quiet: true }); try { await load(); } catch (x) { /* the 60 s poll catches up */ } reloaded = true; }
+    if (!(e && e.status === 404 && st && !st.open)) ui.toast(e.message, { kind: 'error' });   // a task that left me closed with its own toast
   }
   finally { if (st) st.peopleBusy = false; }
   if (!st || !rootEl) return;

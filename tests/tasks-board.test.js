@@ -1423,6 +1423,20 @@ const sys = id => q.all(`SELECT body, kind, author_name FROM v2_task_comments WH
         }
     });
 
+    await t('STALE: someone tagged (not the creator) changes the people while the old portal hands the task on to someone else — the same 404 as a missing task, and nothing is written', async () => {
+        const id = await staleTask('Qst actor loses it');
+        const before = q.get('SELECT updated_at FROM project_tasks WHERE id = ?', [id]).updated_at;
+        REP.reset(); emails.length = 0; const n0 = sys(id).length;
+        REP.onTagRead = n => { if (n === 1) oldPortal(id, 'tm-dino'); };   // right after Bea's request read Bea, Cleo, Dino
+        const r = await REP.put(as.bea, id, { untag: ['tm-cleo'] });
+        const missing = await REP.put(as.bea, MISSING, { untag: ['tm-cleo'] });
+        assert.deepStrictEqual([r.status, r.body], [missing.status, missing.body], JSON.stringify(r.body));
+        assert.strictEqual(stOf(id), 'tm-dino:[tm-dino]', 'the old portal\'s hand-off stands, Bea is not put back');
+        assert.strictEqual(sys(id).length, n0); assert.strictEqual(emails.length, 0);
+        assert.strictEqual(q.get('SELECT updated_at FROM project_tasks WHERE id = ?', [id]).updated_at, before, 'nothing written');
+        await call('DELETE', '/api/admin/tasks/:id', as.laura, { params: { id } });
+    });
+
     await t('STALE: when the people keep moving under the change, three tries then 409 "This task just changed. Reopen it and try again." and nothing is written', async () => {
         const id = await staleTask('Qst keeps moving');
         const before = q.get('SELECT updated_at FROM project_tasks WHERE id = ?', [id]).updated_at;
@@ -1484,8 +1498,8 @@ const sys = id => q.all(`SELECT body, kind, author_name FROM v2_task_comments WH
         assert.ok(!/\bhonest|\bplainly/i.test(src));
         const today = fs.readFileSync(path.join(ROOT, 'admin-portal/frontend-v2/js/views/today.js'), 'utf8');
         assert.ok(/const myTasks = tasks\.filter\(onMe\)/.test(today), 'Today\'s YOUR TASKS counts a task I am tagged on');
-        assert.ok(/e\.status === 409 && st && st\.open === t\.id\) \{ await loadDetail\(t\.id, \{ quiet: true \}\); try \{ await load\(\); \} catch \(x\) \{[^}]*\} reloaded = true; \}/.test(src) && /if \(saved \|\| reloaded\) rerenderBoard\(\);/.test(src),
-            'a 409 (the people moved under the change) reloads the drawer and the board');
+        assert.ok(/e\.status === 409 \|\| e\.status === 404\) && st && st\.open === t\.id\) \{ await loadDetail\(t\.id, \{ quiet: true \}\); try \{ await load\(\); \} catch \(x\) \{[^}]*\} reloaded = true; \}/.test(src) && /if \(saved \|\| reloaded\) rerenderBoard\(\);/.test(src),
+            'a 409 (the people moved under the change) or a 404 (the task left me) reloads the drawer and the board');
         assert.ok(/emptyWhy: 'Add the next thing on the board — everyone you tag who has a portal account gets one short email\.'/.test(today) && !/the person you pick/.test(today),
             'Today\'s empty state speaks of everyone tagged, as the board does');
         assert.ok(!/;/.test(/emptyWhy: '([^']*)'/.exec(today)[1]) && !/\bhonest|\bplainly/i.test(today));
