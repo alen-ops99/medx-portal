@@ -22,7 +22,9 @@ const path = require('path');
  *                      left by a one-person writer that did not do this (an older deploy): they are
  *                      stale and grant nothing, and the task is its one assignee's (fail closed),
  *                      the same rule the redesign applies to the same rows.
- * A subtask follows its parent task. There is NO founder, president or section override.
+ * A subtask follows its top-level parent task. A row whose parent is itself a subtask, or whose
+ * parent is gone, is visible to nobody (fail closed, the redesign's rule on the same rows).
+ * There is NO founder, president or section override.
  * A task the caller cannot see answers exactly like a missing one (same 404, same body) on reads
  * AND writes, so its existence never leaks. Reassigning, unassigning or untagging moves
  * visibility with it: a hand-off on this portal leaves the task to the new person (and its
@@ -44,14 +46,51 @@ const NO_USER = '__task_visibility_no_user__'; // never equals a stored id, so a
 // The people tagged on a task (one row per person; assigned_to is always also one of them when the
 // redesign writes). Created at boot by BOTH servers next to project_tasks, because every task
 // reader below joins it. Same columns as the redesign backend, which shares this database, and no
-// foreign keys: whichever service boots first creates it.
-const TASK_PEOPLE_DDL = `CREATE TABLE IF NOT EXISTS v2_task_people (
+// foreign keys: whichever service boots first creates it. ensureTaskPeopleTable and setTaskPeople
+// below are byte copies of the redesign tree's (the database, its trigger and its tag rows are
+// shared), so their comments speak from that tree: "this tree's own v1 routes" are its v1 routes,
+// and the old portals on main are this one. The boot sweep and the one-person trigger they create
+// are the same whichever backend boots first (CREATE ... IF NOT EXISTS, same name, same body).
+function ensureTaskPeopleTable(run) {
+    run(`CREATE TABLE IF NOT EXISTS v2_task_people (
         task_id TEXT NOT NULL,
         member_id TEXT NOT NULL,
         added_by TEXT,
         added_at TEXT,
         PRIMARY KEY (task_id, member_id)
-    )`;
+    )`);
+    run('CREATE INDEX IF NOT EXISTS idx_v2_task_people_member ON v2_task_people (member_id)');
+    // stale rows (a set whose assigned_to is not among them, or a task with no one) and the rows of tasks
+    // that are gone: the rule above already ignores them; deleted so no later move can revive them. It runs
+    // first and on its own, so a trigger DDL that fails below never skips it (its own failure is thrown
+    // after the trigger DDL has had its turn, so the caller still logs it)
+    let sweepErr = null;
+    try {
+        run(`DELETE FROM v2_task_people
+             WHERE task_id NOT IN (SELECT id FROM project_tasks)
+                OR task_id IN (SELECT pt.id FROM project_tasks pt
+                               WHERE pt.assigned_to IS NULL OR pt.assigned_to = ''
+                                  OR NOT EXISTS (SELECT 1 FROM v2_task_people tp WHERE tp.task_id = pt.id AND tp.member_id = pt.assigned_to))`);
+    } catch (e) { sweepErr = e; }
+    // A one-person write (the old portals on main, or this tree's own v1 routes) that changes assigned_to
+    // makes the task that person's alone, inside the database, so no tag row is ever left dormant
+    // (see MORE THAN ONE PERSON). setTaskPeople never matches the WHEN: before its UPDATE the new first
+    // person is already tagged and the previous first person's row is already gone. A write that leaves
+    // assigned_to as it was never fires (a legacy edit that re-sends the first person drops no one).
+    run(`CREATE TRIGGER IF NOT EXISTS trg_task_people_one_person_write
+        AFTER UPDATE OF assigned_to ON project_tasks
+        FOR EACH ROW
+        WHEN NEW.assigned_to IS NOT OLD.assigned_to
+         AND (NOT EXISTS (SELECT 1 FROM v2_task_people WHERE task_id = NEW.id AND member_id = NEW.assigned_to)
+              OR EXISTS (SELECT 1 FROM v2_task_people WHERE task_id = NEW.id AND member_id = OLD.assigned_to))
+        BEGIN
+            DELETE FROM v2_task_people WHERE task_id = NEW.id AND member_id IS NOT NEW.assigned_to;
+            INSERT OR IGNORE INTO v2_task_people (task_id, member_id, added_by, added_at)
+                SELECT NEW.id, NEW.assigned_to, NULL, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                WHERE NEW.assigned_to IS NOT NULL AND NEW.assigned_to <> '';
+        END`);
+    if (sweepErr) throw sweepErr;
+}
 
 /**
  * SQL fragment + params that keep only the rows of `alias` (a project_tasks alias in the caller's
@@ -59,7 +98,8 @@ const TASK_PEOPLE_DDL = `CREATE TABLE IF NOT EXISTS v2_task_people (
  *   const v = visibleTaskSql('pt', req.user.id);
  *   query.all(`SELECT pt.* FROM project_tasks pt WHERE pt.project = ? AND ${v.sql}`, [p, ...v.params]);
  * Tags are read on the TOP-level task, so a subtask follows its parent's people, and they count
- * only while the top-level task's assigned_to is among them (live tag rows, see (c) above).
+ * only while the top-level task's assigned_to is among them (live tag rows, see (c) above). The
+ * row it resolves to must itself be top-level: a grandchild (parent is a subtask) matches no one.
  */
 function visibleTaskSql(alias, userId) {
     const a = alias || 'pt';
@@ -67,6 +107,7 @@ function visibleTaskSql(alias, userId) {
     return {
         sql: `EXISTS (SELECT 1 FROM project_tasks vis_top
                 WHERE vis_top.id = COALESCE(NULLIF(${a}.parent_id, ''), ${a}.id)
+                  AND (vis_top.parent_id IS NULL OR vis_top.parent_id = '')
                   AND (vis_top.created_by = ?
                        OR vis_top.assigned_to IN (SELECT vis_tm.id FROM team_members vis_tm WHERE vis_tm.user_id = ?)
                        OR (EXISTS (SELECT 1 FROM v2_task_people vis_tp
@@ -86,22 +127,39 @@ function visibleTaskSql(alias, userId) {
 const FORGET_TASK_PEOPLE_SQL = 'DELETE FROM v2_task_people WHERE task_id = ? OR task_id IN (SELECT id FROM project_tasks WHERE parent_id = ?)';
 
 /**
- * Write the people on task `taskId`: exactly `memberIds` (first = assigned_to; [] = no one). Rows
- * for people who stay keep their added_at, new rows are inserted in the order given, everyone
- * else's row goes, and assigned_to is set to the first. `run(sql, params)` is the caller's writer.
- * The same function, body and table as the redesign tree's setTaskPeople (the database is shared).
- * This portal is a one-person writer: it passes [assignee] when it creates a task with one, and
- * [newAssignee] (or [] on an unassign) whenever a PUT moves assigned_to, so a hand-off here leaves
- * the task to exactly the new person. A PUT that leaves assigned_to alone never touches the tags.
+ * Write the people on task `taskId`: exactly `memberIds` (first = assigned_to; [] = no one). Rows for
+ * people who stay keep their added_at (so the next one is promoted in the order they were tagged),
+ * new rows are inserted in the order given, everyone else's row goes. `run(sql, params)` is the
+ * caller's writer. A one-person writer (the v1 routes) passes [newAssignee] when it changes assigned_to.
+ * The UPDATE of assigned_to comes last and never trips the one-person trigger (ensureTaskPeopleTable):
+ * by then the new first person is tagged and the previous first person's row is gone — when that
+ * person stays on in a later place, their row steps aside for the UPDATE and is written again after it,
+ * only while the UPDATE still stands (the other portal may have moved the task in between).
  */
 function setTaskPeople(run, taskId, memberIds, addedBy, nowIso) {
     const ids = [];
     for (const m of memberIds || []) { const s = m == null ? '' : String(m); if (s && !ids.includes(s)) ids.push(s); }
     const now = nowIso || new Date().toISOString();
-    if (ids.length) run(`DELETE FROM v2_task_people WHERE task_id = ? AND member_id NOT IN (${ids.map(() => '?').join(',')})`, [String(taskId), ...ids]);
-    else run('DELETE FROM v2_task_people WHERE task_id = ?', [String(taskId)]);
-    for (const m of ids) run('INSERT OR IGNORE INTO v2_task_people (task_id, member_id, added_by, added_at) VALUES (?,?,?,?)', [String(taskId), m, addedBy || null, now]);
-    run('UPDATE project_tasks SET assigned_to = ? WHERE id = ?', [ids[0] || null, String(taskId)]);
+    const tid = String(taskId);
+    if (!ids.length) {
+        run('DELETE FROM v2_task_people WHERE task_id = ?', [tid]);
+        run('UPDATE project_tasks SET assigned_to = NULL WHERE id = ?', [tid]);
+        return ids;
+    }
+    // one statement, rows in the order given (same added_at, so rowid keeps the order)
+    const rows = ids.map(() => '(?,?,?,?)').join(',');
+    const vals = ids.flatMap(m => [tid, m, addedBy || null, now]);
+    run(`DELETE FROM v2_task_people WHERE task_id = ? AND member_id NOT IN (${ids.map(() => '?').join(',')})`, [tid, ...ids]);
+    run(`INSERT OR IGNORE INTO v2_task_people (task_id, member_id, added_by, added_at) VALUES ${rows}`, vals);
+    run('DELETE FROM v2_task_people WHERE task_id = ? AND member_id = (SELECT assigned_to FROM project_tasks WHERE id = ?) AND member_id <> ?', [tid, tid, ids[0]]);
+    run('UPDATE project_tasks SET assigned_to = ? WHERE id = ?', [ids[0], tid]);
+    // the previous first person, when they stay on in a later place: written again only while this
+    // UPDATE still stands. A one-person write by the other portal landing in between (an unassign, a
+    // hand-off) has already made the task what it says, and a blind re-insert here would leave its
+    // rows dormant for a later move back to revive.
+    run(`INSERT OR IGNORE INTO v2_task_people (task_id, member_id, added_by, added_at)
+         SELECT column1, column2, column3, column4 FROM (VALUES ${rows})
+         WHERE EXISTS (SELECT 1 FROM project_tasks WHERE id = ? AND assigned_to = ?)`, [...vals, tid, ids[0]]);
     return ids;
 }
 
@@ -109,6 +167,10 @@ function setTaskPeople(run, taskId, memberIds, addedBy, nowIso) {
  * A one-person writer moved (or may have moved) assigned_to from `before` to `after`: when it
  * really changed, the tag set becomes exactly the new person ([] when unassigned). Returns true
  * when it rewrote the tags. ('' and null are the same "no one".)
+ * This portal is a one-person writer: it passes [assignee] to setTaskPeople when it creates a task
+ * with one, and calls this whenever a PUT moves assigned_to, so a hand-off here leaves the task to
+ * exactly the new person (the one-person trigger does the same inside the database). A PUT that
+ * leaves assigned_to alone never touches the tags.
  */
 function handOffTaskPeople(run, taskId, before, after, addedBy) {
     const b = before == null ? '' : String(before);
@@ -185,6 +247,23 @@ function redactAuditRow(row) {
 }
 
 /**
+ * Even an id-only audit row says "this admin commented on / edited / filed / deleted task X, at this
+ * time", and the redesign backend (same database) writes task.comment, task.update, task.result,
+ * task.archive, task.file.*, task.delete rows. So a row about a task (task.*, and the Action Center's
+ * actions on a task item: new rows start with the item kind, older nudge rows named the assignee and
+ * older done rows said "(+task completed)") is returned only to the admin who did it. The redesign's
+ * rule, the same SQL. Over audit_log aliased `alias`; with no user id it drops every such row.
+ */
+function taskAuditScope(alias, userId) {
+    const a = alias || 'audit_log';
+    const uid = userId == null ? '' : String(userId);
+    const about = `(COALESCE(${a}.action,'') LIKE 'task.%'
+                    OR (COALESCE(${a}.action,'') LIKE 'nag.%' AND (COALESCE(${a}.detail,'') LIKE 'task\\_%' ESCAPE '\\'
+                                                                  OR COALESCE(${a}.detail,'') LIKE '%(+task completed)%')))`;
+    return { sql: `NOT (${about} AND (? = '' OR COALESCE(${a}.actor_id,'') <> ?))`, params: [uid, uid] };
+}
+
+/**
  * Tech DB tools (behind TECH_PASSWORD) read raw rows. Tables that carry task text keep only the
  * rows the caller may see. Returns { sql, params } to AND into a WHERE clause on `alias` (the
  * table's alias in the caller's FROM), or null when the table carries no task text.
@@ -220,9 +299,8 @@ function techRowScope(table, alias, user) {
             return { sql: `NOT (${a}.title = ? AND LOWER(COALESCE(${a}.target_email,'')) <> ?)`, params: [TASK_REMINDER_TITLE, email] };
         case 'scheduled_emails': // the daily digest lists the recipient's own task titles
             return { sql: `NOT (${a}.source_engine = 'nag-digest' AND LOWER(COALESCE(${a}.recipient_email,'')) <> ?)`, params: [email] };
-        case 'audit_log':
-            return { sql: `NOT ((${a}.action = 'task.create' OR (${a}.action = 'nag.act' AND ${a}.detail LIKE 'task\\_%' ESCAPE '\\')) AND COALESCE(${a}.actor_id,'') <> ?)`,
-                params: [uid] };
+        case 'audit_log': // task rows: their actor's only (taskAuditScope)
+            return taskAuditScope(a, user && user.id);
         default:
             return null;
     }
@@ -255,8 +333,8 @@ function taskFileOnDisk(file, uploadsDir) {
 
 module.exports = {
     TASK_404, TASK_NAG_KINDS, TASK_REMINDER_TITLE, TASK_REMINDER_BODY,
-    TASK_PEOPLE_DDL, FORGET_TASK_PEOPLE_SQL, setTaskPeople, handOffTaskPeople,
+    ensureTaskPeopleTable, FORGET_TASK_PEOPLE_SQL, setTaskPeople, handOffTaskPeople,
     visibleTaskSql, findVisibleTask, nagItemVisible,
-    redactTaskReminderDm, taskReminderDmScope, redactAuditRow, techRowScope,
+    redactTaskReminderDm, taskReminderDmScope, redactAuditRow, taskAuditScope, techRowScope,
     isTaskUploadPath, taskFileOnDisk
 };

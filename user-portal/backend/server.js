@@ -7635,8 +7635,9 @@ async function initializeApp() {
         FOREIGN KEY (parent_id) REFERENCES project_tasks(id) ON DELETE CASCADE
     )`);
     // The people tagged on a task (more than one per task; the redesign writes it, every task reader
-    // here joins it through shared/task-visibility.js), so it must exist before the first read.
-    db.run(taskVis.TASK_PEOPLE_DDL);
+    // here joins it through shared/task-visibility.js), so it must exist before the first read. The same
+    // call as the redesign's boot: the table, the stale-row sweep and the one-person trigger.
+    try { taskVis.ensureTaskPeopleTable((sql, p) => db.run(sql, p)); } catch (e) { console.error('[tasks] v2_task_people schema:', e.message); }
 
     // Sequence tasks table
     db.run(`CREATE TABLE IF NOT EXISTS task_sequences (
@@ -19500,20 +19501,27 @@ By applying to this program, I provide the following consents:
         const before = taskVis.findVisibleTask(query.get, req.user.id, req.params.id);
         if (!before) return res.status(404).json({ error: taskVis.TASK_404 });
         const { title, description, assigned_to, priority, status, due_date, project } = req.body;
+        // assigned_to and due_date change only when the body carries them (as the checklist PUT does):
+        // an edit that leaves them out never unassigns the task or clears its date, and the stored value
+        // stays whatever it is now (never a copy read a moment ago)
         db.run(`UPDATE project_tasks SET
             title = COALESCE(?, title),
             description = COALESCE(?, description),
-            assigned_to = ?,
+            assigned_to = CASE WHEN ? THEN ? ELSE assigned_to END,
             priority = COALESCE(?, priority),
             status = COALESCE(?, status),
-            due_date = ?,
+            due_date = CASE WHEN ? THEN ? ELSE due_date END,
             project = COALESCE(?, project),
             completed_at = ${status === 'done' ? "datetime('now')" : 'NULL'}
             WHERE id = ?`,
-            [title, description, assigned_to, priority, status, due_date, project, req.params.id]);
+            [title, description, assigned_to !== undefined ? 1 : 0, assigned_to ?? null, priority, status,
+             due_date !== undefined ? 1 : 0, due_date ?? null, project, req.params.id]);
         // a hand-off (or unassign) here leaves the task to exactly the new person: the tags follow
-        const after = (query.get('SELECT assigned_to FROM project_tasks WHERE id = ?', [req.params.id]) || {}).assigned_to;
-        taskVis.handOffTaskPeople((sql, p) => db.run(sql, p), req.params.id, before.assigned_to, after, req.user.id);
+        // (a body without assigned_to moved no one, so it never touches the tags)
+        if (assigned_to !== undefined) {
+            const after = (query.get('SELECT assigned_to FROM project_tasks WHERE id = ?', [req.params.id]) || {}).assigned_to;
+            taskVis.handOffTaskPeople((sql, p) => db.run(sql, p), req.params.id, before.assigned_to, after, req.user.id);
+        }
         saveDb();
         res.json({ success: true, id: req.params.id });
     });
