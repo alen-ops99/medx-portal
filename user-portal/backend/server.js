@@ -6020,6 +6020,18 @@ function activePlexusConf() {
         || query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
 }
 
+// D17 (round 3 Phase 0a): the address a member read may use to match a row no account owns yet
+// (user_id NULL, or a forum or sign-up row). The one helper v2/apple-pass.js emailLinkFor, which the
+// wallet, the member QR and the Apple pass already use, so every screen agrees. With
+// MEDX_VERIFIED_EMAIL_GATE OFF (the default) it is the account's e-mail, as before. With the gate ON
+// an unverified account gets '__none__', which matches no row.
+function memberEmailLink(req) {
+    const u = (req && req.user) || {};
+    let v = null;
+    try { v = query.get('SELECT email_verified FROM users WHERE id = ?', [u.id || null]); } catch (e) {}
+    return require('./v2/apple-pass.js').emailLinkFor({ email: u.email, email_verified: v ? v.email_verified : 0 });
+}
+
 // ===== CME / HLK ACCREDITATION helpers (queue 5a5c) — identical in both portal server.js files =====
 // Support for the Croatian Medical Chamber CME feature. Deliberately free of app state so the block
 // stays byte-identical across portals. Nothing here touches the rewards/points system.
@@ -13885,11 +13897,12 @@ async function initializeApp() {
         try {
             const user = query.get('SELECT id, email FROM users WHERE id = ?', [req.user.id]);
             if (!user) return res.json({ assigned: false });
+            const em = memberEmailLink(req);   // D17: '__none__' while the gate hides e-mail-linked rows
             // Picker-console import first (gala_table_assignments, email-keyed, admin Gala →
             // Seating CSV upsert) — freshest source in gala week. Falls back to the in-portal
             // seating plan (gala_tables/gala_seat_assignments) below.
             try {
-                const ta = query.get('SELECT table_no FROM gala_table_assignments WHERE lower(email) = lower(?) ORDER BY updated_at DESC LIMIT 1', [user.email || '']);
+                const ta = query.get('SELECT table_no FROM gala_table_assignments WHERE lower(email) = lower(?) ORDER BY updated_at DESC LIMIT 1', [em]);
                 if (ta && String(ta.table_no || '').trim()) {
                     const raw = String(ta.table_no).trim();
                     const label = /^\d+$/.test(raw) ? ('Stol ' + raw) : raw;
@@ -13897,7 +13910,7 @@ async function initializeApp() {
                 }
             } catch (e) { /* table absent on an older DB — fall through to the seating plan */ }
             const ids = [];
-            query.all('SELECT id FROM gala_registrations WHERE user_id = ? OR (user_id IS NULL AND LOWER(email) = LOWER(?))', [user.id, user.email || '']).forEach(r => ids.push(r.id));
+            query.all('SELECT id FROM gala_registrations WHERE user_id = ? OR (user_id IS NULL AND LOWER(email) = LOWER(?))', [user.id, em]).forEach(r => ids.push(r.id));
             query.all("SELECT id FROM registrations WHERE user_id = ? AND (registration_type = 'gala' OR includes_gala = 1)", [user.id]).forEach(r => ids.push(r.id));
             if (!ids.length) return res.json({ assigned: false });
             const placeholders = ids.map(() => '?').join(',');
@@ -13915,9 +13928,7 @@ async function initializeApp() {
     // Read-only, guarded per table (a table this DB lacks reads as empty, never fails the whole call).
     app.get('/api/my/events', auth, (req, res) => {
         try {
-            const meUser = query.get('SELECT id, email FROM users WHERE id = ?', [req.user.id]);
-            const email = (meUser && meUser.email) || req.user.email || '';
-            const emL = String(email).toLowerCase();
+            const emL = memberEmailLink(req);   // D17: '__none__' while the gate hides e-mail-linked rows
             const items = [];
             const q = (sql, params) => { try { return query.all(sql, params) || []; } catch (e) { return []; } };
 
@@ -22579,11 +22590,10 @@ By applying to this program, I provide the following consents:
             // croatians_abroad_registrations (source='plexus') — surface them here so
             // My Plexus stops saying "REGISTER NOW" after a real registration.
             try {
-                const meRow = query.get('SELECT email, first_name, last_name FROM users WHERE id = ?', [req.user.id]) || {};
                 const ca = query.get(`SELECT * FROM croatians_abroad_registrations
                     WHERE selected_conference = 1 AND COALESCE(conference_status,'') <> 'cancelled'
                       AND (user_id = ? OR (user_id IS NULL AND lower(email) = lower(?)))
-                    ORDER BY created_at DESC LIMIT 1`, [req.user.id, meRow.email || req.user.email || '__none__']);
+                    ORDER BY created_at DESC LIMIT 1`, [req.user.id, memberEmailLink(req)]);
                 if (ca) {
                     return res.json({
                         id: ca.id, ca: true, source: ca.source || 'plexus', conference_id: conf.id,
@@ -28878,7 +28888,7 @@ By applying to this program, I provide the following consents:
         const reg = query.get(
             // an address match only counts for a row no account owns yet (a freed address never inherits a seat)
             `SELECT * FROM gala_registrations WHERE (user_id = ? OR (user_id IS NULL AND lower(email) = lower(?))) ORDER BY created_at DESC LIMIT 1`,
-            [req.user.id, req.user.email || '']
+            [req.user.id, memberEmailLink(req)]   // D17: '__none__' while the gate hides e-mail-linked rows
         );
         if (!reg) return res.json({ registered: false });
         res.json({ registered: true, registration: reg });
@@ -28900,7 +28910,7 @@ By applying to this program, I provide the following consents:
                  FROM gala_registrations
                  WHERE (user_id = ? OR (user_id IS NULL AND lower(email) = lower(?)))
                    AND COALESCE(status, '') NOT IN ('rejected', 'declined', 'cancelled')
-                 ORDER BY created_at DESC`, [me.id, me.email || '']);
+                 ORDER BY created_at DESC`, [me.id, memberEmailLink(req)]);
             res.json(rows.map(r => ({
                 ...r,
                 event_title: settings.title || 'Plexus 2026 — Gala Evening',
