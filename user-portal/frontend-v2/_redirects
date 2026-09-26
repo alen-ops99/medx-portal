@@ -1,7 +1,11 @@
 # Netlify redirects — member portal v2 (staging). Order matters: first match wins.
+# 0) Universal links: Netlify's zip deploy drops dot-paths, so deploy-v2.sh ships a root copy of
+#    .well-known/apple-app-site-association and this rule serves it at the path iOS reads (a rewrite,
+#    never a redirect). If the dot-path file itself is ever published, it wins over this rule.
 # 1) Every server-rendered path + the API proxy to the staging backend (status 200 = proxy, URL unchanged).
 #    Placeholder host: https://medx-staging.onrender.com — sed it to the real Render host on deploy.
 # 2) Everything else → the SPA shell (index.html) and the client router (/app/…).
+/.well-known/apple-app-site-association  /apple-app-site-association  200
 /api  https://medx-staging.onrender.com/api  200
 /api/*  https://medx-staging.onrender.com/api/:splat  200
 /plexus  https://medx-staging.onrender.com/plexus  200

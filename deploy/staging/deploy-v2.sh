@@ -25,6 +25,11 @@ cd "$TMP/site"
 
 # config: staging variant becomes the live config.js
 if [ -f config.staging.js ]; then cp config.staging.js config.js; fi
+# universal links: Netlify's zip deploy drops every dot-path, so .well-known/ never reached the
+# published site and /.well-known/apple-app-site-association answered with the SPA shell.
+# Ship a root copy of the same file: _redirects serves it at /.well-known/…, _headers types it
+# as JSON, and /apple-app-site-association is also the path Apple falls back to.
+if [ -f .well-known/apple-app-site-association ]; then cp .well-known/apple-app-site-association apple-app-site-association; fi
 # proxies: whatever placeholder host the files carry → the staging backend
 grep -rl 'medx-staging.onrender.com\|BACKEND_HOST_PLACEHOLDER' _redirects netlify.toml config.js 2>/dev/null | while read -r f; do
   sed -i '' -e "s#BACKEND_HOST_PLACEHOLDER#${BACKEND_HOST}#g" -e "s#medx-staging\.onrender\.com#${BACKEND_HOST}#g" "$f"
@@ -49,3 +54,11 @@ echo "deploy ${DEP_ID}: ${ST} → ${URL}"
 for p in / /app/home /app/auth/signin /api/public/status; do
   printf '  %-22s %s\n' "$p" "$(curl -s -o /dev/null -m 60 -w '%{http_code}' "${URL}${p}")"
 done
+# the AASA must come back as JSON naming the member app (iOS reads it at install and update)
+AASA_TYPE="$(curl -s -m 60 -o "$TMP/aasa.json" -w '%{content_type}' "${URL}/.well-known/apple-app-site-association" || true)"
+if printf '%s' "$AASA_TYPE" | grep -qi '^application/json' \
+   && python3 -c "import json,sys;d=json.load(open(sys.argv[1]));assert any('4XC4NRV538.hr.medx.portal' in x.get('appIDs',[]) for x in d['applinks']['details'])" "$TMP/aasa.json" 2>/dev/null; then
+  printf '  %-22s %s\n' "AASA" "json, member app listed"
+else
+  printf '  %-22s %s\n' "AASA" "FAILED (type ${AASA_TYPE:-none}): universal links will not open the app"; exit 1
+fi
