@@ -23,22 +23,17 @@ export const COPY = {
   kinds: { coffee: 'Coffee', lunch: 'Lunch', dinner: 'Dinner', walk: 'Walk', visit: 'Visit', other: 'Meetup' },
   head: {
     title: 'Meetups',
-    line: 'Small tables across Plexus Week, hosted by someone already coming.',
-    week: (label, dates) => `${label} · ${dates}`
+    line: 'Small tables, hosted by people already coming.'
   },
-  facts: {
-    free: 'Free', freeSub: 'Sign up and the place is yours',
-    small: 'A handful of places per table', smallSub: 'A place you let go passes to the next person waiting'
-  },
+  // three short facts (GLASS-RULES §3.6 Meetups): the waitlist rule lives in the leave sheet, where it matters
+  facts: { free: 'Free, by sign-up', small: 'A few places per table' },
   filters: { day: 'Day', tag: 'Field', all: 'All', clear: 'Clear filters' },
   board: {
-    n: '01', title: 'The tables', count: n => `${n} open`,
+    title: 'Tables', count: n => `${n} open`,
     invite: 'By invitation', host: 'You host this one',
     forWho: who => `For ${who}`,
-    emptyLine: 'No tables are open yet.',
-    emptyWhy: 'Hosts are being asked now. Tables appear here as the team publishes them.',
-    emptyFilterLine: 'Nothing matches that.',
-    emptyFilterWhy: 'Clear the filters to see every table of the week.'
+    emptyLine: 'No tables open yet.',
+    emptyFilterLine: 'Nothing matches that.'
   },
   seats: {
     left: (n, cap) => cap ? `${n} of ${cap} places left` : `${n} ${n === 1 ? 'place' : 'places'} left`,
@@ -56,9 +51,7 @@ export const COPY = {
     invited: 'Invited', checkedIn: 'Checked in'
   },
   mine: {
-    n: '02', title: 'My meetups',
-    emptyLine: 'You hold no places yet.',
-    emptyWhy: 'Join a table and your pass, wallet and calendar file appear here.',
+    title: 'My meetups',
     qrAlt: 'Your meetup QR code',
     apple: 'Apple Wallet', google: 'Google Wallet', calendar: 'Add to calendar',
     accept: 'YES, I’M COMING →', decline: 'CAN’T MAKE IT',
@@ -67,11 +60,11 @@ export const COPY = {
     passNote: 'Show the QR at the table.'
   },
   hosting: {
-    n: '03', title: 'You are hosting',
+    title: 'You are hosting',
     open: 'Open the host page',
     line: (c, cap) => `${c} of ${cap} places taken`
   },
-  help: { ask: 'Message us', sub: 'The venue, the time, who else is coming' },
+  help: { ask: 'Message us' },
   leaveModal: {
     eyebrow: 'MEETUPS · YOUR PLACE', title: 'Let this place go?',
     body: (title, when) => `<p style="margin:0 0 10px">You are releasing your place at <strong>${title}</strong>${when ? ` — ${when}` : ''}.</p>
@@ -96,21 +89,20 @@ export const COPY = {
     linkLabel: 'HOST LINK · WORKS WITHOUT SIGNING IN',
     linkRow: 'Host link', linkSub: 'Opens your table without a sign-in',
     copyLink: 'Copy', copied: 'Host link copied — it opens your table without a sign-in.',
-    n1: '01', t1: 'Who is coming',
+    t1: 'Who is coming',
     emptyLine: 'Nobody has joined yet.',
-    emptyWhy: 'As people sign up, their names, institutions and a line about their work appear here.',
     waitTitle: 'Waiting', invitedTitle: 'Invited · not answered yet',
     waitPos: n => `No. ${n}`,
     checkedIn: 'Checked in', noBio: 'No bio on file yet.',
-    n2: '02', t2: 'Message your attendees',
-    msgLead: 'Everyone holding a place gets it, after the Med&X team approves it.',
+    t2: 'Message your attendees',
+    msgLead: 'The Med&X team approves every message.',
     msgSubject: 'SUBJECT', msgBody: 'YOUR MESSAGE', msgSend: 'SEND FOR APPROVAL →',
     msgNeed: 'A subject and a message are both needed.',
     msgQueued: n => `${n} draft${n === 1 ? '' : 's'} staged for the Med&X team to approve and send. Nothing has gone out yet.`,
     msgStaged: n => `Waiting for approval: ${n} draft${n === 1 ? '' : 's'}.`,
     msgNobody: 'Nobody holds a place yet, so there is no one to write to.',
-    n3: '03', t3: 'Check someone in',
-    scanLead: 'Optional. Paste the code under someone’s QR to see who they are.',
+    t3: 'Check someone in',
+    scanLead: 'Paste the code under their QR.',
     scanPlaceholder: 'm-0000…', scanGo: 'CHECK IN →', scanNeed: 'Paste the code from their pass first.',
     scanAgain: 'Clear',
     kindLine: (kind, when) => [kind, when].filter(Boolean).join(' · ')
@@ -185,8 +177,9 @@ async function loadHost(id) {
 // ---------------------------------------------------------------- kit helpers
 const icon = (n, s) => ui.icon(n, s || 20);
 const chev = () => ui.icon('chevron-right', 18);
-function sectionHead(n, title, right) {
-  return `<div class="mx-sh">${n ? `<span class="mx-sh-n">${n}</span>` : ''}<h2 class="mx-sh-t">${title}</h2>${right || ''}</div>`;
+// a section head without numerals (GLASS-RULES Q2)
+function sectionHead(title, right) {
+  return `<div class="mx-sh"><h2 class="mx-sh-t">${title}</h2>${right || ''}</div>`;
 }
 function crumb(items) {
   const sep = '<span style="color:rgba(25,21,18,.35);font-size:12px">→</span>';
@@ -203,7 +196,7 @@ function crumb(items) {
 function blockHelp() {
   return `
   <section class="mx-sec">
-    <div class="mx-list"><a class="mx-row" href="/app/messages?about=plexus">${icon('mail')}<span class="mx-row-l">${COPY.help.ask}<span class="mx-row-s">${COPY.help.sub}</span></span>${chev()}</a></div>
+    <div class="mx-list"><a class="mx-row" href="/app/messages?about=plexus">${icon('mail')}<span class="mx-row-l">${COPY.help.ask}</span>${chev()}</a></div>
   </section>`;
 }
 const tag = (text, kind) => `<span class="mx-tag mx-tag--${kind || 'soft'}">${esc(text)}</span>`;
@@ -277,7 +270,7 @@ function boardBlock() {
   const filtering = !!(st.day || st.tag);
   return `
     <section class="mx-sec" data-block="board">
-      ${sectionHead(COPY.board.n, COPY.board.title, D.meetups.length ? tag(COPY.board.count(D.meetups.length)) : '')}
+      ${sectionHead(COPY.board.title, D.meetups.length ? tag(COPY.board.count(D.meetups.length)) : '')}
       ${boardFilters()}
       ${list.length ? `
       <div class="mx-meetup-grid">
@@ -285,7 +278,6 @@ function boardBlock() {
       </div>` : `
       <div class="empty mx-mu-empty">
         <span class="empty-line">${esc(filtering ? COPY.board.emptyFilterLine : COPY.board.emptyLine)}</span>
-        <span class="empty-why">${esc(filtering ? COPY.board.emptyFilterWhy : COPY.board.emptyWhy)}</span>
         ${filtering ? `<span data-act="fClear" role="button" class="btn-ghost btn-sm">${COPY.filters.clear}</span>` : ''}
       </div>`}
     </section>`;
@@ -323,22 +315,22 @@ function mineRow(m) {
           </div>
         </div>`;
 }
+// not drawn while the member holds no place (an empty section with nothing to act on, Q11)
 function mineBlock() {
+  if (!D.mine.length) return '<div data-block="mine"></div>';
   return `
     <section class="mx-sec" data-block="mine">
-      ${sectionHead(COPY.mine.n, COPY.mine.title)}
-      ${D.mine.length ? `
+      ${sectionHead(COPY.mine.title)}
       <div class="mx-mu-minelist">
         ${D.mine.map(mineRow).join('')}
-      </div>` : `
-      <p class="mx-sh-sub">${esc(COPY.mine.emptyWhy)}</p>`}
+      </div>
     </section>`;
 }
 function hostingBlock() {
   if (!D.hosting.length) return '<div data-block="hosting"></div>';
   return `
     <section class="mx-sec" data-block="hosting">
-      ${sectionHead(COPY.hosting.n, COPY.hosting.title)}
+      ${sectionHead(COPY.hosting.title)}
       <div class="mx-list">
         ${D.hosting.map(m => `
         <a href="/app/plexus/meetups/${encodeURIComponent(m.id)}/host" class="mx-row">${dateTile(m)}
@@ -348,9 +340,17 @@ function hostingBlock() {
       </div>
     </section>`;
 }
+// "3–6 December" (one month) or "30 November – 2 December", from the edition's own dates
+const MONTH = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+function dayRange(a, b) {
+  const x = fmt.toDate(a), y = fmt.toDate(b) || x;
+  if (!x) return '';
+  if (x.getTime() === y.getTime()) return `${x.getDate()} ${MONTH[x.getMonth()]}`;
+  return x.getMonth() === y.getMonth() ? `${x.getDate()}–${y.getDate()} ${MONTH[x.getMonth()]}` : `${x.getDate()} ${MONTH[x.getMonth()]} – ${y.getDate()} ${MONTH[y.getMonth()]}`;
+}
 function boardTpl() {
   const ed = D.edition || {};
-  const range = ed.starts_on ? fmt.longRange(ed.starts_on, ed.ends_on) : '';
+  const range = ed.starts_on ? [dayRange(ed.starts_on, ed.ends_on), ed.city].filter(Boolean).join(' · ') : '';
   return `
 <div data-screen-label="Meetups" class="mx-mu">
   ${crumb([{ label: COPY.crumb.projects, to: '/app/projects' }, { label: COPY.crumb.plexus, to: '/app/plexus' }, { label: COPY.crumb.meetups }])}
@@ -359,9 +359,9 @@ function boardTpl() {
       <h1 class="mx-lt">${COPY.head.title}</h1>
       <p class="mx-lede">${esc(COPY.head.line)}</p>
       <ul class="mx-facts mx-mu-facts">
-        ${range ? `<li class="mx-fact">${icon('calendar')}<div class="mx-fact-body"><span class="mx-fact-v">${esc(range)}</span><span class="mx-fact-s">${esc([ed.label, ed.city].filter(Boolean).join(' · '))}</span></div></li>` : ''}
-        <li class="mx-fact">${icon('ticket')}<div class="mx-fact-body"><span class="mx-fact-v">${COPY.facts.free}</span><span class="mx-fact-s">${COPY.facts.freeSub}</span></div></li>
-        <li class="mx-fact">${icon('users')}<div class="mx-fact-body"><span class="mx-fact-v">${COPY.facts.small}</span><span class="mx-fact-s">${COPY.facts.smallSub}</span></div></li>
+        ${range ? `<li class="mx-fact">${icon('calendar')}<div class="mx-fact-body"><span class="mx-fact-v">${esc(range)}</span></div></li>` : ''}
+        <li class="mx-fact">${icon('ticket')}<div class="mx-fact-body"><span class="mx-fact-v">${COPY.facts.free}</span></div></li>
+        <li class="mx-fact">${icon('users')}<div class="mx-fact-body"><span class="mx-fact-v">${COPY.facts.small}</span></div></li>
       </ul>
     </section>
     ${boardBlock()}
@@ -392,7 +392,7 @@ function hostPeople() {
   const inv = Array.isArray(H.invited) ? H.invited : [];
   return `
       ${att.length ? `<div class="mx-person-rows">${att.map(p => personRow(p)).join('')}</div>` : `
-      <div class="empty mx-mu-empty"><span class="empty-line">${esc(COPY.host.emptyLine)}</span><span class="empty-why">${esc(COPY.host.emptyWhy)}</span></div>`}
+      <div class="empty mx-mu-empty"><span class="empty-line">${esc(COPY.host.emptyLine)}</span></div>`}
       ${wait.length ? `
       <h3 class="mx-mu-h3">${COPY.host.waitTitle}</h3>
       <div class="mx-person-rows">${wait.map((p, i) => personRow(p, { pos: p.waitlist_pos || i + 1 })).join('')}</div>` : ''}
@@ -442,15 +442,15 @@ function hostTpl() {
       ${H.host_link ? `<div class="mx-list mx-mu-link"><div class="mx-row">${icon('external')}<span class="mx-row-l">${COPY.host.linkRow}<span class="mx-row-s">${COPY.host.linkSub}</span></span><span data-act="copyHostLink" role="button" class="btn-ghost btn-sm">${COPY.host.copyLink}</span></div></div>` : ''}
     </section>
     <section class="mx-sec">
-      ${sectionHead(COPY.host.n1, COPY.host.t1)}
+      ${sectionHead(COPY.host.t1)}
       <div data-block="people">${hostPeople()}</div>
     </section>
     <section class="mx-sec">
-      ${sectionHead(COPY.host.n2, COPY.host.t2)}
+      ${sectionHead(COPY.host.t2)}
       ${composerBlock()}
     </section>
     <section class="mx-sec">
-      ${sectionHead(COPY.host.n3, COPY.host.t3)}
+      ${sectionHead(COPY.host.t3)}
       ${scanBlock()}
     </section>
     ${blockHelp()}

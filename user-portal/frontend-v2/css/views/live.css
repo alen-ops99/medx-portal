@@ -44,44 +44,32 @@
 .lv-dot::after, .lv-pulse::after { content: ''; position: absolute; inset: 0; border: 1px solid var(--crimson); opacity: 0; animation: lv-ping 1.8s var(--lv-ease) infinite; }
 @keyframes lv-ping { 0% { opacity: .75; transform: scale(1); } 70%, 100% { opacity: 0; transform: scale(2.6); } }
 
-/* ---- header (ink band) ---- */
-.lv-head { background: var(--ink); color: var(--cream); padding: calc(16px + env(safe-area-inset-top)) 20px 18px; }
-/* the band's three lines rise with the first paint and when the event changes (js paintHead adds .rise) —
-   never on a repaint, so a name arriving or a poll leaves them still */
+/* ---- header (ink band): the way back (a glass circle), the event's title (a menu when the week holds several
+   events) and one line. Glass Quiet pass, GLASS-RULES §3.6 Event app ---- */
+.lv-head { background: var(--ink); color: var(--cream); padding: calc(16px + env(safe-area-inset-top)) 20px 20px; }
+/* the band's lines rise with the first paint and when the event changes (js paintHead adds .rise) — never on a
+   repaint, so a poll leaves them still */
 .lv-head-top.rise > * { animation: lv-rise var(--lv-slow) var(--lv-ease) backwards; }
 .lv-head-top.rise > .lv-title { animation-delay: 40ms; }
 .lv-head-top.rise > .lv-meta { animation-delay: 80ms; }
-.lv-who.lv-in { animation: lv-fade var(--lv-slow) var(--lv-ease) backwards; }
-.lv-head-row { display: flex; align-items: center; gap: 12px; min-height: 24px; }
-.lv-who { font: 600 12px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; color: rgba(247,241,230,.7); margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.lv .lv-back { font: 600 12px var(--font-ui); letter-spacing: .12em; color: rgba(247,241,230,.7); white-space: nowrap; padding: 0 0 0 8px; transition: color var(--lv-fast) var(--lv-ease), opacity var(--lv-fast) var(--lv-ease);
-                 display: inline-flex; align-items: center; min-height: 44px; margin: -10px 0; }   /* a 44 px target inside the 24 px row */
-.lv-title { font: 500 32px/1.1 var(--font-display); letter-spacing: -.01em; margin: 14px 0 0; color: var(--cream); }
-.lv-meta { font-size: 14px; color: rgba(247,241,230,.78); margin-top: 8px; line-height: 1.5; }
+.lv-head-row { display: flex; align-items: center; margin: -6px 0 6px -6px; }
+/* the way back: the kit's 44 px dark glass circle (.mx-gbtn.mx-gbtn--dark); on the ink band its glass is lifted a
+   little so the circle reads (the ink behind it is flat, there is nothing to blur) */
+.lv .lv-back { color: var(--cream); }
+.lv .lv-back::before { background: rgba(247, 241, 230, .14); }
+.lv-title { font: 500 32px/1.1 var(--font-display); letter-spacing: -.01em; margin: 6px 0 0; color: var(--cream); }
+/* the title as the week's menu: the name and a chevron that follows its last word when the name wraps (a 320 phone);
+   the padding makes the line a 44 px target without moving it */
+.lv-title-btn { display: inline; padding: 5px 0; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: opacity var(--lv-fast) var(--lv-ease); }
+.lv-title-last { white-space: nowrap; }
+.lv-title-btn .mx-ic { display: inline-block; vertical-align: middle; margin: -3px 0 0 6px; color: var(--gold); }
+@media (max-width: 360px) { .lv-title { font-size: 28px; } }
+.lv-title-btn:active { opacity: .7; }
+.lv-meta { font-size: 16px; color: rgba(247,241,230,.84); margin-top: 8px; line-height: 1.5; }
 .lv-meta.loading { animation: lv-breathe 1.4s var(--lv-ease) infinite; }
 @keyframes lv-breathe { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }
-/* the event switcher: a horizontal scroller whose edges fade, so a clipped chip reads as "more this way" */
-.lv-switch { display: flex; gap: 8px; margin: 10px -20px -3px; padding: 6px 20px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
-             -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 18px, #000 calc(100% - 18px), transparent 100%);
-             mask-image: linear-gradient(90deg, transparent 0, #000 18px, #000 calc(100% - 18px), transparent 100%); }
-.lv-switch:empty { display: none; }
-.lv-switch::-webkit-scrollbar { display: none; }
-.lv-chip { flex: none; display: inline-flex; align-items: center; min-height: 36px; padding: 0 12px; border: 1px solid rgba(247,241,230,.35); color: rgba(247,241,230,.85);
-           font: 600 12px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; cursor: pointer;
-           transition: background-color var(--lv-fast) var(--lv-ease), color var(--lv-fast) var(--lv-ease), border-color var(--lv-fast) var(--lv-ease), transform var(--lv-fast) var(--lv-ease);
-           animation: lv-fade var(--lv-slow) var(--lv-ease) backwards; }
-.lv-chip:nth-child(2) { animation-delay: 30ms; } .lv-chip:nth-child(3) { animation-delay: 60ms; } .lv-chip:nth-child(4) { animation-delay: 90ms; } .lv-chip:nth-child(n+5) { animation-delay: 120ms; }
-.lv-chip:active { transform: translateY(1px); }
-.lv-chip.on { background: var(--cream); color: var(--ink); border-color: var(--cream); }
-.lv-chip.ro { border-color: rgba(247,241,230,.18); color: rgba(247,241,230,.6); }   /* not on your ticket: muted, solid — a dashed chip read as broken */
-.lv-chip.on.ro { color: var(--ink); border-color: var(--cream); }   /* a read-only event, selected: still legible */
-.lv-chip.ghost { border-color: transparent; color: var(--gold); padding-left: 4px; }
-/* the catalogue on its way: chip-shaped placeholders hold the row so the band never grows when it lands */
-.lv-chip.sk { width: 76px; border-color: rgba(247,241,230,.14); background: rgba(247,241,230,.04); cursor: default; animation: lv-breathe 1.6s var(--lv-ease) infinite; }
-.lv-chip.sk.w2 { width: 104px; animation-delay: .15s; }
-.lv-chip.sk.w3 { width: 64px; animation-delay: .3s; }
 /* the ink band: the portals' 2 px ring, gold on ink */
-.lv-chip:focus-visible, .lv-head :focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+.lv-head :focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
 
 /* ---- NOW / NEXT strip ---- */
 .lv-now { display: grid; grid-template-columns: 1fr 1fr; background: var(--card); border-bottom: 1px solid var(--hair); min-height: 76px; }
@@ -119,31 +107,37 @@
 .lv-slot-title { font: 500 17px/1.25 var(--font-display); }
 .lv-slot-sub { font-size: 14px; color: var(--soft); }
 
-/* ---- tabs (sticky) — one crimson ink bar slides between them (js placeInk; the tab's own border is the no-JS fallback) ---- */
-.lv-tabs { position: sticky; top: 0; z-index: 12; display: grid; grid-template-columns: repeat(4, 1fr); background: var(--cream); border-bottom: 1px solid var(--hair); }
-.lv-tab { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 48px; padding: 0 6px; border-bottom: 2px solid transparent; color: var(--soft);
-          font: 600 12px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; cursor: pointer; transition: color var(--lv-fast) var(--lv-ease); }
-.lv-tab.on { color: var(--ink); border-bottom-color: var(--crimson); }
-/* an inactive tab under the pointer draws a crimson hairline in from the left (the portals' tab hover) */
-.lv-tab { position: relative; }
-.lv-tab::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--crimson); opacity: .45;
-                 transform: scaleX(0); transform-origin: 0 50%; transition: transform var(--lv-fast) var(--lv-ease); pointer-events: none; }
-.lv-tabs.inked .lv-tab { border-bottom-color: transparent; }
-.lv-tab:focus-visible { outline-offset: -5px; }
-.lv-tab-ink { position: absolute; left: 0; bottom: 0; width: 1px; height: 2px; background: var(--crimson); transform-origin: 0 0; pointer-events: none;
-              opacity: 0; transition: transform var(--lv-slow) var(--lv-ease); }
-.lv-tabs.inked .lv-tab-ink { opacity: 1; }
-.lv-count { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; background: var(--crimson); color: var(--cream); font: 600 12px var(--font-ui); letter-spacing: 0; }
+/* ---- tabs (sticky): a glass segmented control (GLASS-RULES §1.9.6). The bar is light glass on a ::before layer
+   (the program slides under it, feathered at its lower edge like the iOS 26 scroll edge); inside it the track is a
+   44 px capsule and the selected tab a raised capsule that slides (js placeInk). It scrolls sideways when it must,
+   never wraps and never cuts a label ---- */
+.lv { --lv-tabs-h: 60px; }
+.lv-tabs { position: sticky; top: 0; z-index: 12; isolation: isolate; box-sizing: border-box; height: var(--lv-tabs-h); padding: 8px 20px; background: none; }
+.lv-tabs::before { content: ""; position: absolute; inset: 0 0 -12px; z-index: -1; pointer-events: none;
+                   background: var(--glass-light, rgba(250, 246, 238, .72));
+                   -webkit-backdrop-filter: blur(var(--glass-blur, 24px)) saturate(var(--glass-sat, 180%)); backdrop-filter: blur(var(--glass-blur, 24px)) saturate(var(--glass-sat, 180%));
+                   -webkit-mask-image: linear-gradient(#000 calc(100% - 12px), transparent); mask-image: linear-gradient(#000 calc(100% - 12px), transparent); }
+.lv-seg { position: relative; display: flex; gap: 0; height: 44px; padding: 4px; box-sizing: border-box; border-radius: var(--r-capsule, 999px);
+          background: rgba(25,21,18,.06); box-shadow: inset 0 0 0 .5px rgba(25,21,18,.08);
+          overflow-x: auto; overflow-y: hidden; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.lv-seg::-webkit-scrollbar { display: none; }
+.lv-tab { position: relative; z-index: 1; flex: 1 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: var(--r-capsule, 999px);
+          color: #4a4239; font: 500 14px/20px var(--font-ui); white-space: nowrap; cursor: pointer; transition: color var(--lv-fast) var(--lv-ease); }
+.lv-tab.on { color: var(--ink); font-weight: 600; }
+.lv-tab:focus-visible { outline-offset: -2px; }
+/* the raised capsule behind the selected tab (no-JS fallback: the selected tab draws its own) */
+.lv-tab-ink { position: absolute; top: 4px; left: 0; z-index: 0; width: 0; height: 36px; border-radius: var(--r-capsule, 999px); background: #fffdf8; box-shadow: 0 1px 3px rgba(25,21,18,.16);
+              pointer-events: none; opacity: 0; transition: transform 220ms var(--lv-ease), width 220ms var(--lv-ease); }
+.lv-seg.inked .lv-tab-ink { opacity: 1; }
+.lv-seg:not(.inked) .lv-tab.on { background: #fffdf8; box-shadow: 0 1px 3px rgba(25,21,18,.16); }
+.lv-count { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: var(--r-capsule, 999px); background: var(--crimson); color: var(--cream);
+            font: 600 12px var(--font-ui); font-variant-numeric: tabular-nums; letter-spacing: 0; }
 .lv-count.bump { animation: lv-bump var(--lv-slow) var(--lv-ease) backwards; }
 @keyframes lv-bump { from { opacity: 0; transform: scale(.55); } to { opacity: 1; transform: none; } }
-/* small phones: the four tabs size to their words and share the row (equal quarters pushed INFO past a 320 screen) */
-@media (max-width: 380px) {
-  .lv-tabs { grid-template-columns: auto auto auto auto; }
-  .lv-tab { padding: 0 4px; letter-spacing: .06em; }
-}
-@media (max-width: 340px) { .lv-tab-my { display: none; } }
-/* a 320 phone: the header row keeps the eyebrow and the way back; the member's name ("REV…") steps aside */
-@media (max-width: 360px) { .lv-who { display: none; } }
+/* small phones: the four share the row (they fit at 320 without a sideways scroll, like the kit's .mx-seg) */
+@media (max-width: 400px) { .lv-tab { flex: 1 1 auto; padding: 0 10px; } }
+@media (max-width: 380px) { .lv-tabs { padding-left: 14px; padding-right: 14px; } }
+@media (max-width: 360px) { .lv-tab { padding: 0 7px; font-size: 13px; } }
 
 /* ---- panels ---- */
 .lv-panels { padding: 0 0 24px; min-height: 60vh; }
@@ -159,22 +153,39 @@
 .lv-note-why { font-size: 14px; line-height: 20px; color: var(--soft); }
 .lv-note-go { margin-top: 10px; text-decoration: none; }
 
-/* day header — sticky under the tabs */
-.lv-day { position: sticky; top: 48px; z-index: 11; display: flex; align-items: baseline; gap: 4px 12px; flex-wrap: wrap; padding: 14px 20px 8px; background: var(--cream); border-bottom: 1px solid var(--hair-soft); }
+/* day header — sticky under the tabs (the glass bar's height) */
+.lv-day { position: sticky; top: var(--lv-tabs-h, 60px); z-index: 11; display: flex; align-items: baseline; gap: 4px 12px; flex-wrap: wrap; padding: 14px 20px 8px; background: var(--cream); border-bottom: 1px solid var(--hair-soft); }
 .lv-day-n { font: 500 30px/1 var(--font-display); color: var(--crimson); }
 .lv-day-t { font: 600 12px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--soft); white-space: nowrap; }
 .lv-day .lv-ics { margin-left: auto; }   /* drops to its own right-aligned row on a narrow phone */
-/* frosted sticky bars: the program slides under the tabs and the day line instead of being cut off */
-@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
-  .lv-tabs { background: rgba(247,241,230,.86); -webkit-backdrop-filter: blur(16px) saturate(1.2); backdrop-filter: blur(16px) saturate(1.2); }
+/* no backdrop blur, Reduce Transparency (media query or the iOS app's html.mx-rt), Increase Contrast (html.mx-hc):
+   the glass layers go solid (GLASS-RULES §1.6) */
+/* the sticky tab bar's glass (its own layer: a full-width band, feathered, no floating shadow). The sheet and the
+   back circle use the kit's classes, whose fallbacks live in app.css */
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .lv-tabs::before { background: var(--glass-solid-light, #f3ece0); }
 }
+@media (prefers-reduced-transparency: reduce) {
+  .lv-tabs::before { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--glass-solid-light, #f3ece0); }
+  .lv .lv-back::before { background: var(--glass-solid-dark, #221d19); }
+}
+html.mx-rt .lv-tabs::before { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--glass-solid-light, #f3ece0); }
+html.mx-rt .lv .lv-back::before { background: var(--glass-solid-dark, #221d19); }
+@media (prefers-contrast: more) {
+  .lv-tabs::before { background: var(--glass-solid-light, #f3ece0); }
+  .lv .lv-back::before { background: var(--glass-solid-dark, #221d19); }
+  .lv-tab { color: var(--ink); }
+}
+html.mx-hc .lv-tabs::before { background: var(--glass-solid-light, #f3ece0); }
+html.mx-hc .lv .lv-back::before { background: var(--glass-solid-dark, #221d19); }
+html.mx-hc .lv-tab { color: var(--ink); }
 
 /* time blocks */
 .lv-block { display: grid; grid-template-columns: 64px 1fr; gap: 12px; padding: 14px 20px 0; }
 .lv-block-time { font: 600 17px/1.2 var(--font-ui); padding-top: 14px; letter-spacing: -.01em; }
 .lv-block-cards { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .lv-list { display: flex; flex-direction: column; gap: 12px; padding: 14px 20px 0; }
-@media (max-width: 380px) { .lv-block { grid-template-columns: 54px 1fr; gap: 10px; padding-left: 14px; padding-right: 14px; } .lv-block-time { font-size: 15px; } .lv-list, .lv-day, .lv-note, .lv-slots, .lv-empty, .lv-info-row, .lv-grid { padding-left: 14px; padding-right: 14px; } .lv-head, .lv-now-item, .lv-now-line { padding-left: 16px; padding-right: 16px; } .lv-switch { margin-left: -16px; margin-right: -16px; padding-left: 16px; padding-right: 16px; } }
+@media (max-width: 380px) { .lv-block { grid-template-columns: 54px 1fr; gap: 10px; padding-left: 14px; padding-right: 14px; } .lv-block-time { font-size: 15px; } .lv-list, .lv-day, .lv-note, .lv-slots, .lv-empty, .lv-info-row, .lv-grid { padding-left: 14px; padding-right: 14px; } .lv-head, .lv-now-item, .lv-now-line { padding-left: 16px; padding-right: 16px; } }
 
 /* session card */
 .lv-card { background: var(--card); border: 1px solid var(--hair); border-left: 3px solid var(--ink); display: flex; flex-direction: column;
@@ -237,12 +248,12 @@
 /* the quiet links (ADD TO CALENDAR · maps · REFRESH): a hairline draws in from the left on hover */
 .lv-ics { flex: none; display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; font: 600 12px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--crimson); white-space: nowrap; }
 .lv-ics.day { min-height: 32px; font-size: 12px; }
-.lv-ics, .lv-links a, .lv-glance-map, .lv-refresh { position: relative; transition: color var(--lv-fast) var(--lv-ease), opacity var(--lv-fast) var(--lv-ease); }
-.lv-ics::after, .lv-links a::after, .lv-glance-map::after, .lv-refresh::after {
+.lv-ics, .lv-links a, .lv-glance-map { position: relative; transition: color var(--lv-fast) var(--lv-ease), opacity var(--lv-fast) var(--lv-ease); }
+.lv-ics::after, .lv-links a::after, .lv-glance-map::after {
   content: ''; position: absolute; left: 0; right: 0; top: calc(50% + 8px); height: 1px; background: currentColor; opacity: .6;
   transform: scaleX(0); transform-origin: 0 50%; transition: transform var(--lv-fast) var(--lv-ease); pointer-events: none; }
 /* touch: the grey tap flash is off (above), so the quiet links, ← PORTAL and the mail link dim while pressed */
-.lv-ics:active, .lv-links a:active, .lv-glance-map:active, .lv-refresh:active, .lv .lv-back:active, .lv-info-body a:active, .lv-glance-list a:active { opacity: .55; }
+.lv-ics:active, .lv-links a:active, .lv-glance-map:active, .lv-info-body a:active, .lv-glance-list a:active { opacity: .55; }
 .lv-ics::after { left: 4px; right: calc(4px + .16em); }
 .lv-glance-map::after { top: auto; bottom: -3px; }
 .lv-info-body a, .lv-glance-list a:not(.lv-glance-map) { text-decoration: underline 1px transparent; text-underline-offset: 3px; transition: text-decoration-color var(--lv-fast) var(--lv-ease); }
@@ -295,20 +306,29 @@
 .lv-links a { display: inline-flex; align-items: center; min-height: 44px; white-space: nowrap; font: 600 12px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; }
 
 /* footer */
-.lv-foot { display: flex; align-items: center; gap: 14px; padding: 18px 20px calc(24px + env(safe-area-inset-bottom)); border-top: 1px solid var(--hair); font: 600 12px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
-.lv-refresh { margin-left: auto; color: var(--crimson); cursor: pointer; min-height: 44px; display: inline-flex; align-items: center; }
+/* footer: "Updated 17:52" and a refresh icon button (the event app has no tab bar: the safe area only) */
+.lv-foot { display: flex; align-items: center; gap: 14px; padding: 12px 20px calc(20px + env(safe-area-inset-bottom)); border-top: 1px solid var(--hair); font: 400 14px/20px var(--font-ui); color: var(--soft); }
+.lv-refresh { margin-left: auto; flex: none; width: 44px; height: 44px; border-radius: var(--r-capsule, 999px); display: inline-flex; align-items: center; justify-content: center; color: var(--crimson); cursor: pointer;
+              background: rgba(25,21,18,.05); transition: background-color var(--lv-fast) var(--lv-ease), transform var(--lv-fast) var(--lv-ease); }
+.lv-refresh:active { background: rgba(25,21,18,.1); transform: scale(var(--glass-press, .96)); }
 .lv-refresh.busy { opacity: .45; pointer-events: none; }
+@media (prefers-reduced-motion: no-preference) { .lv-refresh.busy svg { animation: lv-spin .9s linear infinite; } }
+@keyframes lv-spin { to { transform: rotate(360deg); } }
 .lv-foot .off { color: var(--crimson); }   /* offline: the program on screen is the last one loaded */
 
-/* ---- sheet (session / speaker detail): a bottom sheet that slides up on phones, a centred card on desktop ---- */
-.lv-sheet-wrap { position: fixed; inset: 0; z-index: 60; display: flex; align-items: flex-end; justify-content: center; }
+/* ---- sheet (session / speaker detail, the events menu): a floating Liquid Glass sheet (GLASS-RULES §1.9.4) —
+   8 px from the edges on a phone, 28 px corners, a grabber, the close in a 44 px circle; a centred card from 761 px.
+   The glass is a ::before layer on the sheet; the sheet itself never scrolls (its body does), so the layer stays put.
+   The event app has no tab bar: only the safe area applies at the bottom (GLASS-RULES §1.10) ---- */
+.lv-sheet-wrap { position: fixed; inset: 0; z-index: 60; display: flex; align-items: flex-end; justify-content: center; box-sizing: border-box;
+                 padding: 0 8px calc(8px + env(safe-area-inset-bottom)); }
 .lv-sheet-wrap.closing { pointer-events: none; }   /* the page under a leaving sheet takes taps at once */
-.lv-scrim { position: absolute; inset: 0; background: var(--scrim); opacity: 0; transition: opacity var(--lv-slow) var(--ease-fade); }
+.lv-scrim { position: absolute; inset: 0; background: rgba(25,21,18,.32); opacity: 0; transition: opacity var(--lv-slow) var(--ease-fade); }
 .lv-sheet-wrap.closing .lv-scrim { transition-duration: var(--lv-sheet-exit); transition-timing-function: var(--lv-ease-exit); }
 .lv-sheet-wrap.open .lv-scrim { opacity: 1; }
-.lv-sheet { display: flex; flex-direction: column; position: relative; width: 100%; max-width: 720px; max-height: 88vh; max-height: 88dvh; overflow-y: auto; overscroll-behavior: contain; background: var(--cream); color: var(--ink); border-top: 1px solid var(--gold);
-            transform: translateY(100%); transition: transform var(--lv-slow) var(--lv-ease); padding-bottom: env(safe-area-inset-bottom); font: 16px/1.5 var(--font-ui);
-            box-shadow: 0 -18px 40px -28px rgba(25,21,18,.5), 0 48px 0 0 var(--cream); }
+.lv-sheet { display: flex; flex-direction: column; position: relative; width: 100%; max-width: 720px; max-height: 88vh; max-height: 88dvh; overflow: hidden;
+            border-radius: var(--r-sheet, 28px); background: none; color: var(--ink); font: 16px/1.5 var(--font-ui);
+            transform: translateY(calc(100% + 16px)); transition: transform var(--lv-slow) var(--lv-ease); }   /* the glass: .mx-glass.mx-glass--sheet (the kit) */
 /* it rises and comes to rest like a light spring (tokens.css --ease-settle, a few px past its place and back —
    the cream copy of the sheet 48 px below it, off screen at rest, fills that moment); let go of a short drag and
    it springs back the same way */
@@ -318,7 +338,8 @@
 .lv-sheet-wrap.closing .lv-sheet { transition-duration: var(--lv-sheet-exit); transition-timing-function: var(--lv-ease-exit); }
 .lv-sheet.drag { transition: none; }
 .lv-sheet > .lv-sheet-head, .lv-sheet > .lv-sheet-foot { flex: none; }
-.lv-sheet > .lv-sheet-body { flex: 1 0 auto; }   /* a sheet held at its height keeps the foot at the bottom */
+/* the body is the scroller (the glass sheet holds still); a sheet held at its height keeps the foot at the bottom */
+.lv-sheet > .lv-sheet-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 /* a page turn inside the open sheet (a speaker's session, and ← back): scrim and sheet hold still, the page
    slides out and the next one in from the other side. Only the body moves (head and foot are sticky: they fade) */
 .lv-sheet > .lv-sheet-body, .lv-sheet > .lv-sheet-foot, .lv-sheet-head > .lv-eyebrow { transition: opacity var(--lv-exit) var(--lv-ease), transform var(--lv-exit) var(--lv-ease); }
@@ -330,32 +351,35 @@
 .lv-sheet:is(.in-r, .in-l) > .lv-sheet-foot, .lv-sheet:is(.in-r, .in-l) .lv-sheet-head > .lv-eyebrow, .lv-sheet:is(.in-r, .in-l) .lv-sback { animation: lv-fade var(--lv-slow) var(--lv-ease) backwards; }
 @keyframes lv-push-r { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
 @keyframes lv-push-l { from { opacity: 0; transform: translateX(-16px); } to { opacity: 1; transform: none; } }
+/* desktop: a centred 560 px card with 24 px corners, the same glass. The sheet element itself never fades (an
+   opacity below 1 would cut the glass off from the page behind it, GLASS-RULES §1.4): its glass layer and its
+   contents fade while it rises from a little below */
 @media (min-width: 761px) {
   .lv-sheet-wrap { align-items: center; padding: 24px; }
-  .lv-scrim { -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }   /* desktop: a light frost behind the card */
-  .lv-sheet { max-width: 560px; border: 1px solid var(--hair); box-shadow: var(--shadow-sheet), 0 30px 60px -30px rgba(25,21,18,.35);
-              opacity: 0; transform: translateY(10px); transition: transform var(--lv-slow) var(--lv-ease), opacity var(--lv-slow) var(--lv-ease); }
-  .lv-sheet-wrap.open .lv-sheet { opacity: 1; transform: none; }
-  .lv-sheet-wrap.closing .lv-sheet { transition-duration: var(--lv-exit); transition-timing-function: var(--lv-ease-exit); }
+  .lv-sheet { max-width: 560px; border-radius: var(--r-drawer, 24px); box-shadow: none;
+              transform: translateY(14px) scale(.98); transition: transform var(--lv-slow) var(--lv-ease), box-shadow var(--lv-slow) var(--lv-ease); }
+  .lv-sheet::before { opacity: 0; transition: opacity var(--lv-slow) var(--lv-ease); }
+  .lv-sheet > .lv-sheet-head { transition: opacity var(--lv-exit) var(--lv-ease); }
+  .lv-sheet-wrap:not(.open) .lv-sheet > * { opacity: 0; }
+  .lv-sheet-wrap.open .lv-sheet { transform: none; box-shadow: var(--glass-shadow, 0 10px 30px rgba(25,21,18,.14), 0 1px 3px rgba(25,21,18,.10)); }
+  .lv-sheet-wrap.open .lv-sheet::before { opacity: 1; }
+  .lv-sheet-wrap.closing .lv-sheet, .lv-sheet-wrap.closing .lv-sheet::before { transition-duration: var(--lv-exit); transition-timing-function: var(--lv-ease-exit); }
 }
-.lv-sheet-head { display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-bottom: 1px solid var(--hair); position: sticky; top: 0; background: var(--cream); z-index: 2; }
+.lv-sheet-head { position: relative; display: flex; align-items: center; gap: 12px; padding: 10px 12px 6px 18px; z-index: 2; }
 @media (max-width: 760px) {
-  /* a grab bar: the head drags the sheet down (js grip); the body keeps its own scroll */
-  .lv-sheet-head { padding-top: 18px; touch-action: none; }
-  .lv-sheet-head::before { content: ''; position: absolute; top: 7px; left: 50%; width: 36px; height: 3px; margin-left: -18px; background: rgba(25,21,18,.2); }
+  /* the grabber: the head drags the sheet down (js grip); the body keeps its own scroll */
+  .lv-sheet-head { padding-top: 20px; touch-action: none; }
+  .lv-sheet-head::before { content: ''; position: absolute; top: 8px; left: 50%; width: 36px; height: 5px; margin-left: -18px; border-radius: var(--r-capsule, 999px); background: rgba(25,21,18,.22); }
 }
 .lv-sheet-head > .lv-eyebrow { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 /* ← back: a quiet twin of the close button, on the left */
-.lv-sback { flex: none; width: 44px; height: 44px; margin: 0 -8px 0 -13px; display: inline-flex; align-items: center; justify-content: center; color: var(--soft); cursor: pointer;
-            transition: color var(--lv-fast) var(--lv-ease), box-shadow var(--lv-fast) var(--lv-ease), opacity var(--lv-exit) var(--lv-ease); }
+.lv-sback { margin: 0 -2px 0 -8px; color: var(--ink); transition: opacity var(--lv-exit) var(--lv-ease), transform 120ms var(--ease); }   /* the kit's .mx-gbtn */
 .lv-sback svg { transition: transform var(--lv-fast) var(--lv-ease); }
-.lv-sback:active { box-shadow: inset 0 0 0 999px rgba(25,21,18,.07); }
 .lv-sback:focus-visible { outline-offset: -6px; }
-.lv-x { margin-left: auto; width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; color: var(--soft); cursor: pointer; margin-right: -10px;
-        transition: color var(--lv-fast) var(--lv-ease), box-shadow var(--lv-fast) var(--lv-ease); }
-.lv-x:active { box-shadow: inset 0 0 0 999px rgba(25,21,18,.07); }
+/* the close: the kit's 44 px glass circle (.mx-gbtn), as on every sheet in the portal */
+.lv-x { margin-left: auto; color: var(--ink); }
 .lv-x:focus-visible { outline-offset: -6px; }
-.lv-sheet-body { padding: 18px 18px 6px; display: flex; flex-direction: column; gap: 12px; }
+.lv-sheet-body { padding: 8px 18px 14px; display: flex; flex-direction: column; gap: 12px; }
 .lv-sheet-body .lv-tags { justify-content: flex-start; }
 .lv-sheet-title { margin: 0; font: 500 26px/1.15 var(--font-display); }
 .lv-sheet-when { font: 600 14px var(--font-ui); color: var(--crimson); }
@@ -369,28 +393,27 @@
 .lv-mini:first-of-type { border-top: 0; }
 .lv-mini-time { font: 600 15px var(--font-ui); color: var(--crimson); }
 @media (max-width: 480px) { .lv-mini { grid-template-columns: 52px 1fr; row-gap: 8px; } .lv-mini > .lv-att { grid-column: 2; justify-self: start; } }   /* the title keeps the width */
-.lv-sheet-foot { display: flex; align-items: center; gap: 12px; padding: 12px 18px 18px; position: sticky; bottom: 0; background: var(--cream); border-top: 1px solid var(--hair-soft); }
+.lv-sheet-foot { display: flex; align-items: center; gap: 12px; padding: 12px 18px 16px; border-top: 1px solid var(--hair-soft); }
 /* the toggle keeps one width through IN MY SCHEDULE ⇄ ADD TO MY SCHEDULE, so ADD TO CALENDAR beside it never jumps */
 .lv-sheet-foot .lv-att:not(.compact):not(.speak) { min-width: 17.5em; }
 
 /* ---- hover (mouse / trackpad only — a phone never keeps a stuck hover) ---- */
 @media (hover: hover) {
-  .lv .lv-back:hover { color: var(--cream); }
-  .lv-chip:not(.on):not(.ghost):hover { border-color: rgba(247,241,230,.8); color: var(--cream); }
-  .lv-chip.ghost:hover { color: var(--gold-hover); }
+  .lv .lv-back:hover::before { filter: brightness(1.15); }
+  .lv-title-btn:hover .mx-ic { color: var(--gold-hover); }
   .lv-tab:not(.on):hover { color: var(--ink); }
-  .lv-tab:not(.on):hover::after { transform: none; }
+  .lv-ev:hover { background: rgba(25,21,18,.04); }
+  .lv-refresh:hover { background: rgba(25,21,18,.08); }
   .lv-now-item:hover { box-shadow: inset 0 0 0 999px var(--row-hover); }
   .lv-now-item:hover .lv-now-title, .lv-slot:hover .lv-slot-title, .lv-mini:hover .lv-mini-body b, .lv-card-body:hover .lv-card-title { text-decoration-color: rgba(155,27,34,.55); }
   .lv-att:not(.on):not(.ro):not(.speak):not(.wait):hover { border-color: var(--ink); box-shadow: inset 0 0 0 999px rgba(25,21,18,.035); }
   .lv-att.on:not(.wait):hover { background: rgba(155,27,34,.12); border-color: rgba(155,27,34,.7); }
-  .lv-ics:hover::after, .lv-links a:hover::after, .lv-glance-map:hover::after, .lv-refresh:hover::after { transform: none; }
-  .lv-ics:hover, .lv-links a:hover, .lv-glance-map:hover, .lv-refresh:hover { color: var(--ink); }
+  .lv-ics:hover::after, .lv-links a:hover::after, .lv-glance-map:hover::after { transform: none; }
+  .lv-ics:hover, .lv-links a:hover, .lv-glance-map:hover { color: var(--ink); }
   .lv-info-body a:hover, .lv-glance-list a:not(.lv-glance-map):hover { text-decoration-color: currentColor; }
   .lv-person:hover { border-color: rgba(25,21,18,.4); }
   .lv-person:hover .lv-portrait { box-shadow: 0 0 0 3px var(--card), 0 0 0 4px var(--gold); }
   .lv-person:hover .lv-person-name { color: var(--crimson); }
-  .lv-x:hover, .lv-sback:hover { color: var(--ink); box-shadow: inset 0 0 0 999px rgba(25,21,18,.05); }
 }
 /* cards: a session card (its body opens the sheet) and a speaker tile lift 2px on the shared lift shadow and,
    pressed, settle most of the way back — the portals' card gesture. The light / TBD rows stay flat: a hover
@@ -404,7 +427,7 @@
 /* touch: no hover, so a card or a row answers the press itself (the portals' touch-card press) */
 @media (hover: none) {
   .lv-card:has(> .lv-card-body:active), .lv-person:active, .lv-now-item:active, .lv-slot:active, .lv-mini:active { opacity: .86; }
-  .lv-tab:active { background-color: var(--row-hover); }
+  .lv-tab:active { color: var(--ink); }
 }
 
 /* ---- wide screens (desktop browser, the Mac app): the program gets room and NOW / NEXT + YOUR SLOTS
@@ -415,7 +438,6 @@
   .lv { --lv-w: 1180px; display: grid; grid-template-columns: minmax(0, 1fr) 340px; grid-template-rows: auto auto 1fr auto; align-items: start; }
   .lv-head { grid-column: 1 / -1; padding: calc(28px + env(safe-area-inset-top)) 40px 24px; }
   .lv-title { font-size: 42px; }
-  .lv-switch { margin: 12px -40px -3px; padding: 6px 40px; }   /* 6 px: the gold focus ring is never clipped by the scroller */
   .lv-tabs { grid-column: 1; grid-row: 2; }
   .lv-panels { grid-column: 1; grid-row: 3; min-width: 0; }
   .lv-foot { grid-column: 1 / -1; grid-row: 4; }
@@ -434,18 +456,15 @@
   /* INFO open: AT A GLANCE would repeat it word for word beside it */
   .lv[data-tab="info"] .lv-glance { display: none; }
 }
-/* touch screens: the event chips are 44 px targets */
-@media (pointer: coarse) { .lv-chip { min-height: 44px; } }
 
 /* ---- reduced motion: every entrance, sheen, ping, slide and hover lift off; state changes stay instant ---- */
 @media (prefers-reduced-motion: reduce) {
   .lv *, .lv *::before, .lv *::after, .lv-sheet-wrap, .lv-sheet-wrap *, .lv-sheet-wrap *::before, .lv-sheet-wrap *::after { animation: none !important; transition: none !important; }
-  .lv-card, .lv-person, .lv-att:active, .lv-chip:active { transform: none !important; }
+  .lv-card, .lv-person, .lv-att:active, .lv .lv-back:active, .lv-x:active, .lv-refresh:active { transform: none !important; }
 }
 
 /* ---- phone calm pass (2026-09-25): a session still waiting for its speaker says so quietly; every person is one circle
    (ui.portrait) — 32 in a card's speaker row, 44 in a session sheet, 96 on the speakers tab and a speaker's sheet ---- */
-.lv-tbd { font: 400 14px/20px var(--font-ui); color: var(--soft); }
 .lv-where .mx-ic { flex: none; color: var(--gold-dark); }
 .lv-avs .mx-pic + .mx-pic { margin-left: -8px; box-shadow: 0 0 0 2px var(--card); }
 .lv-avs .mx-pic { margin-right: 0; }
@@ -453,3 +472,17 @@
 .lv-person { padding: 18px 10px 16px; }
 .lv-person .mx-pic { margin-bottom: 4px; }
 .lv-pp .mx-pic { flex: none; }
+
+/* ---- the events menu (the title's sheet, GLASS-RULES §3.6): one row per event of the week, the one on screen
+   ticked, the ones not on this ticket muted (they open read-only, as the chips did) ---- */
+.lv-evs { gap: 0; padding-top: 0; }
+.lv-ev { display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 10px 0; cursor: pointer; -webkit-tap-highlight-color: transparent;
+         transition: background-color var(--lv-fast) var(--lv-ease); }
+.lv-ev + .lv-ev { border-top: 1px solid var(--hair-soft); }
+.lv-ev:active { background: rgba(25,21,18,.06); }
+.lv-ev-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.lv-ev-t { font: 400 18px/24px var(--font-display); color: var(--ink); }
+.lv-ev-s { font: 400 14px/20px var(--font-ui); color: var(--soft); }
+.lv-ev > .mx-ic { flex: none; color: var(--crimson); }
+.lv-ev.ro .lv-ev-t { color: var(--soft); }
+.lv-ev:focus-visible { outline-offset: -2px; }

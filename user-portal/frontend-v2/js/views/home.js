@@ -38,11 +38,11 @@ export const COPY = {
     resent: 'Link sent — check your inbox (and spam).',
     // the one-row nudge (phone calm pass)
     confirmT: 'Confirm your email', resendT: 'Resend',
-    profileT: 'Complete your profile', profileS: (done, total) => (done != null && total ? `${done} of ${total} done` : 'A few details left')
+    profileT: 'Complete your profile'
   },
   next: { eyebrow: 'NEXT EVENT', free: 'Free entry', schedule: 'View schedule →', mySchedule: 'My schedule →', register: CTA.register, mine: 'MY TICKET', units: ['days', 'hrs', 'min'], begins: 'Begins in' },
   projects: {
-    n: '01', title: 'Your projects', all: 'All →', sub: 'Apply, register, and follow every Med&amp;X project from here.',
+    title: 'Projects', all: 'All →', sub: 'Apply, register, and follow every Med&amp;X project from here.',
     cards: {
       // the card carries the conference (its status, 4–5 December, free entry) — Plexus Week itself runs 3–6 December
       plexus: { title: 'Plexus Conference 2026', photo: 'photo-stage.jpg' },
@@ -62,13 +62,13 @@ export const COPY = {
   },
   latest: {
     n: '02', title: 'LATEST FROM MED&amp;X', seeAll: 'SEE ALL →', showLess: 'SHOW LESS', read: 'READ →',
-    titleT: 'Latest', seeAllT: 'All →', showLessT: 'Less', forum: 'Forum', emptyWhyT: 'Calls, dates and announcements appear here first.',
+    titleT: 'Latest', seeAllT: 'All →', showLessT: 'Less', forum: 'Forum',
     emptyLine: 'Quiet week at Med&amp;X.',
     emptyWhy: 'When news breaks — calls, dates, announcements — it appears here first. Follow a project to be notified the moment it does.',
     emptyCta: 'EXPLORE THE PROJECTS →'
   },
   keyDates: {
-    title: 'KEY DATES', add: 'Add →', file: 'medx-key-dates.ics', titleT: 'Key dates', until: 'Until this date',
+    title: 'KEY DATES', add: 'Add →', file: 'medx-key-dates.ics', titleT: 'Key dates', until: 'Deadline',
     added: 'Calendar file downloaded — open it to add the dates.', none: 'No dates could be exported yet.',
     // shown only when GET /api/plexus/settings carries no key_dates
     fallback: [
@@ -83,7 +83,7 @@ export const COPY = {
     title: 'MED&amp;X NEWSLETTER', sub: 'Project news in your inbox — pick topics.',
     topics: ['ALL MED&X', 'PLEXUS', 'GALA EVENING', 'ACCELERATOR', 'BUILDING BRIDGES', 'BIOMEDICAL FORUM'],
     subscribe: 'SUBSCRIBE', subscribed: n => `SUBSCRIBED · ${n} ${n === 1 ? 'TOPIC' : 'TOPICS'} · MANAGE IN SETTINGS`,
-    rowT: 'Newsletter', rowS: 'Choose topics', rowDone: n => `Subscribed · ${n} ${n === 1 ? 'topic' : 'topics'}`,
+    rowT: 'Newsletter', rowDone: n => `Subscribed · ${n} ${n === 1 ? 'topic' : 'topics'}`,
     sheetEyebrow: 'NEWSLETTER', sheetTitle: 'Project news in your inbox', emailL: 'Email',
     topicName: l => (l === 'ALL MED&X' ? 'All of Med&X' : l.charAt(0) + l.slice(1).toLowerCase().replace(/\b(evening|forum|bridges)\b/g, w => w.charAt(0).toUpperCase() + w.slice(1))),
     done: n => `Subscribed to ${n} topic${n === 1 ? '' : 's'} — manage them in Profile & settings.`, pick: 'Pick at least one topic.'
@@ -94,10 +94,17 @@ export const COPY = {
     line: 'Med&amp;X is a community <i style="color:#c9a962">first</i>. Meet the people behind the programs.',
     stats: { registrations: 'GUESTS SO FAR', members: 'MEMBERS', countries: 'COUNTRIES', speakers: 'SPEAKERS HOSTED' },
     cta: 'OPEN THE NETWORK →',
-    titleT: 'Your network', ctaT: 'Open the network',
+    titleT: 'Network', openT: 'Open',
     tiles: { members: 'Members', countries: 'Countries', registrations: 'Guests' }
   }
 };
+// the view's own look (the glass chips on the next-event photo) lives in css/views/home.css, injected once
+function ensureCss() {
+  if (document.querySelector('link[data-view-css="home"]')) return;
+  const l = document.createElement('link');
+  l.rel = 'stylesheet'; l.href = '/css/views/home.css'; l.setAttribute('data-view-css', 'home');
+  document.head.appendChild(l);
+}
 const TOPIC_KEY = { 'PLEXUS': 'plexus', 'GALA EVENING': 'gala', 'ACCELERATOR': 'accelerator', 'BUILDING BRIDGES': 'bridges', 'BIOMEDICAL FORUM': 'forum' };
 const ALL_TOPIC = 'ALL MED&X';
 // ---- view state ----
@@ -169,19 +176,17 @@ async function load() {
 // next-event card (photo, title, date · city, the countdown as a line, one primary, the schedule as a text link);
 // the profile nudge as one row; the projects as a shelf; key dates as a timeline; the latest news as rows; the
 // newsletter as one row that opens a sheet; the network as three numbers. No scattered marks, no second button.
-const DAYS_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const MON3 = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const sentence = s => { const t = String(s || '').trim(); return t && t === t.toUpperCase() ? t.charAt(0) + t.slice(1).toLowerCase() : t; };
 
 function blockHead() {
-  const me = D.me; const now = new Date();
-  const hour = now.getHours();
+  const me = D.me;
+  const hour = new Date().getHours();
   const greeting = COPY.hero.greetings[hour < 12 ? 0 : hour < 18 ? 1 : 2];
   return `
   <!-- dc: Med&X Home.dc.html › "YOUR NEXT EVENT" (greeting) -->
   <header class="mx-home-head">
-    <span class="mx-home-date">${DAYS_LONG[now.getDay()]}, ${now.getDate()} ${MONTHS_LONG[now.getMonth()]}</span>
     <h1 class="mx-lt">${esc(greeting)}, <i>${esc((me.first_name || '').trim() || session.displayName())}</i>.</h1>
   </header>`;
 }
@@ -202,21 +207,21 @@ function blockNextEvent() {
     : holdsTicket
       ? `<a href="/app/plexus/mine" class="btn-primary btn-block">${COPY.next.mine}</a>`
       : `<a href="/app/plexus/mine" class="btn-primary btn-block">${COPY.next.register}</a>`;
-  const cell = (id, unit) => `<span class="mx-cd-cell"><b class="mx-cd-num" data-cd="${id}">—</b><i class="mx-cd-unit">${unit}</i></span>`;
+  const cell = (id, unit) => `<span class="mx-cd-cell mx-cd-cell--${id}"><b class="mx-cd-num" data-cd="${id}">—</b><i class="mx-cd-unit">${unit}</i></span>`;
   const status = sentence(fmt.detail(p.status_label || ''));
+  // Glass Quiet (GLASS-RULES §3.6 Home): the status and the countdown ride on the photo as glass chips; the chip
+  // shows "69 days" (the label and the hrs / min cells stay in the DOM, hidden, so the timer keeps its cells)
   return `
   <!-- dc: Med&X Home.dc.html › "NEXT EVENT" (one card) -->
   <article class="mx-next" aria-label="Your next event">
     <a class="mx-next-media mx-media r-16x9" href="/app/plexus">
       <img src="/assets/photo-hall.jpg" alt="" style="object-position:50% 62%">
       <div class="mx-scrim"></div>
-      ${status ? `<span class="mx-tag mx-tag--gold">${esc(status)}</span>` : ''}
+      ${status ? `<span class="mx-tag mx-tag--glass">${esc(status)}</span>` : ''}
+      <span class="mx-glass mx-glass--chip mx-next-cd" role="timer" aria-label="Countdown to the conference">${ui.icon('clock', 16)}<span class="mx-cd-label">${COPY.next.begins}</span>${cell('days', COPY.next.units[0])}${cell('hrs', COPY.next.units[1])}${cell('min', COPY.next.units[2])}</span>
       <span class="mx-next-over"><span class="mx-next-title">${titleHtml}</span><span class="mx-next-date">${esc(date)} · ${esc(city)}</span></span>
     </a>
     <div class="mx-next-body">
-      <div class="mx-countdown mx-countdown--line" aria-label="Countdown to the conference">
-        <span class="mx-cd-label">${COPY.next.begins}</span>${cell('days', COPY.next.units[0])}${cell('hrs', COPY.next.units[1])}${cell('min', COPY.next.units[2])}
-      </div>
       ${primary}
       <a class="mx-next-link" href="${holdsTicket ? '/app/live' : '/app/plexus/program'}">${holdsTicket ? COPY.next.mySchedule : COPY.next.schedule}</a>
     </div>
@@ -239,7 +244,7 @@ function blockStart() {
     ${askEmail ? `<div class="mx-start-row"><span class="mx-start-ic">${ui.icon('mail', 20)}</span><span class="mx-start-text"><span class="mx-start-t">${COPY.start.confirmT}</span></span><span data-act="resend" role="button" tabindex="0" class="mx-start-go">${COPY.start.resendT}</span></div>` : ''}
     ${c.complete ? '' : `<a class="mx-start-row" href="/app/profile">
       <span class="mx-start-ic">${ui.icon('user', 20)}</span>
-      <span class="mx-start-text"><span class="mx-start-t">${COPY.start.profileT}</span><span class="mx-start-bar" aria-hidden="true"><i style="width:${pct}%"></i></span><span class="mx-start-s">${pct}% · ${COPY.start.profileS(c.done, c.total)}</span></span>
+      <span class="mx-start-text"><span class="mx-start-t">${COPY.start.profileT}</span><span class="mx-start-bar" aria-hidden="true"><i style="width:${pct}%"></i></span><span class="mx-start-s">${pct}%</span></span>
       ${ui.icon('chevron-right', 18)}
     </a>`}
     <span data-act="hideStart" role="button" tabindex="0" aria-label="Dismiss" class="mx-iconbtn mx-start-x">${ui.icon('x', 18)}</span>
@@ -252,15 +257,14 @@ function blockProjects() {
     const f = projectCard(key, D.projects[key] || COPY.projects.fallback[key], held);
     return `
       <a href="${f.to}" class="mx-shelf-item mx-home-proj">
-        <span class="mx-media r-4x3"><img src="${esc(f.img)}" alt="" style="object-position:${f.pos}">${f.tag.text ? `<span class="mx-tag mx-tag--${f.tag.kind === 'line' ? 'ink' : f.tag.kind}">${esc(f.tag.text)}</span>` : ''}</span>
+        <span class="mx-media r-4x3"><img src="${esc(f.img)}" alt="" style="object-position:${f.pos}">${f.tag.text ? `<span class="mx-tag mx-tag--glass">${esc(f.tag.text)}</span>` : ''}</span>
         <span class="mx-shelf-title">${esc(f.name)}</span>
-        <span class="mx-shelf-sub">${esc([f.note, f.date, f.place].filter(Boolean).join(' · '))}</span>
       </a>`;
   };
   return `
     <!-- dc: Med&X Home.dc.html › "01 · OUR PROJECTS" (a shelf of the other four: the conference is the card above) -->
     <section class="mx-sec" id="projects">
-      <div class="mx-sh"><span class="mx-sh-n">01</span><h2 class="mx-sh-t">${COPY.projects.title}</h2><a class="mx-sh-a" href="/app/projects">${COPY.projects.all}</a></div>
+      <div class="mx-sh"><h2 class="mx-sh-t">${COPY.projects.title}</h2><a class="mx-sh-a" href="/app/projects">${COPY.projects.all}</a></div>
       <div class="mx-shelf" style="--w:236px">${FACTS.projectOrder.filter(k => k !== 'plexus').map(item).join('')}</div>
     </section>
     <!-- /dc -->`;
@@ -283,7 +287,7 @@ function blockKeyDates() {
   return `
     <!-- dc: Med&X Home.dc.html › "KEY DATES" (a timeline) -->
     <section class="mx-sec">
-      <div class="mx-sh"><span class="mx-sh-n">02</span><h2 class="mx-sh-t">${COPY.keyDates.titleT}</h2><span class="mx-sh-a" data-act="dlIcs" role="button" tabindex="0">${COPY.keyDates.add}</span></div>
+      <div class="mx-sh"><h2 class="mx-sh-t">${COPY.keyDates.titleT}</h2><span class="mx-sh-a" data-act="dlIcs" role="button" tabindex="0">${COPY.keyDates.add}</span></div>
       <ol class="mx-timeline mx-timeline--wide">
         ${rows.map(r => { const k = keyDate(r); const label = fmt.detail(r.label).split(' — '); return `<li class="mx-tl-row"><time class="mx-tl-time">${esc(k.when)}</time><div class="mx-tl-body"><span class="mx-tl-title">${esc(label[0])}</span>${label[1] || k.sub ? `<span class="mx-tl-sub">${esc([label.slice(1).join(' — '), k.sub].filter(Boolean).join(' · '))}</span>` : ''}</div></li>`; }).join('')}
       </ol>
@@ -296,7 +300,6 @@ function latestRows() {
   if (!items.length) return `
         <div class="empty">
           <span class="empty-line">${COPY.latest.emptyLine}</span>
-          <span class="empty-why">${COPY.latest.emptyWhyT}</span>
         </div>`;
   // a row opens the announcement itself when it has text (the sheet then offers the project link)
   return `<div class="mx-list mx-list--plain">${items.map((it, i) => `
@@ -310,7 +313,7 @@ function blockLatest() {
   return `
     <!-- dc: Med&X Home.dc.html › "02 · LATEST FROM MED&X" (rows) -->
     <section class="mx-sec">
-      <div class="mx-sh"><span class="mx-sh-n">03</span><h2 class="mx-sh-t">${COPY.latest.titleT}</h2>${D.feed.length > 4 ? `<span class="mx-sh-a" data-act="seeAll" role="button" tabindex="0">${st.expanded ? COPY.latest.showLessT : COPY.latest.seeAllT}</span>` : ''}</div>
+      <div class="mx-sh"><h2 class="mx-sh-t">${COPY.latest.titleT}</h2>${D.feed.length > 4 ? `<span class="mx-sh-a" data-act="seeAll" role="button" tabindex="0">${st.expanded ? COPY.latest.showLessT : COPY.latest.seeAllT}</span>` : ''}</div>
       <div data-block="latest">${latestRows()}</div>
     </section>
     <!-- /dc -->`;
@@ -322,7 +325,7 @@ function blockNewsletterRow() {
     <!-- dc: Med&X Home.dc.html › "MED&X NEWSLETTER" (one row) -->
     <section class="mx-sec mx-sec--tight" data-block="nl-row">
       <div class="mx-list">
-        <span class="mx-row" data-act="nlOpen" role="button" tabindex="0">${ui.icon('mail')}<span class="mx-row-l">${COPY.newsletter.rowT}<span class="mx-row-s">${st.nlDone ? COPY.newsletter.rowDone(st.nlCount) : COPY.newsletter.rowS}</span></span>${ui.icon('chevron-right', 18)}</span>
+        <span class="mx-row" data-act="nlOpen" role="button" tabindex="0">${ui.icon('mail')}<span class="mx-row-l">${COPY.newsletter.rowT}${st.nlDone ? `<span class="mx-row-s">${COPY.newsletter.rowDone(st.nlCount)}</span>` : ''}</span>${ui.icon('chevron-right', 18)}</span>
       </div>
     </section>
     <!-- /dc -->`;
@@ -348,9 +351,8 @@ function blockNetwork() {
   return `
   <!-- dc: Med&X Home.dc.html › "03 · GROW YOUR NETWORK" (three numbers) -->
   <section class="mx-sec">
-    <div class="mx-sh"><span class="mx-sh-n">04</span><h2 class="mx-sh-t">${COPY.network.titleT}</h2></div>
+    <div class="mx-sh"><h2 class="mx-sh-t">${COPY.network.titleT}</h2><a class="mx-sh-a" href="/app/network">${COPY.network.openT}</a></div>
     ${tiles.length ? `<div class="mx-tiles${tiles.length === 3 ? ' mx-tiles--3' : ''}">${tiles.join('')}</div>` : ''}
-    <a href="/app/network" class="btn-ghost btn-block mx-home-net">${COPY.network.ctaT}</a>
   </section>
   <!-- /dc -->`;
 }
@@ -454,6 +456,8 @@ function startTimers() {
   timers.push(ui.countdown(D.countdownTo, ({ days, hrs, min }) => {
     const set = (k, v) => ui.tick(rootEl && rootEl.querySelector(`[data-cd="${k}"]`), v);
     set('days', days); set('hrs', hrs); set('min', min);
+    // the last day: the chip shows hours and minutes instead of "0 days" (home.css)
+    const cd = rootEl && rootEl.querySelector('.mx-next-cd'); if (cd) cd.classList.toggle('is-final', Number(days) === 0);
   }, 30000));
 }
 
@@ -461,6 +465,7 @@ export default {
   title: 'Home',
   reveal: true,        // sections below the fold rise in on scroll (router › ui.revealOnScroll)
   async render(root, ctx) {
+    ensureCss();
     rootEl = root;
     D = await load();
     if (rootEl !== root || (ctx.ready && !(await ctx.ready()))) return; // navigated away while loading, or the router moved on

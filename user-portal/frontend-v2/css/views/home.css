@@ -1,0 +1,30 @@
+/* css/views/home.css — Home (js/views/home.js), injected once by the view. Glass Quiet pass (GLASS-RULES §1.9.5, §3.6 Home).
+   The page is built from the PHONE CALM KIT (app.css). Only the countdown chip on the next-event photo lives here: the
+   card is not a .mx-hero, so the kit's hero chip (.mx-countdown--chip) does not reach it. Its glass is the kit's dark
+   chip glass (.mx-glass.mx-glass--chip, with the kit's fallbacks for no blur, Reduce Transparency and Increase Contrast);
+   this file only places it and sets its type. It shows "69 days": the label and the hours and minutes cells stay in the
+   DOM for the timer, hidden. On the last day (.is-final) it shows hours and minutes instead. */
+
+.mx-next-media > .mx-next-cd {
+  position: absolute; top: 14px; right: 14px; z-index: 1;
+  display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px 0 10px; box-sizing: border-box;
+  border-radius: var(--r-capsule, 999px); color: var(--cream); white-space: nowrap;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .16);
+}
+.mx-next-cd > .mx-ic { flex: none; color: var(--cream); }
+.mx-next-cd .mx-cd-label { display: none; }
+.mx-next-cd .mx-cd-cell { display: inline-flex; align-items: baseline; gap: 4px; }
+.mx-next-cd .mx-cd-num { font: 600 13px/16px var(--font-ui); font-variant-numeric: tabular-nums lining-nums; letter-spacing: 0; color: var(--cream); }
+.mx-next-cd .mx-cd-unit { font: 500 13px/16px var(--font-ui); letter-spacing: 0; color: rgba(247, 241, 230, .86); opacity: 1; }
+.mx-next-cd:not(.is-final) .mx-cd-cell--hrs, .mx-next-cd:not(.is-final) .mx-cd-cell--min { display: none; }
+.mx-next-cd.is-final .mx-cd-cell--days { display: none; }
+
+/* a narrow phone: the status tag and the chip would meet, so the chip steps under the tag, and the photo turns 4:3 so
+   the two-line title below them keeps its room */
+@media (max-width: 360px) {
+  .mx-next-media.r-16x9 { aspect-ratio: 4 / 3; }
+  .mx-next-media > .mx-next-cd { top: 50px; left: 14px; right: auto; }
+}
+
+/* wide screens: the card's photo is taller, the chip keeps its corner */
+@media (min-width: 901px) { .mx-next-media > .mx-next-cd { top: 18px; right: 18px; } }

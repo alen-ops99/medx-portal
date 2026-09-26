@@ -1,8 +1,9 @@
 // Source: Mobile Portal.dc.html › "Five projects, one membership." (the PROJECTS tab) — phone calm pass 2026-09-25.
 // The mobile tab bar's second tab, and the landing of every project page's PROJECTS crumb on a wider screen.
-// One card per project (DESIGN-RULES §11 › /app/projects): a 16:9 photo on the scrim with a status chip top-left and
-// the name bottom-left; under it one facts line (date · place, the price or "Free" on the right), one line of what it
-// is, and the action as a text row. The whole card is the link, to the same place it always went (to() below).
+// One card per project (DESIGN-RULES §11 › /app/projects): a 16:9 photo on the scrim with a status chip top-left (a
+// glass chip, GLASS-RULES §1.9.5) and the name bottom-left; under it one facts line (date · place, the price or "Free"
+// on the right) and the action as a text row when it names one. The whole card is the link, to the same place it
+// always went (to() below).
 // Home › "Your projects" draws the same five from projectCard(), so the two never disagree.
 import { api } from '../api.js';
 import { ui, esc, fmt } from '../ui.js';
@@ -17,15 +18,17 @@ const range = (a, b) => { const x = dObj(a), y = dObj(b); if (!x) return ''; if 
 
 export const COPY = {
   title: 'Projects',
-  lede: 'Five projects, one membership.',
-  // name, photo (+ focal point), and the one line that says what it is
+  // name and photo (+ focal point). Glass Quiet (GLASS-RULES §3.6 Projects): the card says what it is with its photo,
+  // its name and its facts line, so the one-line descriptions went
   cards: {
-    plexus: { name: 'Plexus Conference', img: 'photo-hall.jpg', pos: '50% 60%', line: 'Two days of talks, panels and people.' },
-    gala: { name: 'Gala Evening', img: 'photo-ballroom.jpg', pos: '50% 55%', line: 'A black-tie dinner and the Med&amp;X Awards.' },
-    accelerator: { name: 'The Accelerator', img: 'ax-hero-boston-2026.jpg', pos: '50% 72%', line: 'Summer placements in leading labs and clinics.' },
-    forum: { name: 'Biomedical Forum', img: 'photo-candlelit.jpg', pos: '50% 40%', line: 'A circle of 200 leaders that meets every May.' },
-    bridges: { name: 'Building Bridges', img: 'photo-bridges.jpg', pos: '50% 50%', line: 'Evenings that connect Croatian biomedicine worldwide.' }
+    plexus: { name: 'Plexus Conference', img: 'photo-hall.jpg', pos: '50% 60%' },
+    gala: { name: 'Gala Evening', img: 'photo-ballroom.jpg', pos: '50% 55%' },
+    accelerator: { name: 'The Accelerator', img: 'ax-hero-boston-2026.jpg', pos: '50% 72%' },
+    forum: { name: 'Biomedical Forum', img: 'photo-candlelit.jpg', pos: '50% 40%' },
+    bridges: { name: 'Building Bridges', img: 'photo-bridges.jpg', pos: '50% 50%' }
   },
+  // an action label that names no action ("Learn more", "Open") is not drawn: the whole card is already the link
+  vague: /^(learn more|open|more|discover|read more)$/i,
   // a member who already holds the ticket / the seat is never asked to register again (Home's cards agree)
   mine: { plexus: 'MY TICKET', gala: 'YOUR SEAT' },
   free: 'Free', plexusWeek: 'Plexus Week', duringWeek: 'During Plexus Week',
@@ -59,10 +62,10 @@ function tagFor(p, key) {
 }
 // everything a project card shows, for Home and Projects alike. `held` = { plexus, gala } (the member's own ticket / seat)
 export function projectCard(key, p = {}, held = {}) {
-  const c = COPY.cards[key] || { name: key, img: 'photo-hall.jpg', pos: '50% 50%', line: '' };
+  const c = COPY.cards[key] || { name: key, img: 'photo-hall.jpg', pos: '50% 50%' };
   const cta = held[key] ? COPY.mine[key] : key === 'plexus' ? CTA.register : key === 'gala' ? CTA.reserve(fmt.eur(galaPriceNow())) : fmt.upper(p.cta_label || 'Open');
   const to = key === 'plexus' && held.plexus ? '/app/plexus/mine' : routeFor(p.cta_target || key, routeFor(key));
-  return Object.assign({ key, name: c.name, img: '/assets/' + c.img, pos: c.pos, line: c.line, tag: tagFor(p, key), cta, to }, factsFor(key));
+  return Object.assign({ key, name: c.name, img: '/assets/' + c.img, pos: c.pos, tag: tagFor(p, key), cta, to }, factsFor(key));
 }
 export function metaLine(f) {
   return `${f.note ? `<span>${esc(f.note)}</span>` : ''}${f.date ? `${ui.icon('calendar', 16)}<span>${esc(f.date)}</span>` : ''}${f.place ? `${f.date ? '<span class="mx-sep"></span>' : ''}${ui.icon('pin', 16)}<span>${esc(f.place)}</span>` : ''}${f.price ? `<span class="mx-pcard-price">${esc(f.price)}</span>` : ''}`;
@@ -72,12 +75,11 @@ function card(f) {
   return `
     <a href="${f.to}" class="mx-pcard">
       <div class="mx-media r-16x9"><img src="${esc(f.img)}" alt="" style="object-position:${f.pos}"><div class="mx-scrim"></div>
-        ${f.tag.text ? `<span class="mx-tag mx-tag--${f.tag.kind}">${esc(f.tag.text)}</span>` : ''}
+        ${f.tag.text ? `<span class="mx-tag mx-tag--glass">${esc(f.tag.text)}</span>` : ''}
         <h3 class="mx-pcard-title">${esc(f.name)}</h3></div>
       <div class="mx-pcard-body">
         <div class="mx-pcard-meta">${metaLine(f)}</div>
-        ${f.line ? `<p class="mx-pcard-line">${f.line}</p>` : ''}
-        <span class="mx-pcard-cta">${esc(f.cta)} →</span>
+        ${COPY.vague.test(String(f.cta).trim()) ? '' : `<span class="mx-pcard-cta">${esc(f.cta)} →</span>`}
       </div>
     </a>`;
 }
@@ -101,7 +103,6 @@ export default {
   <!-- dc: Mobile Portal.dc.html › "Five projects, one membership." (phone calm pass) -->
   <div class="mx-p">
     <h1 class="mx-lt">${COPY.title}</h1>
-    <p class="mx-lede">${COPY.lede}</p>
     <div class="mx-sec mx-sec--tight mx-proj-list">
       ${FACTS.projectOrder.map(key => card(projectCard(key, byKey[key] || {}, held))).join('')}
     </div>
