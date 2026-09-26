@@ -32,6 +32,8 @@
 
 const core = require('../../../shared/live-program');
 const plexusTicket = require('../plexus-ticket');
+// D17: the one e-mail-link helper the wallet uses (MEDX_VERIFIED_EMAIL_GATE on and the account unverified gives '__none__')
+const { emailLinkFor } = require('./apple-pass.js');
 
 function tryRequire(name) { try { return require(name); } catch (e) { return null; } }
 const rateLimitLib = tryRequire('express-rate-limit');
@@ -108,6 +110,7 @@ module.exports = function mountLive(app, ctx) {
         let person = null;
         const party = {};
         let email = null, name = '', kind = tok.kind, ref = tok.id, speakerId = null;
+        let linkEmail = null;   // the address rows no account owns may match by. For 'user' it goes through emailLinkFor.
         if (tok.kind === 'ca') {
             const ca = q.get('SELECT * FROM croatians_abroad_registrations WHERE id = ?', [tok.id]); if (!ca) return null;
             mergeParty(party, caParty(ca)); name = nameOf(ca); email = ca.email;
@@ -126,14 +129,17 @@ module.exports = function mountLive(app, ctx) {
             const s = q.get('SELECT id, name, email FROM speakers WHERE id = ?', [tok.id]); if (!s) return null;
             speakerId = s.id; name = s.name || ''; email = s.email || null;
         } else if (tok.kind === 'user') {
-            const u = req && req.user && req.user.id ? (q.get('SELECT id, email, first_name, last_name FROM users WHERE id = ?', [req.user.id]) || { id: req.user.id, email: req.user.email }) : null;
+            const u = req && req.user && req.user.id ? (q.get('SELECT id, email, email_verified, first_name, last_name FROM users WHERE id = ?', [req.user.id]) || { id: req.user.id, email: req.user.email }) : null;
             if (!u) return null;
             name = nameOf(u) || String(u.email || '').split('@')[0]; email = u.email; ref = u.id;
             // linked registrations: by account, then by e-mail — the address only for rows no account has claimed
-            // (a closed account's rows keep its id, so a new sign-up on the freed address never inherits them)
-            const cas = q.all('SELECT * FROM croatians_abroad_registrations WHERE user_id = ? OR (user_id IS NULL AND LOWER(email) = LOWER(?) AND ? <> \'\') ORDER BY created_at DESC', [u.id, u.email || '', u.email || '']);
-            const galas = q.all('SELECT * FROM gala_registrations WHERE user_id = ? OR (user_id IS NULL AND LOWER(email) = LOWER(?) AND ? <> \'\') ORDER BY created_at DESC', [u.id, u.email || '', u.email || '']);
-            let bridges = []; try { bridges = q.all('SELECT * FROM bridges_registrations WHERE user_id = ? OR (user_id IS NULL AND LOWER(email) = LOWER(?) AND ? <> \'\')', [u.id, u.email || '', u.email || '']); } catch (e) { bridges = []; }
+            // (a closed account's rows keep its id, so a new sign-up on the freed address never inherits them).
+            // D17: the address comes from emailLinkFor, so with the gate on an unverified account links no row by e-mail.
+            const em = emailLinkFor({ email: u.email, email_verified: u.email_verified });
+            linkEmail = em === '__none__' ? '' : em;
+            const cas = q.all('SELECT * FROM croatians_abroad_registrations WHERE user_id = ? OR (user_id IS NULL AND LOWER(email) = LOWER(?) AND ? <> \'\') ORDER BY created_at DESC', [u.id, linkEmail, linkEmail]);
+            const galas = q.all('SELECT * FROM gala_registrations WHERE user_id = ? OR (user_id IS NULL AND LOWER(email) = LOWER(?) AND ? <> \'\') ORDER BY created_at DESC', [u.id, linkEmail, linkEmail]);
+            let bridges = []; try { bridges = q.all('SELECT * FROM bridges_registrations WHERE user_id = ? OR (user_id IS NULL AND LOWER(email) = LOWER(?) AND ? <> \'\')', [u.id, linkEmail, linkEmail]); } catch (e) { bridges = []; }
             for (const ca of cas) mergeParty(party, caParty(ca));
             for (const g of galas) if (!cas.some(c => c.gala_registration_id === g.id) && alive(g.status) && alive(g.payment_status)) mergeParty(party, { gala: 1 + Math.max(0, parseInt(g.guest_count, 10) || 0) });
             for (const b of bridges) { const ek = eventOfBridgesRow(b.event_id); if (ek && alive(b.status)) mergeParty(party, { [ek]: 1 }); }
@@ -161,11 +167,12 @@ module.exports = function mountLive(app, ctx) {
         // meetups: a confirmed (or promoted) place, or hosting one, holds that meetup — found by account or e-mail
         try {
             const uid = tok.kind === 'user' && req && req.user ? req.user.id : null;
-            if (email || uid) {
+            const meetupEmail = (tok.kind === 'user' ? linkEmail : email) || '';
+            if (meetupEmail || uid) {
                 q.all(`SELECT DISTINCT meetup_id AS id FROM plexus_meetup_attendees WHERE status IN ('confirmed', 'promoted')
-                         AND ((? IS NOT NULL AND user_id = ?) OR (? <> '' AND user_id IS NULL AND LOWER(email) = LOWER(?)))`, [uid, uid, email || '', email || ''])
+                         AND ((? IS NOT NULL AND user_id = ?) OR (? <> '' AND user_id IS NULL AND LOWER(email) = LOWER(?)))`, [uid, uid, meetupEmail, meetupEmail])
                     .concat(q.all(`SELECT id FROM plexus_meetups WHERE status IN ('published', 'completed')
-                         AND ((? IS NOT NULL AND host_user_id = ?) OR (? <> '' AND host_user_id IS NULL AND LOWER(host_email) = LOWER(?)))`, [uid, uid, email || '', email || '']))
+                         AND ((? IS NOT NULL AND host_user_id = ?) OR (? <> '' AND host_user_id IS NULL AND LOWER(host_email) = LOWER(?)))`, [uid, uid, meetupEmail, meetupEmail]))
                     .forEach(m => { if (m && m.id) party['meetup:' + m.id] = Math.max(1, Number(party['meetup:' + m.id] || 0)); });
             }
         } catch (e) { /* meetup tables absent */ }

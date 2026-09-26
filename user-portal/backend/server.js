@@ -14499,10 +14499,13 @@ async function initializeApp() {
         grp(() => {
             const me = query.get('SELECT email FROM users WHERE id = ?', [req.user.id]);
             if (!me || !me.email) return;
+            // D17: a row is the caller's by user_id, or by address only while no account owns it. The address
+            // comes from memberEmailLink, so with MEDX_VERIFIED_EMAIL_GATE on an unverified account matches none.
+            const em = memberEmailLink(req);
             // Gala registration has no free-text name column — surface it when the query
             // reads like a gala lookup (e.g. "gala", "evening", "seat").
             if (walletAsk || 'gala evening 2026 dinner seat'.includes(qLower)) {
-                query.all('SELECT id, status FROM gala_registrations WHERE LOWER(email) = LOWER(?) LIMIT 2', [me.email])
+                query.all('SELECT id, status FROM gala_registrations WHERE user_id = ? OR (user_id IS NULL AND lower(email) = ?) LIMIT 2', [req.user.id, em])
                     .forEach(g => out.mine.push({
                         kind: 'gala_registration', id: g.id,
                         title: 'Gala Evening 2026 \u2014 your registration',
@@ -14512,7 +14515,7 @@ async function initializeApp() {
             }
             query.all(`SELECT br.id, be.name, be.event_date FROM bridges_registrations br
                 JOIN bridges_events be ON br.event_id = be.id
-                WHERE LOWER(br.email) = LOWER(?) AND (? = 1 OR be.name LIKE ?) LIMIT 3`, [me.email, walletAsk ? 1 : 0, like])
+                WHERE (br.user_id = ? OR (br.user_id IS NULL AND lower(br.email) = ?)) AND (? = 1 OR be.name LIKE ?) LIMIT 3`, [req.user.id, em, walletAsk ? 1 : 0, like])
                 .forEach(b => out.mine.push({
                     kind: 'bridges_registration', id: b.id,
                     title: (b.name || 'Med&X event') + ' \u2014 your registration',
@@ -31093,8 +31096,11 @@ By applying to this program, I provide the following consents:
     // Health check (used by admin portal wake-up ping)
     app.get('/health', (req, res) => res.json({ ok: true }));
 
-    // Public registrations lookup (used by admin portal for cross-portal data)
-    app.get('/api/public/registrations/:email', (req, res) => {
+    // Registrations lookup for one address, used only by the admin portal's cross-portal fallback
+    // (admin GET /api/admin/users/:id/profile), which forwards the admin's own session. It returns
+    // a person's registrations, forum and Bridges rows (phone included) and ids that open the door QR,
+    // so it answers an admin session only: no session gives 401, a member session 403.
+    app.get('/api/public/registrations/:email', auth, adminOnly, (req, res) => {
         try {
             const email = decodeURIComponent(req.params.email);
             const user = query.get('SELECT id, first_name, last_name, email, institution, country FROM users WHERE email = ?', [email]);
