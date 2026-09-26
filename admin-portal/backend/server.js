@@ -907,6 +907,16 @@ app.use(helmet({
 }));
 
 app.use(express.json());
+// The admin portal host: '/', /index.html and every unknown page path go there (round 3 Phase 0a).
+// ADMIN_APP_URL overrides it.
+const ADMIN_APP_URL = String(process.env.ADMIN_APP_URL || 'https://medx-admin-portal-v2.netlify.app').replace(/\/+$/, '');
+function toAdminApp(req, res) {
+    // loop guard: an ADMIN_APP_URL that names this very host would redirect to itself forever
+    try { if (new URL(ADMIN_APP_URL).host === req.get('host')) return res.status(404).send('Not found'); } catch (e) {}
+    return res.redirect(302, ADMIN_APP_URL);
+}
+// /index.html is the retired v1 admin page. This sits before express.static, which would serve the file.
+app.get('/index.html', toAdminApp);
 // index: false (round 3 Phase 0a): '/' no longer serves the retired v1 admin page, it falls through
 // to the '*' catch-all below, which sends people to the admin portal. The other files still serve
 // (the door-staff scanner loads /vendor/jsqr.min.js from here).
@@ -44054,7 +44064,7 @@ ${extraCss || ''}
         if (path.extname(req.path)) {
             return res.status(404).send('Not found');
         }
-        res.redirect(302, 'https://medx-admin-portal-v2.netlify.app');
+        return toAdminApp(req, res);
     });
 
     // Start watching shared DB for cross-portal sync

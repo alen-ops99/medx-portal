@@ -534,6 +534,8 @@ const waitDown = async (port, ms = 15000) => {
         // ============================================================ admin catch-all
         r = await api(ADMIN, '/', { redirect: 'manual' });
         check('catch-all: GET / → 302 to the admin portal (no v1 page)', r.status === 302 && String(r.location || '').startsWith(ADMIN_V2), r.status + ' ' + r.location);
+        r = await api(ADMIN, '/index.html', { redirect: 'manual' });
+        check('catch-all: /index.html → 302 to the admin portal, like / (the retired v1 page is not served)', r.status === 302 && r.location === ADMIN_V2, r.status + ' ' + r.location);
         r = await api(ADMIN, '/some/old-v1-route', { redirect: 'manual' });
         check('catch-all: unknown path → 302 to the admin portal', r.status === 302 && String(r.location || '').startsWith(ADMIN_V2), r.status + ' ' + r.location);
         r = await api(ADMIN, '/api/definitely-not-a-route', { redirect: 'manual' });
