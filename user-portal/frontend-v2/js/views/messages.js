@@ -438,24 +438,11 @@ function renderConv({ keepDraft = true } = {}) {
 const stacked = () => { try { return window.matchMedia('(max-width: 700px)').matches; } catch (e) { return false; } };
 function scrollMsgs() { const m = rootEl && rootEl.querySelector('[data-role="msgs"]'); if (m) m.scrollTop = m.scrollHeight; }
 // The space bottom-anchored things keep free for the tab bar (GLASS-RULES §1.10, §2.1): --mx-tabbar-h, set by the web
-// bar's own rule or by the iOS layer (0px while the keyboard is up). Its computed value can be an unresolved calc()
-// (the web bar's rule adds the safe area), so a hidden probe resolves it to pixels. The web bar where it stands on screen
-// now counts too (the larger of the two wins): that covers a tree where the variable is not defined yet, and a bar that
+// bar's own rule or by the iOS layer (0px while the keyboard is up), read resolved to px by the kit's ui.bottomSpace()
+// (glass/CONTRACT-NOTES.md). The web bar where it stands on screen counts too (the larger of the two wins): a bar that
 // slid away for the keyboard or is hidden in the app counts nothing.
-let tbProbe = null;
 function tabbarSpace() {
-  const raw = getComputedStyle(document.documentElement).getPropertyValue('--mx-tabbar-h').trim();
-  let v = 0;
-  if (/^-?[\d.]+px$/.test(raw)) v = parseFloat(raw);
-  else if (raw) {
-    if (!tbProbe || !tbProbe.isConnected) {
-      tbProbe = document.createElement('div');
-      tbProbe.setAttribute('aria-hidden', 'true');
-      tbProbe.style.cssText = 'position:fixed;left:0;top:0;width:0;visibility:hidden;pointer-events:none;height:var(--mx-tabbar-h, 0px)';
-      document.body.appendChild(tbProbe);
-    }
-    v = tbProbe.offsetHeight;
-  }
+  const v = ui.bottomSpace();
   const tab = document.getElementById('mx-tabbar');
   let bar = 0;
   if (tab && getComputedStyle(tab).display !== 'none') {
@@ -809,7 +796,6 @@ const module = {
     timers.forEach(stop => { try { stop(); } catch (e) {} }); timers = [];
     unbindDoc.forEach(off => { try { off(); } catch (e) {} }); unbindDoc = [];
     if (unbind) unbind(); unbind = null;
-    if (tbProbe) { tbProbe.remove(); tbProbe = null; }
     rootEl = null; D = null; st = null; pollBusy = false;
   }
 };
