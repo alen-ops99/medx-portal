@@ -496,3 +496,4 @@ html.mx-hc .lv-tab { color: var(--ink); }
 .lv-ev > .mx-ic { flex: none; color: var(--crimson); }
 .lv-ev.ro .lv-ev-t { color: var(--soft); }
 .lv-ev:focus-visible { outline-offset: -2px; }
+.lv-sheet:focus, .lv-sheet-h:focus { outline: none; }   /* focus parks on the title when a sheet opens (live.js openSheet) */

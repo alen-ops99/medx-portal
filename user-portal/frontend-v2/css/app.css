@@ -1376,16 +1376,16 @@ html.mx-webbar.mx-vkb:not(.mx-native-tabbar) { --mx-tabbar-h: 0px; }
 /* ---- the phone top bar (§1.9.2): three modes, set by chrome.js on #mx-mobile-top and mirrored as html[data-mx-bar] ----
    flat: the page is at its top, nothing under the bar: no layer, no hairline, the bar is part of the page.
    glass: content runs under it: a light glass layer over the bar and the status bar that runs on 40px past the bar and fades
-   out over its last 80px, from the logo's line to 40px below the bar (the iOS 26 soft scroll edge). A line of text passing
+   out over the 60px BELOW the bar (the iOS 26 soft scroll edge), so the bar's own row is fully covered and nothing ghosts behind the logo or the title. A line of text passing
    under the edge then dims evenly: across one 20px line the layer changes by under a third (the 12px feather changed by
    all of it and cut the line in half, its lower half crisp, and a 40px fade still changed by half). Dark glass when a dark region
    sits under it (.is-dark). With the email line under the bar (.has-banner), without backdrop-filter, under Reduce
    Transparency and under Increase Contrast the layer ends crisply at the bar's edge.
    clear: a pushed screen that opens on a photo hero, at its top: no layer, no title, the controls on dark chip glass. */
-#mx-mobile-top.mx-mt::before { content: ""; position: absolute; inset: 0 0 -40px; z-index: -1; pointer-events: none; opacity: 0;
+#mx-mobile-top.mx-mt::before { content: ""; position: absolute; inset: 0 0 -60px; z-index: -1; pointer-events: none; opacity: 0;
   background: var(--glass-light); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
-  -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 80px), rgba(0,0,0,.84) calc(100% - 62px), rgba(0,0,0,.6) calc(100% - 44px), rgba(0,0,0,.36) calc(100% - 28px), rgba(0,0,0,.14) calc(100% - 12px), transparent);
-  mask-image: linear-gradient(180deg, #000 calc(100% - 80px), rgba(0,0,0,.84) calc(100% - 62px), rgba(0,0,0,.6) calc(100% - 44px), rgba(0,0,0,.36) calc(100% - 28px), rgba(0,0,0,.14) calc(100% - 12px), transparent);
+  -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 60px), rgba(0,0,0,.84) calc(100% - 48px), rgba(0,0,0,.6) calc(100% - 36px), rgba(0,0,0,.36) calc(100% - 24px), rgba(0,0,0,.14) calc(100% - 12px), transparent);
+  mask-image: linear-gradient(180deg, #000 calc(100% - 60px), rgba(0,0,0,.84) calc(100% - 48px), rgba(0,0,0,.6) calc(100% - 36px), rgba(0,0,0,.36) calc(100% - 24px), rgba(0,0,0,.14) calc(100% - 12px), transparent);
   transition: opacity 200ms var(--ease-fade), background-color var(--t-quick) var(--ease); }
 #mx-mobile-top.mx-mt.has-banner::before { bottom: 0; -webkit-mask-image: none; mask-image: none; }
 #mx-mobile-top.mx-mt.is-glass::before { opacity: 1; }

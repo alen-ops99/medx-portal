@@ -804,7 +804,8 @@ function openSheet(make, label) {
   grip(wrap);
   void wrap.offsetWidth;                                                // commit the closed pose so the slide runs
   wrap.classList.add('open');
-  const x = wrap.querySelector('.lv-x'); if (x) try { x.focus({ preventScroll: true }); } catch (e) { /* fine */ }
+  // focus lands on the sheet's title (or the sheet itself), so a tap never lights the close button's ring
+  const f = wrap.querySelector('.lv-sheet-h') || wrap.querySelector('.lv-sheet'); if (f) try { f.setAttribute('tabindex', '-1'); f.focus({ preventScroll: true }); } catch (e) { /* fine */ }
 }
 // turn the open sheet's page: dir 1 = forward (out left, in from the right), -1 = back
 function swapSheet(make, dir) {
