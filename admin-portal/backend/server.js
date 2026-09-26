@@ -32506,15 +32506,17 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         return null;
     }
 
-    // A door code typed by staff: method 'manual', no '@', hex and dashes only (an optional
-    // 'PLX26-' style prefix is dropped, as in /api/admin/checkin/lookup). → 4-32 dashless hex, or null.
+    // A door code typed by staff: method 'manual', no '@', hex and dashes only. → 4-32 dashless hex,
+    // or null. No letter prefix is dropped first: no printed short code carries one, and dropping
+    // it turned a typed invoice number (GALA26-0041) into the digits 0041, which prefix-matched a
+    // stranger's registration. Every live invoice format (GALA26-, CA-GALA-, INV-, PLX26-) holds a
+    // letter outside hex, so a typed invoice number resolves to nothing here.
     function doorTypedShortCode(s, method) {
         if (method !== 'manual') return null;
         const raw = String(s || '').trim();
         if (!raw || raw.includes('@')) return null;
-        const cand = raw.replace(/^[A-Za-z]{2,6}\d{0,4}-/, '');
-        if (!/^[0-9a-fA-F-]+$/.test(cand)) return null;
-        const norm = cand.toLowerCase().replace(/-/g, '');
+        if (!/^[0-9a-fA-F-]+$/.test(raw)) return null;
+        const norm = raw.toLowerCase().replace(/-/g, '');
         return (norm.length >= 4 && norm.length <= 32) ? norm : null;
     }
 
