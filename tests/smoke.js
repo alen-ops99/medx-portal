@@ -105,7 +105,7 @@ check('SW is versioned + bypasses /api/* (PR #1)', async () => {
 // ───────────────────────── Plexus settings — PR #1 + #5 ─────────────────────────
 check('Plexus settings returns expected schema (PRs #1, #5)', async () => {
     const d = await (await get('/api/plexus/settings')).json();
-    // Gala early-bird runs to 1 October 2026 (extended from 15 Sept; gala_settings + plexus_settings agree).
+    // Gala early-bird runs to 1 October 2026 (extended from 15 Sept, gala_settings and plexus_settings agree).
     assert(d.early_bird_deadline === '2026-10-01', `early_bird drift: ${d.early_bird_deadline}`);
     assert(d.abstract_deadline === '2026-10-15', `abstract drift: ${d.abstract_deadline}`);
     assert(d.conference_start_date === '2026-12-04', `start drift: ${d.conference_start_date}`);
@@ -132,8 +132,8 @@ check('FORUM26 promo validates → 20 EUR fixed (PR #2 seed + PR #10 polyfill)',
     assert(d.discount_type === 'fixed' && d.discount_value === 20, `discount drift: ${JSON.stringify(d)}`);
 });
 
-// EARLYBIRD25 was a seeded demo code that expired 2026-08-31 (never used) — the endpoint is what we
-// guard, not the code: an expired seed and an unknown code must both come back as a clean, non-500 refusal.
+// EARLYBIRD25 was a seeded demo code that expired 2026-08-31 (never used). The check guards the endpoint,
+// not the code: an expired seed and an unknown code must both come back as a clean refusal, never a 500.
 check('Plexus promo validate refuses expired + unknown codes cleanly', async () => {
     for (const code of ['EARLYBIRD25', 'SMOKE-NO-SUCH-CODE']) {
         const r = await post('/api/plexus/promo/validate', { code });
