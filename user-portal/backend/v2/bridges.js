@@ -9,8 +9,9 @@
  * Why: the artboard's "WHERE WE'VE BEEN" recap cards (per-edition guests / new-connections figures
  * + photo galleries) have no home in the existing schema — `bridges_events` carries live events,
  * not recap history, and its columns can't grow from here (schema lives in server.js).
- * `v2_bridges_editions` holds the canonical four editions (Washington 01 · NIH, London 02 ·
- * Embassy, New York 03 · Consulate, Zürich 04 · ETH — admin decisions, Aug 2026), with guests /
+ * `v2_bridges_editions` holds the canonical four editions (Washington 01 · Embassy of the Republic of
+ * Croatia, London 02 · Embassy, New York 03 · Consulate, Zürich 04 · Zunfthaus zur Schmiden — admin
+ * decisions, Aug 2026, venues corrected by Alen 26 Sept 2026), with guests /
  * connections NULL until admins enter real counts (the screen shows "—", the band shows the
  * canonical "150+" total until every edition has a figure).
  *
@@ -55,13 +56,15 @@ module.exports = function mountBridges(app, ctx) {
     function getRow(sql, params) { const r = rows(sql, params); return r.length ? r[0] : null; }
 
     // Seed the four canonical editions once (guards on an empty table only — admin edits stick).
+    // No event_date here on purpose: shared/bridges-evenings.js covers an undated row by its city, and a
+    // dated row with no event_id would un-cover the held bridges_events row of that city (a phantom edition).
     try {
         if (!getRow('SELECT id FROM v2_bridges_editions LIMIT 1')) {
             const seed = [
-                [1, 'Washington DC', 'United States', 'NIH Campus', 'Where Building Bridges began — researchers from the institutes met the Croatian community of the capital region.', 'PHOTO · WASHINGTON EVENING'],
+                [1, 'Washington DC', 'United States', 'Embassy of the Republic of Croatia, Washington DC', 'An embassy-level forum in the US capital, bringing Croatian and American biomedical leaders to the same table.', 'PHOTO · WASHINGTON EVENING'],
                 [2, 'London', 'United Kingdom', 'Embassy of Croatia', 'At the Croatian Embassy — the UK’s Croatian medical community met London’s institutions.', 'PHOTO · LONDON RECEPTION'],
                 [3, 'New York', 'United States', 'Consulate General of Croatia', 'An evening at the Consulate General with Croatian-American physicians and researchers.', 'PHOTO · CONSULATE EVENING, NEW YORK'],
-                [4, 'Zürich', 'Switzerland', 'ETH Zentrum', 'Clinicians and engineers from across the Swiss research hub, in one room.', 'PHOTO · ZÜRICH EVENING']
+                [4, 'Zürich', 'Switzerland', 'Zunfthaus zur Schmiden', 'An evening in a historic guild house, opened by Croatia’s ambassador to Switzerland, for Croatian and Swiss physicians and scientists.', 'PHOTO · ZÜRICH EVENING']
             ];
             const now = new Date().toISOString();
             seed.forEach(([no, city, country, venue, note, label]) => {

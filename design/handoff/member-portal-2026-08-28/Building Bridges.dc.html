@@ -142,10 +142,10 @@ class Component extends DCLogic {
     const pad = (n) => String(n).padStart(2, '0');
     return {
       cities: [
-        { date: 'EDITION 04 · MOST RECENT', city: 'Zürich', venue: 'ETH Zentrum', guests: '—', conns: '—', photoLabel: 'PHOTO · ZÜRICH EVENING', note: 'Clinicians and engineers from across the Swiss research hub, in one room.' },
+        { date: 'EDITION 04 · MOST RECENT', city: 'Zürich', venue: 'Zunfthaus zur Schmiden', guests: '—', conns: '—', photoLabel: 'PHOTO · ZÜRICH EVENING', note: 'An evening in a historic guild house, opened by Croatia\u2019s ambassador to Switzerland, for Croatian and Swiss physicians and scientists.' },
         { date: 'EDITION 03', city: 'New York', venue: 'Consulate General of Croatia', guests: '—', conns: '—', photoLabel: 'PHOTO · CONSULATE EVENING, NEW YORK', note: 'An evening at the Consulate General with Croatian-American physicians and researchers.' },
         { date: 'EDITION 02', city: 'London', venue: 'Embassy of Croatia', guests: '—', conns: '—', photoLabel: 'PHOTO · LONDON RECEPTION', note: 'At the Croatian Embassy — the UK\u2019s Croatian medical community met London\u2019s institutions.' },
-        { date: 'EDITION 01 · THE FIRST', city: 'Washington DC', venue: 'NIH Campus', guests: '—', conns: '—', photoLabel: 'PHOTO · WASHINGTON EVENING', note: 'Where Building Bridges began — researchers from the institutes met the Croatian community of the capital region.' }
+        { date: 'EDITION 01 · THE FIRST', city: 'Washington DC', venue: 'Embassy of the Republic of Croatia, Washington DC', guests: '—', conns: '—', photoLabel: 'PHOTO · WASHINGTON EVENING', note: 'An embassy-level forum in the US capital, bringing Croatian and American biomedical leaders to the same table.' }
       ].map(c => Object.assign({ hasImg: !!c.img, noImg: !c.img }, c)),
       cdDays: String(Math.floor(ms / 86400000)),
       cdHrs: pad(Math.floor(ms / 3600000) % 24),

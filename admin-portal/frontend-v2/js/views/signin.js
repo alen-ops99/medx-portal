@@ -16,7 +16,7 @@ export const COPY = {
   admin: 'ADMIN',
   signin: {
     headline: 'Welcome <i>back</i>.', blurb: 'Today, your projects, the inbox — where you left them.',
-    email: 'EMAIL', password: 'PASSWORD', submit: 'SIGN IN →', busy: 'SIGNING IN…',
+    email: 'EMAIL', password: 'PASSWORD', submit: 'SIGN IN →', busy: 'SIGNING IN…', forgot: 'Forgot your password?',
     placeholders: { email: 'you@medx.hr', password: '••••••••' },
     welcome: name => `Welcome back, ${name}.`,
     errors: { empty: 'Enter your email and password.', bad: "That email and password don't match.", notAdmin: 'Admin access only — members sign in at the member portal.', limited: 'Too many attempts — the door reopens in a few minutes.' }
@@ -29,15 +29,18 @@ export const COPY = {
   footer: { members: 'Members sign in at the member portal ↗', staging: 'STAGING · review copy of the data, emails never send' }
 };
 
-const INPUT = 'border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:10px 12px;font:400 13px Inter,sans-serif;color:#201b16;width:100%;box-sizing:border-box';
+// 16px: below that, iOS Safari and the admin app's web view zoom the page on focus
+const INPUT = 'border:1px solid rgba(32,27,22,.25);background:#f6f2ea;padding:10px 12px;font:400 16px Inter,sans-serif;color:#201b16;width:100%;box-sizing:border-box';
 const LABEL = 'font:600 8.5px Inter,sans-serif;letter-spacing:.14em;color:#6d6459';
 const PRIMARY = 'margin-top:18px;padding:12px 0;background:#9b1b22;color:#fff;font:600 10.5px Inter,sans-serif;letter-spacing:.16em;cursor:pointer;text-align:center;display:block;white-space:nowrap;width:100%;border:0';
 
 let rootEl = null, unbind = null, step = 'signin';
 
-function field(label, name, type, placeholder, autocomplete) {
-  return `<label style="display:flex;flex-direction:column;gap:5px;margin-top:14px"><span style="${LABEL}">${label}</span><input name="${name}" type="${type}" placeholder="${esc(placeholder)}" autocomplete="${autocomplete}" aria-label="${esc(label)}" style="${INPUT}"></label>`;
+function field(label, name, type, placeholder, autocomplete, extra = '') {
+  return `<label style="display:flex;flex-direction:column;gap:5px;margin-top:14px"><span style="${LABEL}">${label}</span><input name="${name}" type="${type}" placeholder="${esc(placeholder)}" autocomplete="${autocomplete}"${extra} aria-label="${esc(label)}" style="${INPUT}"></label>`;
 }
+// Admins and members share one users table, so the member reset form resets an admin password too.
+function resetHref() { return (cfg.memberPortalUrl || '') + '/app/auth/reset'; }
 function errorLine() { return `<div data-role="error" style="display:none;font-size:12.5px;line-height:1.5;margin-top:12px;color:#9b1b22"></div>`; }
 
 function blockSignin(query) {
@@ -48,10 +51,11 @@ function blockSignin(query) {
       <div class="mx-display-30" style="font-family:Fraunces,serif;font-size:30px;line-height:1.12;margin-top:14px">${s.headline}</div>
       <div style="font-size:13px;color:#6d6459;margin-top:8px;line-height:1.5">${s.blurb}</div>
       ${query.notice === 'signedout' ? '' : ''}
-      ${field(s.email, 'email', 'email', s.placeholders.email, 'username')}
+      ${field(s.email, 'email', 'email', s.placeholders.email, 'username', ' autocapitalize="none" autocorrect="off" spellcheck="false"')}
       ${field(s.password, 'password', 'password', s.placeholders.password, 'current-password')}
       ${errorLine()}
       <button type="submit" data-act="signin" style="${PRIMARY}" data-hover="background:#7e151b">${s.submit}</button>
+      <a href="${esc(resetHref())}" target="_blank" rel="noopener" data-role="forgot" style="align-self:center;margin-top:6px;padding:12px 8px;min-height:44px;box-sizing:border-box;font:500 14px Inter,sans-serif;color:#9b1b22" data-hover="color:#7e151b">${s.forgot}</a>
     </form>`;
 }
 function blockPassword() {

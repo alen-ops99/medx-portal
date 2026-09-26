@@ -254,7 +254,7 @@ Canonical facts (ONE source of truth — every screen must agree):
 - Conference: Dec 4–5, Novinarski dom, Zagreb, free, **cap 100** (never "goal 400").
 - Gala: Dec 5, Esplanade, €150 → €175 on Sep 1 (auto), **25 reserved · 21 paid · 4 to chase · €600 owed**, non-refundable, "limited seating" (never a 150 figure).
 - Boston: **Sep 18–21, 2026**, exact date & venue announced later — NO Harvard branding anywhere.
-- Bridges history: 4 editions — Washington 01 (NIH), London 02 (Embassy), New York 03 (Consulate), Zürich 04 (ETH); 150+ guests total; counts per edition entered by admins on recap.
+- Bridges history: 4 editions — Washington 01 (Embassy of the Republic of Croatia, Washington DC), London 02 (Embassy), New York 03 (Consulate), Zürich 04 (Zunfthaus zur Schmiden, 9 June 2026). 150+ guests total, counts per edition entered by admins on recap. Venues corrected by Alen on 26 Sept 2026.
 - Accelerator: opens **Dec 8, 2026**; two-phase review → interviews → results by emailed access code; NO public close/interview/result dates. Hosts 2026: Cleveland Clinic, Mayo, Columbia, Zurich. 18 fellows across 2024–26.
 - Forum: annual renewable membership, cap 200; gathering **May 28–29, 2027**, Split or Zagreb (members vote).
 - Diacritics everywhere: Juginović, Vuković, Pranjić, Rakić, Nikolić. € symbol, never "EUR".

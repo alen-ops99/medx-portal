@@ -37,7 +37,7 @@ export const FACTS = Object.freeze({
   bridges: Object.freeze({
     name: 'Building Bridges', longName: 'Building Bridges in Biomedicine',
     next: Object.freeze({ city: 'Boston', start: '2026-09-21', end: '2026-09-21', label: 'Monday, September 21, 2026 · 18:00', short: 'Sep 21', venue: 'Waterhouse Room, Gordon Hall — Harvard Medical School', note: 'doors 17:30 · 25 Shattuck St' }),
-    editions: Object.freeze([{ n: '01', city: 'Washington', host: 'NIH' }, { n: '02', city: 'London', host: 'Embassy' }, { n: '03', city: 'New York', host: 'Consulate' }, { n: '04', city: 'Zürich', host: 'ETH' }]),
+    editions: Object.freeze([{ n: '01', city: 'Washington', host: 'Embassy of the Republic of Croatia, Washington DC' }, { n: '02', city: 'London', host: 'Embassy' }, { n: '03', city: 'New York', host: 'Consulate' }, { n: '04', city: 'Zürich', host: 'Zunfthaus zur Schmiden' }]),
     guests: '150+'
   }),
   org: Object.freeze({ name: 'Med&X', site: 'https://medx.hr', city: 'Split', copyright: '© Med&X 2026 · Split, Croatia' }),
