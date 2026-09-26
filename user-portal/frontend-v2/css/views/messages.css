@@ -42,6 +42,10 @@
   .mx-msg-grid { grid-template-columns: 1fr !important; }
   .mx-msg-grid .mx-msg-conv { display: none !important; }
   .mx-msg-grid.mx-msg-open .mx-msg-conv { display: flex !important; }
+  /* the grid ends where the tab bar's space begins (messages.js › sizeGrid): the conversation's ground runs on under the
+     floating bar to the screen's foot (a shadow the height of that space, so the page never gains a scroll), one tone
+     behind the glass instead of the page cream under a seam. No bar or the keyboard up: the space is 0, nothing drawn */
+  .mx-msg-grid.mx-msg-open > .mx-msg-conv { box-shadow: 0 var(--mx-tabbar-h, 0px) 0 #fdfaf3; }
   .mx-msg-grid.mx-msg-open .mx-msg-list { display: none !important; }
   .mx-msg-back { display: inline-flex !important; }
   .mx-msg-list { border-right: 0 !important; }
@@ -112,10 +116,14 @@
 .mx-msg-head-sub { font: 400 12px/16px var(--font-ui); color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mx-msg-head .mx-msg-link { padding: 12px 8px; }
 /* the composer (glass quiet pass, GLASS-RULES §1.9.7): ONE light glass panel floating over the foot of the conversation,
-   so the bubbles scroll under it (messages.js › fitComposer pads the pane by its height). The material is the kit's
+   so the bubbles scroll under it (messages.js › fitComposer sets its height as --mx-compose-h). The material is the kit's
    (.mx-glass on the wrap, css/app.css); this file gives it the shape and the layout only. A capsule while it holds the
    paperclip, the field and send; a team thread adds the topic line above that row and keeps the capsule's 26px corners. */
 .mx-msg-conv { position: relative; }
+/* the room under the last bubble for the composer is a spacer at the pane's foot (it was the pane's bottom padding, and
+   WebKit, so Safari and the app, leaves bottom padding out of the scroll range while the bubbles alone still fit: a short
+   thread on a 375 phone had its last bubble under the glass and nothing to scroll). The -14px takes back the pane's gap */
+.mx-msg-pane::after { content: ""; flex: none; height: var(--mx-compose-h, 0px); margin-top: -14px; }
 .mx-msg-conv > .mx-msg-compose-wrap { position: absolute; left: 12px; right: 12px; bottom: 8px; z-index: 2; box-sizing: border-box;
   padding: 4px; border: 0; border-radius: 26px; }
 @media (min-width: 701px) { .mx-msg-conv > .mx-msg-compose-wrap { left: 20px; right: 20px; bottom: 16px; max-width: 720px; margin: 0 auto; } }

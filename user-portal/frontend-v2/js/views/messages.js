@@ -360,7 +360,7 @@ function blockConv() {
         ? (t.virtual ? '' : `<span data-act="more" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false" aria-label="${COPY.moreT}" class="mx-iconbtn mx-msg-more mx-msg-more--phone" data-v2="phones: Archive lives in this menu (the header keeps back · photo · name · ⋯)">${ui.icon('more', 22)}</span>`)
         : moreButton({ id: t.key, name: threadName(t), cls: 'mx-msg-more' })}
     </div>
-    <div data-role="msgs" aria-live="polite" class="mx-msg-pane${st.msgsKey === t.key && st.shownKey !== t.key ? ' mx-msg-fresh' : ''}" style="flex:1;padding:20px 20px calc(20px + var(--mx-compose-h, 0px));display:flex;flex-direction:column;gap:14px;overflow-y:auto">${convMessages(t)}</div>
+    <div data-role="msgs" aria-live="polite" class="mx-msg-pane${st.msgsKey === t.key && st.shownKey !== t.key ? ' mx-msg-fresh' : ''}" style="flex:1;padding:20px;display:flex;flex-direction:column;gap:14px;overflow-y:auto">${convMessages(t)}</div>
     ${canWrite ? `<div class="mx-msg-compose-wrap mx-glass" data-role="compose">${isTeam ? topicChips() : ''}${attachChip}
     ${st.sendError && st.sendError.key === t.key ? `<p data-role="sendErr" role="alert" data-v2="a send the server refused (403 suspended / blocked · 422 content filter) — the draft stays" class="mx-msg-err">${esc(st.sendError.text)}</p>` : ''}
     <div class="mx-msg-composer">
@@ -440,18 +440,20 @@ function scrollMsgs() { const m = rootEl && rootEl.querySelector('[data-role="ms
 // The space bottom-anchored things keep free for the tab bar (GLASS-RULES §1.10, §2.1): --mx-tabbar-h, set by the web
 // bar's own rule or by the iOS layer (0px while the keyboard is up), read resolved to px by the kit's ui.bottomSpace()
 // (glass/CONTRACT-NOTES.md). The web bar where it stands on screen counts too (the larger of the two wins): a bar that
-// slid away for the keyboard or is hidden in the app counts nothing.
+// slid away for the keyboard or is hidden in the app counts nothing. While the keyboard is up (html.mx-vkb) the bar is
+// already leaving (a 280ms slide that nothing measures again after), so it counts nothing from the first frame.
 function tabbarSpace() {
   const v = ui.bottomSpace();
   const tab = document.getElementById('mx-tabbar');
   let bar = 0;
-  if (tab && getComputedStyle(tab).display !== 'none') {
+  if (tab && !document.documentElement.classList.contains('mx-vkb') && getComputedStyle(tab).display !== 'none') {
     const top = tab.getBoundingClientRect().top;
     if (top < window.innerHeight) bar = window.innerHeight - top;
   }
   return Math.max(v, bar);
 }
-// the floating composer's height, so the last bubble can scroll clear of it (the pane pads by --mx-compose-h)
+// the floating composer's height, so the last bubble can scroll clear of it (the pane ends in a spacer of --mx-compose-h,
+// messages.css › .mx-msg-pane::after)
 function fitComposer() {
   const conv = rootEl && rootEl.querySelector('.mx-msg-conv'); if (!conv) return;
   const wrap = conv.querySelector('[data-role="compose"]');
@@ -470,7 +472,13 @@ function sizeGrid() {
   // phones: the grid ends exactly at the tab bar, whatever the screen height (a 430 or 560 floor put the
   // composer under the tab bar on a 568–667 px tall iPhone); only a tiny landscape phone gets a 240 floor
   const h = Math.max(small ? 240 : 560, window.innerHeight - top - tabH);
+  if (g.style.height === h + 'px') return;
+  // the keyboard coming up shrinks the pane from its foot: a conversation read to its end is pinned to its end again,
+  // so the last bubble stays above the composer while typing, the way Messages does
+  const pane = g.querySelector('[data-role="msgs"]');
+  const atFoot = !!pane && pane.clientHeight > 0 && pane.scrollHeight - pane.scrollTop - pane.clientHeight < 8;
   g.style.height = h + 'px';
+  if (atFoot) pane.scrollTop = pane.scrollHeight;
 }
 
 function wireList() {
