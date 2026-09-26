@@ -91,14 +91,14 @@
   --glass-sat: 180%;
   --glass-light: rgba(250, 246, 238, .72);   /* over cream pages */
   --glass-light-strong: rgba(250, 246, 238, .88);  /* sheets and popovers: long text sits on them */
-  --glass-dark: rgba(25, 21, 18, .52);       /* over photos, ink bands */
+  --glass-dark: rgba(25, 21, 18, .58);       /* over photos, ink bands (.52 in GLASS-RULES §1.3; raised by the §1.7 check: gold 11px on dark glass over the Forum ink card measured 4.57 at .52) */
   --glass-dark-chip: rgba(25, 21, 18, .40);
   --glass-edge-light: inset 0 1px 0 rgba(255, 255, 255, .70), inset 0 0 0 .5px rgba(255, 255, 255, .50);
   --glass-edge-dark: inset 0 1px 0 rgba(255, 255, 255, .22), inset 0 0 0 .5px rgba(255, 255, 255, .14);
   --glass-shadow: 0 10px 30px rgba(25, 21, 18, .14), 0 1px 3px rgba(25, 21, 18, .10);
   --glass-shadow-dark: 0 10px 30px rgba(0, 0, 0, .30);
   --glass-lens-light: rgba(25, 21, 18, .07);  /* the selected-tab pill inside a light bar */
-  --glass-lens-dark: rgba(247, 241, 230, .16);
+  --glass-lens-dark: rgba(247, 241, 230, .11);   /* .16 in §1.3: behind the selected gold label it lifted the ground to 4.6:1; .11 gives 5.9:1 (§1.7) */
   --glass-solid-light: #f3ece0;              /* fallbacks (§1.6) */
   --glass-solid-dark: #221d19;
   --glass-press: .96;                        /* pressed scale */
