@@ -80,13 +80,15 @@
 .mx-bio-sess-h { font: 600 12px/16px Inter, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: #6e5626; margin-bottom: 8px; }
 .mx-bio-none { margin: 0; font: 400 14px/20px Inter, sans-serif; color: #4a4239; }
 @media (prefers-reduced-motion: no-preference) {
-  [data-role="bio-scrim"].mx-bio-in { animation: mx-fade var(--t-reveal) var(--ease-fade) backwards; }
-  /* the glass sheet itself never fades (its blur would go blind, GLASS-RULES §1.4): it moves; its glass layer and
-     its contents fade */
+  /* neither the sheet nor the scrim around it ever fades its opacity (an ancestor at opacity < 1 blinds the blur,
+     GLASS-RULES §1.4): the scrim fades its colour, as the kit's .mx-modal does, the sheet moves, and its glass
+     layer and its contents fade */
+  [data-role="bio-scrim"].mx-bio-in { animation: mx-scrim-in var(--t-reveal) var(--ease-fade) backwards; }
   [data-role="bio-scrim"].mx-bio-in .mx-bio-sheet { animation: mx-settle-up var(--t-settle) var(--ease-settle) backwards; }
   [data-role="bio-scrim"].mx-bio-in .mx-bio-sheet::before, [data-role="bio-scrim"].mx-bio-in .mx-bio-sheet > * { animation: mx-fade var(--t-reveal) var(--ease-fade) backwards; }
-  [data-role="bio-scrim"].is-leaving { animation: mx-fade-out var(--t-exit) var(--ease-exit) forwards; }
-  [data-role="bio-scrim"].is-leaving .mx-bio-sheet { animation: mx-sink var(--t-exit) var(--ease-exit) forwards; }
+  [data-role="bio-scrim"].is-leaving { animation: mx-scrim-out var(--t-exit) var(--ease-exit) forwards; }
+  [data-role="bio-scrim"].is-leaving .mx-bio-sheet { animation: mx-sink var(--t-exit) var(--ease-exit) forwards; box-shadow: none; transition: box-shadow var(--t-exit) var(--ease-exit); }
+  [data-role="bio-scrim"].is-leaving .mx-bio-sheet::before, [data-role="bio-scrim"].is-leaving .mx-bio-sheet > * { animation: mx-fade-out var(--t-exit) var(--ease-exit) forwards; }
 }
 [data-role="bio-scrim"].is-leaving { pointer-events: none; }
 
