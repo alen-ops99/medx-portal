@@ -375,16 +375,34 @@ const MEDX_LOGO_URL = process.env.EMAIL_LOGO_URL || 'https://cdn.jsdelivr.net/gh
 // ============================================================================
 const MEMBER_APP_URL = String(process.env.MEMBER_APP_URL || process.env.MEMBER_PORTAL_URL || 'https://medx-member-portal-v2.netlify.app').replace(/\/+$/, '');
 
-// GET / and every unknown page path: 302 into the member app. /app/* and /live/* keep their path
-// (deep links built on this host), everything else opens /app/home. The query string rides along
-// untouched, so ?verified=, the Stripe returns (?payment=…) and ?mxt= reach the app's entry handler.
+// Old path-style links (the v1 portal and the e-mails it sent) open their own screen in the member app.
+// The v1 router read one path, /forum/events/<slug>. Every other v1 screen was a hash (#gala), which
+// never reaches the server. The typed sign-in and sign-up paths and the v1 screen names typed as a
+// path follow, with the targets of the app's own legacy table (frontend-v2 js/app.js HASH_MAP). Every
+// target is an /app route, never a path the Netlify host proxies back to this backend.
+const OLD_PATHS = new Map([
+    ['signin', '/app/auth/signin'], ['login', '/app/auth/signin'], ['register', '/app/auth/signup'], ['signup', '/app/auth/signup'],
+    ['gala', '/app/gala'], ['accelerator', '/app/accelerator'], ['af26', '/app/forum'], ['bridges', '/app/bridges'],
+    ['network', '/app/network'], ['messages', '/app/messages'], ['communications', '/app/messages'],
+    ['profile', '/app/profile'], ['settings', '/app/profile'],
+    ['me', '/app/me'], ['mymedx', '/app/me'], ['wallet', '/app/me'], ['rewards', '/app/me'],
+]);
+function memberAppPath(p) {
+    if (/^\/(app|live)(\/|$)/.test(p)) return p;   // deep links built on this host keep their path
+    if (/^\/forum\/events\/[a-z0-9-]+\/?$/i.test(p)) return '/app/forum';
+    const one = /^\/([a-z0-9-]+)\/?$/i.exec(p);
+    return (one && OLD_PATHS.get(one[1].toLowerCase())) || '/app/home';
+}
+
+// GET / and every unknown page path: 302 into the member app, on the screen memberAppPath names
+// (/app/home unless the path is a deep link or an old link). The query string rides along untouched,
+// so ?verified=, the Stripe returns (?payment=…) and ?mxt= reach the app's entry handler.
 function toMemberApp(req, res) {
     const i = req.originalUrl.indexOf('?');
     const qs = i >= 0 ? req.originalUrl.slice(i) : '';
-    const keep = /^\/(app|live)(\/|$)/.test(req.path);
     // loop guard: a MEMBER_APP_URL that names this very host would redirect to itself forever
     try { if (new URL(MEMBER_APP_URL).host === req.get('host')) return res.status(404).send('Not found'); } catch (e) {}
-    return res.redirect(302, MEMBER_APP_URL + (keep ? req.path : '/app/home') + qs);
+    return res.redirect(302, MEMBER_APP_URL + memberAppPath(req.path) + qs);
 }
 
 // Where an email-confirm link lands: Home in the member app, with the status its entry handler

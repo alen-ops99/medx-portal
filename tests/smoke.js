@@ -138,10 +138,25 @@ check('EARLYBIRD25 promo validates (Plexus)', async () => {
 });
 
 // ───────────────────────── Forum direct links — PR #4 ─────────────────────────
-check('Forum direct-link path-style returns 200 (PR #4)', async () => {
+// The v1 portal served /forum/events/<slug> itself. The backend now sends that old link to the member
+// app's Forum, query string kept. The Location is read raw, never followed to the other host.
+check('Forum direct-link path-style opens the member app Forum (302, PR #4)', async () => {
     for (const slug of ['forum-2026-day1', 'forum-2026-day2', 'annual-forum-2026']) {
-        const r = await get('/forum/events/' + slug);
-        assert(r.status === 200, `${slug} returned ${r.status}`);
+        const r = await peek('/forum/events/' + slug);
+        assert(r.status === 302, `${slug}: got ${r.status}`);
+        assert(r.headers.get('location') === MEMBER_APP + '/app/forum', `${slug}: Location ${r.headers.get('location')}, expected ${MEMBER_APP}/app/forum`);
+    }
+    const r = await peek('/forum/events/annual-forum-2026?utm_source=mail');
+    assert(r.headers.get('location') === MEMBER_APP + '/app/forum?utm_source=mail', `query string lost: ${r.headers.get('location')}`);
+});
+
+check('Old sign-in, sign-up and screen paths open their member app screen (302)', async () => {
+    for (const [path, want] of [['/signin', '/app/auth/signin'], ['/login', '/app/auth/signin'], ['/register', '/app/auth/signup'],
+        ['/signup', '/app/auth/signup'], ['/gala', '/app/gala'], ['/messages', '/app/messages'],
+        ['/no-such-old-page', '/app/home'], ['/app/plexus/mine', '/app/plexus/mine']]) {
+        const r = await peek(path);
+        assert(r.status === 302, `${path}: got ${r.status}`);
+        assert(r.headers.get('location') === MEMBER_APP + want, `${path}: Location ${r.headers.get('location')}, expected ${MEMBER_APP}${want}`);
     }
 });
 
