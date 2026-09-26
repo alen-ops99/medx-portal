@@ -367,6 +367,31 @@ function fanoutAnnouncements() {
 const MEDX_LOGO_URL = process.env.EMAIL_LOGO_URL || 'https://cdn.jsdelivr.net/gh/alen-ops99/medx-portal@main/user-portal/frontend/assets/images/medx-logo.png';
 
 // ============================================================================
+// THE MEMBER APP HOST
+// The member app lives on the Netlify member deploy (the host in the iPhone app's applinks), never
+// on this backend. Every server page that sends a person into Med&X sends them there: the reset
+// form's Sign in, the email-confirm redirects and the catch-all. MEMBER_APP_URL (or
+// MEMBER_PORTAL_URL) overrides the host.
+// ============================================================================
+const MEMBER_APP_URL = String(process.env.MEMBER_APP_URL || process.env.MEMBER_PORTAL_URL || 'https://medx-member-portal-v2.netlify.app').replace(/\/+$/, '');
+
+// GET / and every unknown page path: 302 into the member app. /app/* and /live/* keep their path
+// (deep links built on this host), everything else opens /app/home. The query string rides along
+// untouched, so ?verified=, the Stripe returns (?payment=…) and ?mxt= reach the app's entry handler.
+function toMemberApp(req, res) {
+    const i = req.originalUrl.indexOf('?');
+    const qs = i >= 0 ? req.originalUrl.slice(i) : '';
+    const keep = /^\/(app|live)(\/|$)/.test(req.path);
+    // loop guard: a MEMBER_APP_URL that names this very host would redirect to itself forever
+    try { if (new URL(MEMBER_APP_URL).host === req.get('host')) return res.status(404).send('Not found'); } catch (e) {}
+    return res.redirect(302, MEMBER_APP_URL + (keep ? req.path : '/app/home') + qs);
+}
+
+// Where an email-confirm link lands: Home in the member app, with the status its entry handler
+// reads (true, already, expired or invalid, see frontend-v2 js/app.js handleEntry).
+const verifiedUrl = status => MEMBER_APP_URL + '/app/home?verified=' + status;
+
+// ============================================================================
 // PREMIUM PUBLIC PAGE SHELL
 // One shared, dependency-free shell for every server-rendered public page in this
 // backend (seat/registration confirmations, payment states, invite-link errors,
@@ -381,7 +406,10 @@ const MEDX_LOGO_URL = process.env.EMAIL_LOGO_URL || 'https://cdn.jsdelivr.net/gh
 //     bodyHtml,                     // optional extra block (QR, item list, ...)
 //     primary: { label, href, onclick }, secondary: { label, href },
 //     fine,                         // optional fine print above the footer
+//     css,                          // optional extra CSS, appended after the shell's own
+//     doc,                          // true: a long document (Terms, Privacy) that carries its own <h1>
 //   })
+// Both extras are additive: a page that passes neither renders byte for byte as before.
 // ============================================================================
 function premiumPage(opts = {}) {
     const o = opts || {};
@@ -445,12 +473,12 @@ body{min-height:100vh;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Sego
 .foot{margin:30px auto 0;font-size:12px;letter-spacing:.3px;color:#94897c;text-align:center;}
 .foot b{font-weight:600;color:#6f6256;}
 @media(max-width:520px){.sheet{border-radius:16px;}.actions{flex-direction:column;}.btn-primary,.btn-ghost{width:100%;}}
-</style></head>
+</style>${o.css ? `<style>${o.css}</style>` : ''}</head>
 <body>
 <header class="band"><img src="${MEDX_LOGO_URL}" alt="Med&amp;X"></header>
-<main class="sheet">
+<main class="sheet${o.doc ? ' doc' : ''}">
   ${o.kicker ? `<p class="kicker">${o.kicker}</p><div class="rule"></div>` : ''}
-  <h1 class="headline">${o.headline || ''}</h1>
+  ${o.doc ? '' : `<h1 class="headline">${o.headline || ''}</h1>`}
   ${o.lede ? `<p class="lede">${o.lede}</p>` : ''}
   ${o.bodyHtml || ''}
   ${actions}
@@ -1030,44 +1058,30 @@ app.get('/invite-cancelled', (req, res) => {
 
 // ========== TERMS & PRIVACY (linked from invite pages) ==========
 
-const _legalPageShell = (title, bodyHtml) => `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${title} — Med&amp;X</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif; background: linear-gradient(160deg, #0f172a, #1e293b); color: #e2e8f0; min-height: 100vh; padding: 40px 20px; line-height: 1.7; }
-        .container { max-width: 760px; margin: 0 auto; background: rgba(255,255,255,0.03); border: 1px solid rgba(201,169,98,0.2); border-radius: 16px; padding: 48px 40px; }
-        h1 { font-size: 32px; font-weight: 700; color: #fff; margin-bottom: 8px; letter-spacing: -0.5px; }
-        .updated { font-size: 13px; color: #94a3b8; margin-bottom: 32px; font-style: italic; }
-        h2 { font-size: 19px; font-weight: 600; color: #c9a962; margin: 28px 0 10px; }
-        h3 { font-size: 15px; font-weight: 600; color: #e2e8f0; margin: 18px 0 6px; }
-        p, li { font-size: 14px; color: #cbd5e1; margin-bottom: 10px; }
-        ul, ol { margin-left: 22px; margin-bottom: 12px; }
-        a { color: #c9a962; text-decoration: none; }
-        a:hover { text-decoration: underline; }
-        .footer-nav { margin-top: 40px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 12px; color: #64748b; display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
-        @media (max-width: 600px) { .container { padding: 28px 22px; } h1 { font-size: 26px; } }
-    </style>
-</head>
-<body>
-    <div class="container">
-        ${bodyHtml}
-        <div class="footer-nav">
-            <a href="/terms">Terms &amp; Conditions</a>
-            <span style="color:#475569;">·</span>
-            <a href="/privacy">Privacy Policy</a>
-            <span style="color:#475569;">·</span>
-            <a href="https://medx.hr">medx.hr</a>
-            <span style="color:#475569;">·</span>
-            <a href="mailto:info@medx.hr">info@medx.hr</a>
-        </div>
-    </div>
-</body>
-</html>`;
+// The shell only: the cream premiumPage in document mode. The texts below are passed through as
+// they are (h1, the "Last updated" line, h2/h3 sections, lists), restyled in the house palette.
+const _LEGAL_CSS = `
+.sheet.doc{max-width:760px;text-align:left;padding:clamp(30px,6vw,48px) clamp(22px,5vw,46px);}
+.doc h1{font-family:'Fraunces','Georgia','Times New Roman',serif;font-weight:600;font-size:clamp(30px,6.4vw,40px);line-height:1.08;letter-spacing:-.4px;color:#241d18;margin:0 0 12px;}
+.doc .updated{font-size:11px;font-weight:600;letter-spacing:1.8px;text-transform:uppercase;color:#8a7a5f;margin:0 0 26px;padding-bottom:22px;border-bottom:1px solid var(--gold-soft);}
+.doc h2{font-family:'Fraunces','Georgia','Times New Roman',serif;font-weight:600;font-size:20px;line-height:1.25;letter-spacing:-.1px;color:#241d18;margin:32px 0 10px;}
+.doc h3{font-size:14.5px;font-weight:600;color:#2c2521;margin:20px 0 6px;}
+.doc p,.doc li{font-size:15px;line-height:1.7;color:#3a322b;margin:0 0 10px;overflow-wrap:anywhere;}
+.doc ul,.doc ol{margin:0 0 14px;padding-left:22px;}
+.doc li::marker{color:var(--gold);}
+.doc strong{color:#241d18;font-weight:600;}
+.doc p a,.doc li a{color:var(--crimson);text-decoration:none;font-weight:500;}
+.doc p a:hover,.doc li a:hover{text-decoration:underline;}
+.doc .fine{margin-top:36px;display:flex;flex-wrap:wrap;justify-content:center;gap:6px 10px;font-size:12.5px;}
+.doc .fine span{color:rgba(43,33,25,.3);}
+`;
+const _legalPageShell = (title, bodyHtml) => premiumPage({
+    title: `${title} — Med&amp;X`,
+    doc: true,
+    css: _LEGAL_CSS,
+    bodyHtml,
+    fine: '<a href="/terms">Terms &amp; Conditions</a><span>&middot;</span><a href="/privacy">Privacy Policy</a><span>&middot;</span><a href="https://medx.hr">medx.hr</a><span>&middot;</span><a href="mailto:info@medx.hr">info@medx.hr</a>'
+});
 
 app.get('/terms', (req, res) => {
     res.send(_legalPageShell('Terms & Conditions', `
@@ -5776,6 +5790,9 @@ app.get('/donate/checkout', donateCheckoutLimiter, async (req, res) => {
 });
 // ========================== END PUBLIC DONATION CHECKOUT ==========================
 
+// The old v1 portal (../frontend/index.html) is no longer a page: / opens the member app. This sits
+// before express.static, which would otherwise answer / with that index.html.
+app.get(['/', '/index.html'], toMemberApp);
 app.use(express.static(path.join(__dirname, '../frontend')));
 // User-uploaded files: force download + nosniff so a stored .svg/.html/.xml can't execute
 // inline as same-origin script (multer trusts the client MIME, so the content is untrusted).
@@ -12085,28 +12102,29 @@ async function initializeApp() {
         }
     });
 
-    // Email verification endpoint — user clicks link from verification email
+    // Email verification endpoint — user clicks link from verification email.
+    // Every outcome lands in the member app (verifiedUrl), the bad-link states included.
     app.get('/api/verify-email', (req, res) => {
         try {
             const { token } = req.query;
             if (!token) {
-                return res.status(400).send('Missing verification token.');
+                return res.redirect(verifiedUrl('invalid'));
             }
             const user = query.get('SELECT id, email, email_verified FROM users WHERE verification_token = ?', [token]);
             if (!user) {
-                return res.status(400).send('Invalid or expired verification token.');
+                return res.redirect(verifiedUrl('invalid'));
             }
             if (user.email_verified) {
-                return res.redirect('/?verified=already');
+                return res.redirect(verifiedUrl('already'));
             }
             db.run('UPDATE users SET email_verified = 1, verification_token = NULL WHERE id = ?', [user.id]);
             awardPoints(user.id, rewardsSettingNum('earn_verify', 25), 'verify', 'email:' + user.id, 'Email verified');
             saveDb();
             console.log(`[Auth] Email verified for user ${user.email}`);
-            res.redirect('/?verified=true');
+            res.redirect(verifiedUrl('true'));
         } catch (e) {
             console.error('Email verification error:', e);
-            res.status(500).send('Verification failed. Please try again.');
+            res.redirect(verifiedUrl('invalid'));
         }
     });
 
@@ -12511,17 +12529,17 @@ async function initializeApp() {
     });
 
     // Confirm an email from the link. Flips users.email_verified=1 for a valid, unused, unexpired token,
-    // then redirects back into the app with ?verified=true (already / expired / invalid otherwise).
+    // then redirects into the member app (verifiedUrl) with ?verified=true (already / expired / invalid otherwise).
     app.get('/api/auth/verify', (req, res) => {
         try {
             const { token } = req.query;
-            if (!token) return res.redirect('/?verified=invalid');
+            if (!token) return res.redirect(verifiedUrl('invalid'));
             const row = query.get('SELECT * FROM email_verifications WHERE token = ?', [token]);
             if (!row) {
                 // Fall back to the legacy users.verification_token path so old links still resolve.
                 const legacy = query.get('SELECT id, email_verified FROM users WHERE verification_token = ?', [token]);
-                if (!legacy) return res.redirect('/?verified=invalid');
-                if (legacy.email_verified) return res.redirect('/?verified=already');
+                if (!legacy) return res.redirect(verifiedUrl('invalid'));
+                if (legacy.email_verified) return res.redirect(verifiedUrl('already'));
                 db.run('UPDATE users SET email_verified = 1, verification_token = NULL WHERE id = ?', [legacy.id]);
                 awardPoints(legacy.id, rewardsSettingNum('earn_verify', 25), 'verify', 'email:' + legacy.id, 'Email verified');
                 saveDb();
@@ -12530,14 +12548,14 @@ async function initializeApp() {
                     const lu = query.get('SELECT email FROM users WHERE id = ?', [legacy.id]);
                     if (lu) claimRegistrationsForUser(legacy.id, lu.email);
                 } catch (e) {}
-                return res.redirect('/?verified=true');
+                return res.redirect(verifiedUrl('true'));
             }
-            if (row.used_at) return res.redirect('/?verified=already');
-            if (row.expires_at && new Date(row.expires_at).getTime() < Date.now()) return res.redirect('/?verified=expired');
+            if (row.used_at) return res.redirect(verifiedUrl('already'));
+            if (row.expires_at && new Date(row.expires_at).getTime() < Date.now()) return res.redirect(verifiedUrl('expired'));
             const user = row.user_id
                 ? query.get('SELECT id, email_verified FROM users WHERE id = ?', [row.user_id])
                 : query.get('SELECT id, email_verified FROM users WHERE email = ?', [row.email]);
-            if (!user) return res.redirect('/?verified=invalid');
+            if (!user) return res.redirect(verifiedUrl('invalid'));
             db.run('UPDATE email_verifications SET used_at = ? WHERE id = ?', [new Date().toISOString(), row.id]);
             db.run('UPDATE users SET email_verified = 1, verification_token = NULL WHERE id = ?', [user.id]);
             awardPoints(user.id, rewardsSettingNum('earn_verify', 25), 'verify', 'email:' + user.id, 'Email verified');
@@ -12548,10 +12566,10 @@ async function initializeApp() {
                 if (vu) claimRegistrationsForUser(user.id, vu.email);
             } catch (e) {}
             console.log(`[Auth] Email confirmed for ${row.email || user.id}`);
-            return res.redirect('/?verified=true');
+            return res.redirect(verifiedUrl('true'));
         } catch (e) {
             console.error('auth/verify error:', e);
-            return res.redirect('/?verified=invalid');
+            return res.redirect(verifiedUrl('invalid'));
         }
     });
 
@@ -12600,6 +12618,8 @@ async function initializeApp() {
 
     // Reset password — server-rendered page that takes the token and shows a form.
     // Form POSTs to /api/auth/reset-password (below) which actually updates the password.
+    // Every state sits on the cream premiumPage: the form, its errors, the success (Sign in opens
+    // the member app) and a bad or expired link (Request a new link opens the app's reset view).
     app.get('/reset-password/:token', (req, res) => {
         const token = req.params.token;
         const user = query.get('SELECT id, email, reset_token_expires FROM users WHERE reset_token = ?', [token]);
@@ -12607,62 +12627,82 @@ async function initializeApp() {
 
         if (!user || expired) {
             return res.send(premiumPage({
-                title: 'Link Invalid or Expired — Med&X',
+                title: 'Link invalid or expired — Med&X',
                 tone: 'alert',
                 kicker: 'Password reset',
                 headline: 'Link invalid or expired',
-                lede: `This password reset link is no longer valid. Reset links expire one hour after they are sent. Request a new link from the sign-in page.`,
-                primary: { label: 'Back to Med&X', href: '/' }
+                lede: 'This password reset link is no longer valid. Reset links expire one hour after they are sent.',
+                primary: { label: 'Request a new link', href: `${MEMBER_APP_URL}/app/auth/reset` }
             }));
         }
-        res.send(`<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Reset Password — Med&X</title>
-<style>
-body{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#0f172a,#1e293b);color:#fff;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;padding:20px;margin:0;}
-.card{max-width:420px;width:100%;background:rgba(255,255,255,0.03);border:1px solid rgba(201,169,98,0.2);border-radius:20px;padding:36px 32px;}
-.brand{text-align:center;font-size:24px;font-weight:700;color:#fff;margin-bottom:6px;letter-spacing:-0.5px;}
-.brand em{color:#c9a962;font-style:normal;}
-.subtitle{text-align:center;color:#94a3b8;font-size:14px;margin-bottom:28px;}
-h1{font-size:20px;font-weight:700;margin-bottom:8px;}
-p{color:#94a3b8;font-size:14px;line-height:1.6;margin-bottom:18px;}
-label{display:block;font-size:12px;font-weight:600;color:#94a3b8;margin:14px 0 6px;}
-input{width:100%;padding:12px 14px;border:1px solid rgba(255,255,255,0.1);border-radius:10px;background:rgba(255,255,255,0.05);color:#fff;font-size:14px;font-family:inherit;box-sizing:border-box;}
-input:focus{outline:none;border-color:#c9a962;box-shadow:0 0 0 3px rgba(201,169,98,0.15);}
-button{width:100%;padding:14px;background:linear-gradient(135deg,#c9a962,#b49650);color:#0f172a;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;margin-top:18px;}
-button:disabled{opacity:0.6;cursor:wait;}
-.error{color:#ef4444;font-size:13px;margin-top:10px;display:none;}
-.success{background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;padding:14px;border-radius:10px;font-size:14px;text-align:center;margin-top:18px;}
-.success a{color:#0f172a;font-weight:600;}
-</style></head>
-<body><div class="card">
-<div class="brand">med<em>&amp;</em>X</div><div class="subtitle">Set a new password</div>
-<form id="rpForm" onsubmit="submitReset(event)">
-<label for="newPw">New password</label>
-<input id="newPw" type="password" autocomplete="new-password" required minlength="8" placeholder="At least 8 characters">
-<label for="confirmPw">Confirm password</label>
-<input id="confirmPw" type="password" autocomplete="new-password" required minlength="8" placeholder="Re-enter the same password">
-<button type="submit" id="rpSubmit">Update password</button>
-<div class="error" id="rpError"></div>
-<div id="rpSuccess" style="display:none;" class="success">Password updated. <a href="/">Back to Med&amp;X</a></div>
+        const email = escapeHtml(user.email);
+        const tokenJs = JSON.stringify(String(token)).replace(/</g, '\\u003c');
+        res.send(premiumPage({
+            title: 'Set a new password — Med&X',
+            tone: 'neutral',
+            kicker: 'Password reset',
+            headline: 'Set a new password',
+            lede: `Choose a new password for <strong>${email}</strong>.`,
+            css: `
+[hidden]{display:none!important;}
+.rp{margin:26px auto 0;max-width:400px;text-align:left;}
+.rp-l{display:block;font-size:11px;font-weight:600;letter-spacing:1.6px;text-transform:uppercase;color:var(--muted);margin:16px 0 7px;}
+.rp-i{display:block;width:100%;height:52px;padding:0 16px;font-family:inherit;font-size:16px;color:var(--text);background:#fff;
+  border:1px solid rgba(43,33,25,.18);border-radius:11px;outline:none;-webkit-appearance:none;appearance:none;transition:border-color .15s,box-shadow .15s;}
+.rp-i::placeholder{color:#a3968a;}
+.rp-i:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(176,137,59,.18);}
+.rp-i[aria-invalid="true"]{border-color:var(--crimson);box-shadow:0 0 0 3px rgba(143,45,42,.12);}
+.rp-err{margin:14px 0 0;font-size:14px;line-height:1.55;color:#9a2f2a;}
+.rp-err a{color:var(--crimson);font-weight:600;text-decoration:none;white-space:nowrap;}
+.rp-go{width:100%;margin-top:24px;}
+.rp-go:disabled{opacity:.62;cursor:wait;transform:none;}
+`,
+            bodyHtml: `<form class="rp" id="rpForm" novalidate>
+  <input hidden type="email" autocomplete="username" value="${email}">
+  <label class="rp-l" for="newPw">New password</label>
+  <input class="rp-i" id="newPw" type="password" autocomplete="new-password" required minlength="8" placeholder="At least 8 characters">
+  <label class="rp-l" for="confirmPw">Confirm password</label>
+  <input class="rp-i" id="confirmPw" type="password" autocomplete="new-password" required minlength="8" placeholder="The same password again">
+  <p class="rp-err" id="rpError" role="alert" hidden></p>
+  <button type="submit" class="btn-primary rp-go" id="rpSubmit">Update password</button>
 </form>
-</div>
+<div class="actions" id="rpDone" hidden><a class="btn-primary" href="${MEMBER_APP_URL}/app/auth/signin">Sign in</a></div>
 <script>
-async function submitReset(e){
-  e.preventDefault();
-  const pw=document.getElementById('newPw').value, cp=document.getElementById('confirmPw').value;
-  const err=document.getElementById('rpError'), btn=document.getElementById('rpSubmit'), ok=document.getElementById('rpSuccess');
-  err.style.display='none';
-  if(pw!==cp){err.textContent='Passwords do not match';err.style.display='block';return;}
-  if(pw.length<8){err.textContent='Password must be at least 8 characters';err.style.display='block';return;}
-  btn.disabled=true; btn.textContent='Updating...';
-  try{
-    const r=await fetch('/api/auth/reset-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:'${token}',new_password:pw})});
-    const d=await r.json();
-    if(d.success){document.getElementById('rpForm').querySelectorAll('input,button').forEach(el=>el.style.display='none');ok.style.display='block';}
-    else{err.textContent=d.error||'Failed to reset password';err.style.display='block';btn.disabled=false;btn.textContent='Update password';}
-  }catch(ex){err.textContent='Network error. Try again.';err.style.display='block';btn.disabled=false;btn.textContent='Update password';}
-}
-</script></body></html>`);
+(function(){
+  var TOKEN=${tokenJs}, RESET_URL=${JSON.stringify(MEMBER_APP_URL + '/app/auth/reset')};
+  var form=document.getElementById('rpForm'), pw=document.getElementById('newPw'), cp=document.getElementById('confirmPw');
+  var err=document.getElementById('rpError'), btn=document.getElementById('rpSubmit'), done=document.getElementById('rpDone');
+  function clear(){err.hidden=true;err.textContent='';pw.removeAttribute('aria-invalid');cp.removeAttribute('aria-invalid');}
+  function fail(text,field,link){
+    err.textContent=text;
+    if(link){var a=document.createElement('a');a.href=RESET_URL;a.textContent='Request a new link';err.appendChild(document.createTextNode(' '));err.appendChild(a);}
+    err.hidden=false;
+    if(field){field.setAttribute('aria-invalid','true');field.focus();}
+  }
+  function idle(){btn.disabled=false;btn.textContent='Update password';}
+  form.addEventListener('submit',async function(e){
+    e.preventDefault(); clear();
+    if(pw.value.length<8) return fail('Use at least 8 characters.',pw);
+    if(pw.value!==cp.value) return fail('The two passwords do not match.',cp);
+    btn.disabled=true; btn.textContent='Updating\\u2026';
+    try{
+      var r=await fetch('/api/auth/reset-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:TOKEN,new_password:pw.value})});
+      var d={}; try{d=await r.json();}catch(x){}
+      if(r.ok&&d.success){
+        form.hidden=true; done.hidden=false;
+        document.querySelector('.headline').textContent='Password updated';
+        document.querySelector('.lede').textContent='Sign in with your new password.';
+        done.querySelector('a').focus();
+        return;
+      }
+      idle();
+      if(r.status===400&&/link/i.test(d.error||'')) return fail('This link has expired or was already used.',null,true);
+      fail(d.error||'The password could not be updated. Try again.');
+    }catch(x){idle();fail('Med&X could not be reached. Check the connection and try again.');}
+  });
+})();
+</script>`
+        }));
     });
 
     // Reset password endpoint — validates token, hashes new password, clears token.
@@ -31266,13 +31306,13 @@ By applying to this program, I provide the following consents:
         res.status(404).json({ error: 'API endpoint not found' });
     });
 
-    // Serve frontend (SPA fallback for client-side routes)
-    // Skip paths with file extensions so missing assets 404 properly instead of returning 5.6MB SPA HTML
+    // Catch-all: every unknown page path opens the member app on the member host (toMemberApp),
+    // no longer the old v1 SPA. Paths with a file extension still 404 so a missing asset stays a 404.
     app.get('*', (req, res) => {
         if (path.extname(req.path)) {
             return res.status(404).send('Not found');
         }
-        res.sendFile(path.join(__dirname, '../frontend/index.html'));
+        return toMemberApp(req, res);
     });
 
     // Global error handler — push into ring buffer + log. Must be registered LAST.
