@@ -893,7 +893,9 @@ app.use(helmet({
 }));
 
 app.use(express.json());
-app.use(express.static(path.join(__dirname, '../frontend')));
+// index: false (round 3 Phase 0a): '/' no longer serves the retired v1 admin page, it falls through
+// to the '*' catch-all below, which sends people to the admin portal. The other files still serve.
+app.use(express.static(path.join(__dirname, '../frontend'), { index: false }));
 // Task files are private to the people on the task (owner rule 2026-09-25): uploads/tasks is never
 // served from /uploads; the bytes go out only through GET /api/tasks/files/:fileId/download.
 app.use('/uploads', (req, res, next) => (taskVis.isTaskUploadPath(req.path) ? res.status(404).json({ error: 'File not found' }) : next()));
@@ -10367,12 +10369,12 @@ async function initializeApp() {
             {
                 name: 'Building Bridges: Zurich Symposium',
                 city: 'Zurich',
-                venue_name: 'ETH Zentrum',
-                venue_address: 'Rämistrasse 101, 8092 Zürich, Switzerland',
+                venue_name: 'Zunfthaus zur Schmiden',
+                venue_address: 'Zürich, Switzerland',
                 event_date: '2026-03-15',
                 event_time: '09:00',
                 end_time: '17:00',
-                description: 'An intimate symposium at ETH Zurich bringing together Croatian diaspora scientists in Switzerland with leading European researchers. Focus on neuroscience, bioengineering, and translational medicine.',
+                description: 'Building Bridges in Biomedicine: Croatia & Switzerland, at the Zunfthaus zur Schmiden in Zürich. Croatian and Swiss biomedical professionals, physicians and scientists in one room.',
                 capacity: 80,
                 registration_deadline: '2026-03-08',
                 contact_email: 'bridges@medx.hr',
@@ -10382,12 +10384,12 @@ async function initializeApp() {
             {
                 name: 'Building Bridges: Washington DC',
                 city: 'Washington DC',
-                venue_name: 'NIH Campus',
-                venue_address: '9000 Rockville Pike, Bethesda, MD 20892, USA',
+                venue_name: 'Embassy of the Republic of Croatia, Washington DC',
+                venue_address: 'Washington DC, USA',
                 event_date: '2026-04-18',
                 event_time: '09:00',
                 end_time: '17:00',
-                description: 'A flagship event on the NIH campus connecting Croatian-American biomedical researchers with NIH leadership and policy makers. Sessions on global health collaboration and funding opportunities.',
+                description: 'Building Bridges at the Embassy of the Republic of Croatia, Washington DC, with Croatian-American biomedical researchers and the Croatian community of the capital region.',
                 capacity: 100,
                 registration_deadline: '2026-04-10',
                 contact_email: 'bridges@medx.hr',
@@ -10451,8 +10453,8 @@ async function initializeApp() {
 
         // Insert the correct events
         const realEvents = [
-            { name: 'Building Bridges: Zurich Symposium', city: 'Zurich', venue_name: 'ETH Zentrum', venue_address: 'Rämistrasse 101, 8092 Zürich, Switzerland', event_date: '2026-03-15', event_time: '09:00', end_time: '17:00', description: 'An intimate symposium at ETH Zurich bringing together Croatian diaspora scientists in Switzerland with leading European researchers. Focus on neuroscience, bioengineering, and translational medicine.', capacity: 80, registration_deadline: '2026-03-08', contact_email: 'bridges@medx.hr', status: 'upcoming', is_published: 1 },
-            { name: 'Building Bridges: Washington DC', city: 'Washington DC', venue_name: 'NIH Campus', venue_address: '9000 Rockville Pike, Bethesda, MD 20892, USA', event_date: '2026-04-18', event_time: '09:00', end_time: '17:00', description: 'A flagship event on the NIH campus connecting Croatian-American biomedical researchers with NIH leadership and policy makers. Sessions on global health collaboration and funding opportunities.', capacity: 100, registration_deadline: '2026-04-10', contact_email: 'bridges@medx.hr', status: 'upcoming', is_published: 1 },
+            { name: 'Building Bridges: Zurich Symposium', city: 'Zurich', venue_name: 'Zunfthaus zur Schmiden', venue_address: 'Zürich, Switzerland', event_date: '2026-03-15', event_time: '09:00', end_time: '17:00', description: 'Building Bridges in Biomedicine: Croatia & Switzerland, at the Zunfthaus zur Schmiden in Zürich. Croatian and Swiss biomedical professionals, physicians and scientists in one room.', capacity: 80, registration_deadline: '2026-03-08', contact_email: 'bridges@medx.hr', status: 'upcoming', is_published: 1 },
+            { name: 'Building Bridges: Washington DC', city: 'Washington DC', venue_name: 'Embassy of the Republic of Croatia, Washington DC', venue_address: 'Washington DC, USA', event_date: '2026-04-18', event_time: '09:00', end_time: '17:00', description: 'Building Bridges at the Embassy of the Republic of Croatia, Washington DC, with Croatian-American biomedical researchers and the Croatian community of the capital region.', capacity: 100, registration_deadline: '2026-04-10', contact_email: 'bridges@medx.hr', status: 'upcoming', is_published: 1 },
             { name: 'Building Bridges: Boston Symposium', city: 'Boston', venue_name: 'Harvard Faculty Club', venue_address: '20 Quincy St, Cambridge, MA 02138, USA', event_date: '2026-09-20', event_time: '09:00', end_time: '17:00', description: 'A symposium at Harvard bringing together Croatian researchers in the Boston/Cambridge biomedical ecosystem. Topics include sleep science, oncology, and AI in medicine.', capacity: 80, registration_deadline: '2026-09-12', contact_email: 'bridges@medx.hr', status: 'upcoming', is_published: 1 }
         ];
         realEvents.forEach(e => {
@@ -32480,7 +32482,11 @@ At most 10 findings. summary = two or three plain sentences on what you found an
     // Resolve a scanned string to a registrations row. Accepts the new checkin_token AND every legacy
     // format (raw uuid, JSON {id|reg_id|regId}, "MEDX:"+uuid, /qr/<uuid>.png, dashless short prefix)
     // so printed/email/Apple tickets keep working — all resolve to the same record + token.
-    function resolveRegFromCode(code) {
+    // The short-code prefix is for door staff TYPING the code under the QR (method 'manual'), and only
+    // for input that looks like a code. A scanned string is never prefix-matched: the old path
+    // stripped ANY string to its hex characters, so 'ana@fa.hr' became 'aafa' and admitted the newest
+    // registration whose id began that way (round 3 door hardening, 2026-09-26).
+    function resolveRegFromCode(code, method) {
         if (!code && code !== 0) return null;
         const s = String(code).trim();
         if (!s) return null;
@@ -32492,27 +32498,63 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         }
         const m = s.match(/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/);
         if (m) { reg = query.get('SELECT * FROM registrations WHERE id = ?', [m[1]]); if (reg) return reg; }
-        const norm = s.toLowerCase().replace(/[^0-9a-f]/g, '');
-        if (norm.length >= 4 && norm.length <= 32) {
-            reg = query.get("SELECT * FROM registrations WHERE replace(lower(id),'-','') LIKE ? ORDER BY created_at DESC LIMIT 1", [norm + '%']);
+        const typed = doorTypedShortCode(s, method);
+        if (typed) {
+            reg = query.get("SELECT * FROM registrations WHERE replace(lower(id),'-','') LIKE ? ORDER BY created_at DESC LIMIT 1", [typed + '%']);
             if (reg) return reg;
         }
         return null;
     }
 
+    // A door code typed by staff: method 'manual', no '@', hex and dashes only (an optional
+    // 'PLX26-' style prefix is dropped, as in /api/admin/checkin/lookup). → 4-32 dashless hex, or null.
+    function doorTypedShortCode(s, method) {
+        if (method !== 'manual') return null;
+        const raw = String(s || '').trim();
+        if (!raw || raw.includes('@')) return null;
+        const cand = raw.replace(/^[A-Za-z]{2,6}\d{0,4}-/, '');
+        if (!/^[0-9a-fA-F-]+$/.test(cand)) return null;
+        const norm = cand.toLowerCase().replace(/-/g, '');
+        return (norm.length >= 4 && norm.length <= 32) ? norm : null;
+    }
+
+    // The Gala door rule (round 3 Phase 0a, defined from the live counts of 2026-09-26). A
+    // gala_registrations row admits only when it is alive AND settled. Settled: 'paid' (Stripe, and
+    // the gala-ops VIP and sponsor seats, which are written as paid at €0), 'vip-comp' (VIP invite
+    // link), 'comp' (Fellowship laureates, staff comps), 'waived' (speaker and VIP seats). The invoice
+    // path (status 'approved', payment 'pending') stays refused until the payment lands. Every gala
+    // door in this file uses it. Twin: GALA_DOOR_* in admin-portal/backend/v2/event-day.js.
+    function galaDoorSettled(ps) { return ['paid', 'vip-comp', 'comp', 'waived'].includes(String(ps || '').trim().toLowerCase()); }
+    function galaDoorDead(st) { return ['cancelled', 'rejected', 'declined', 'pending-review', 'expired'].includes(String(st || '').trim().toLowerCase()); }
+    function galaSeatAdmits(g) { return !!g && !galaDoorDead(g.status) && galaDoorSettled(g.payment_status); }
+
     // The events a registration is permitted to enter (drives the wallet "included events" field and
-    // the wrong-event rejection). Conference always; others by includes_gala / a matching reg by email.
+    // the wrong-event rejection). Conference always. Gala ONLY on an admitted gala seat (above) for
+    // this person: a gala_registrations row by e-mail or account, a Zagreb (CA) gala leg through its
+    // linked seat, or a conference ticket that includes the Gala and is itself settled (the speaker
+    // and VIP model: includes_gala with payment 'waived'). Any gala row by e-mail used to open the
+    // Gala door, paid or not, and includes_gala did so even on an unpaid ticket.
     function passAccess(reg) {
         const set = new Set(['conference']);
         let email = (reg.email || '').toLowerCase();
         if (!email && reg.user_id) { try { const u = query.get('SELECT email FROM users WHERE id=?', [reg.user_id]); if (u && u.email) email = u.email.toLowerCase(); } catch (e) {} }
-        try { if (Number(reg.includes_gala)) set.add('gala'); } catch (e) {}
+        try { if (Number(reg.includes_gala) && galaSeatAdmits(reg)) set.add('gala'); } catch (e) {}
+        try {
+            const seats = query.all('SELECT status, payment_status FROM gala_registrations WHERE (? <> \'\' AND lower(email) = ?) OR (? IS NOT NULL AND user_id = ?)',
+                [email, email, reg.user_id || null, reg.user_id || null]);
+            if (seats.some(galaSeatAdmits)) set.add('gala');
+        } catch (e) {}
         if (email) {
-            try { if (query.get('SELECT 1 x FROM gala_registrations WHERE lower(email)=? LIMIT 1', [email])) set.add('gala'); } catch (e) {}
             try { if (query.get('SELECT 1 x FROM bridges_registrations WHERE lower(email)=? LIMIT 1', [email])) set.add('bridges'); } catch (e) {}
             try {
-                const ca = query.get('SELECT selected_gala, selected_bridges FROM croatians_abroad_registrations WHERE lower(email)=? ORDER BY created_at DESC LIMIT 1', [email]);
-                if (ca) { if (Number(ca.selected_gala)) set.add('gala'); if (Number(ca.selected_bridges)) set.add('bridges'); }
+                const ca = query.get('SELECT selected_gala, selected_bridges, gala_registration_id, gala_status, gala_payment_status FROM croatians_abroad_registrations WHERE lower(email)=? ORDER BY created_at DESC LIMIT 1', [email]);
+                if (ca) {
+                    if (Number(ca.selected_gala)) {
+                        const linked = ca.gala_registration_id ? query.get('SELECT status, payment_status FROM gala_registrations WHERE id = ?', [ca.gala_registration_id]) : null;
+                        if (linked ? galaSeatAdmits(linked) : (!galaDoorDead(ca.gala_status) && galaDoorSettled(ca.gala_payment_status))) set.add('gala');
+                    }
+                    if (Number(ca.selected_bridges)) set.add('bridges');
+                }
             } catch (e) {}
         }
         return set;
@@ -32687,7 +32729,7 @@ At most 10 findings. summary = two or three plain sentences on what you found an
     // Resolve/preview a scanned code WITHOUT marking (for the pre-admit display).
     app.get('/api/admin/checkin/resolve', auth, staffOrAdmin, (req, res) => {
         try {
-            const reg = resolveRegFromCode(req.query.code);
+            const reg = resolveRegFromCode(req.query.code, req.query.method === 'manual' ? 'manual' : 'qr');
             if (!reg) return res.json({ found: false });
             res.json({ found: true, ticket: enrichReg(reg) });
         } catch (e) { res.status(500).json({ error: e.message }); }
@@ -32808,7 +32850,7 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             const gate = query.get('SELECT * FROM checkin_events WHERE event_key = ? AND is_active = 1', [eventKey]);
             if (!gate) return res.status(400).json({ valid: false, result: 'bad_event', message: 'Unknown or inactive event: ' + eventKey });
 
-            const reg = resolveRegFromCode(b.code);
+            const reg = resolveRegFromCode(b.code, method);
             const respond = (result, message, extra) => {
                 recordScan({ token: reg ? reg.checkin_token : (b.code || null), registration_id: reg ? reg.id : null, event_key: eventKey, result, method, admin_id: adminId, admin_email: adminEmail, device, is_override: override, override_reason: overrideReason });
                 res.json(Object.assign({ valid: result === 'valid', result, message, event: eventKey, event_label: gate.label }, extra || {}));
@@ -32959,6 +33001,9 @@ At most 10 findings. summary = two or three plain sentences on what you found an
     // ========== UNIVERSAL EVENT CHECK-IN VERIFY (mirror of user-portal endpoint) ==========
     app.post('/api/admin/checkin/verify', auth, staffOrAdmin, (req, res) => {
         const { event, code, mark } = req.body || {};
+        // An e-mail or a short id prefix counts as a code only when door staff TYPE it (method
+        // 'manual'). A scanned QR that holds a bare e-mail admitted whoever owned that address.
+        const manual = String((req.body || {}).method || '') === 'manual';
         if (!event || !['gala', 'conference', 'bridges', 'donor', 'signup-form'].includes(event)) {
             return res.status(400).json({ valid: false, error: "event must be 'gala', 'conference', 'bridges', 'donor', or 'signup-form'" });
         }
@@ -32971,12 +33016,12 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         if (event === 'signup-form') {
             let reg = null;
             if (isUuid) reg = query.get('SELECT * FROM signup_form_responses WHERE id = ?', [codeClean]);
-            if (!reg && codeClean.includes('@')) {
+            if (!reg && manual && codeClean.includes('@')) {
                 reg = query.get('SELECT * FROM signup_form_responses WHERE LOWER(email) = LOWER(?) ORDER BY created_at DESC LIMIT 1', [codeClean]);
             }
             if (!reg) {
                 // Manual failsafe: the short code under the QR is the response UUID's prefix (dashes stripped)
-                const norm = codeClean.toLowerCase().replace(/[^0-9a-f]/g, '');
+                const norm = doorTypedShortCode(codeClean, manual ? 'manual' : 'qr') || '';
                 if (norm.length >= 4 && norm.length <= 12) {
                     reg = query.get("SELECT * FROM signup_form_responses WHERE replace(lower(id), '-', '') LIKE ? ORDER BY created_at DESC LIMIT 1", [norm + '%']);
                 }
@@ -33038,7 +33083,7 @@ At most 10 findings. summary = two or three plain sentences on what you found an
 
         // Manual failsafe: staff can type the short 8-char code printed under the QR (success
         // page + email). Resolve it by prefix-matching the registration UUID (dashes stripped).
-        const isShort = !isUuid && /^[0-9a-f]{4,12}$/i.test(codeClean) && !codeClean.includes('@');
+        const isShort = manual && !isUuid && /^[0-9a-f]{4,12}$/i.test(codeClean) && !codeClean.includes('@');
         const codeNorm = codeClean.toLowerCase().replace(/[^0-9a-f]/g, '');
         const prefixMatch = (table, orderCol = 'created_at') => {
             if (!isShort || codeNorm.length < 4) return null;
@@ -33056,18 +33101,18 @@ At most 10 findings. summary = two or three plain sentences on what you found an
                     reg = query.get('SELECT * FROM gala_registrations WHERE id = ?', [caForGala.gala_registration_id]);
                 }
             }
-            if (!reg) reg = query.get('SELECT * FROM gala_registrations WHERE LOWER(email) = LOWER(?) ORDER BY created_at DESC LIMIT 1', [codeClean]);
+            if (!reg && manual) reg = query.get('SELECT * FROM gala_registrations WHERE LOWER(email) = LOWER(?) ORDER BY created_at DESC LIMIT 1', [codeClean]);
             if (!reg) { reg = prefixMatch('gala_registrations'); if (!reg) { const caP = prefixMatch('croatians_abroad_registrations'); if (caP && caP.gala_registration_id) reg = query.get('SELECT * FROM gala_registrations WHERE id = ?', [caP.gala_registration_id]); } }
             if (!reg) return res.json({ valid: false, event, code, reason: 'not_found', message: 'No Gala registration found for this code.' });
-            if (['cancelled', 'rejected', 'pending-review'].includes(String(reg.status || ''))) {
+            if (galaDoorDead(reg.status)) {
                 return res.json({
                     valid: false, event, code, reason: reg.status === 'pending-review' ? 'pending_review' : 'cancelled',
                     message: reg.status === 'pending-review' ? 'This registration is still under review. Do NOT admit.' : 'This Gala registration was cancelled. Do NOT admit.',
                     registrant: { name: `${reg.first_name} ${reg.last_name || ''}`.trim(), email: reg.email, institution: reg.institution || '' }
                 });
             }
-            const isPaid = reg.payment_status === 'paid';
-            const isVip = reg.payment_status === 'vip-comp' || reg.payment_status === 'comp';   // 'comp' = Plexus Fellowship laureates
+            const isPaid = String(reg.payment_status || '').toLowerCase() === 'paid';
+            const isVip = !isPaid && galaDoorSettled(reg.payment_status);   // vip-comp, comp (Fellowship laureates), waived (speaker and VIP seats)
             if (!isPaid && !isVip) {
                 return res.json({
                     valid: false, event, code, reason: 'not_paid',
@@ -33109,7 +33154,7 @@ At most 10 findings. summary = two or three plain sentences on what you found an
                     [codeClean, codeClean]
                 );
             }
-            if (!caReg) caReg = query.get('SELECT * FROM croatians_abroad_registrations WHERE LOWER(email) = LOWER(?) AND merged_into IS NULL ORDER BY created_at DESC LIMIT 1', [codeClean]);
+            if (!caReg && manual) caReg = query.get('SELECT * FROM croatians_abroad_registrations WHERE LOWER(email) = LOWER(?) AND merged_into IS NULL ORDER BY created_at DESC LIMIT 1', [codeClean]);
             if (!caReg && isShort) caReg = prefixMatch('croatians_abroad_registrations');
             if (caReg) caReg = caMerge.followMerge(query.get, caReg);         // an older duplicate's QR admits the survivor
         }
@@ -33148,7 +33193,7 @@ At most 10 findings. summary = two or three plain sentences on what you found an
                     registrant: { name: `${sReg.first_name || ''} ${sReg.last_name || ''}`.trim(), email: sReg.email, institution: sReg.institution || '' }
                 });
             }
-            if (!sReg) { try { sReg = query.get(`SELECT * FROM ${standaloneTable} WHERE LOWER(email) = LOWER(?) ${scopeWhere} ORDER BY ${standaloneOrderCol} DESC LIMIT 1`, [codeClean, ...scopeArgs]); } catch(e) {} }
+            if (!sReg && manual) { try { sReg = query.get(`SELECT * FROM ${standaloneTable} WHERE LOWER(email) = LOWER(?) ${scopeWhere} ORDER BY ${standaloneOrderCol} DESC LIMIT 1`, [codeClean, ...scopeArgs]); } catch(e) {} }
             if (!sReg && isShort && codeNorm.length >= 4) {
                 try { sReg = query.get(`SELECT * FROM ${standaloneTable} WHERE replace(lower(id), '-', '') LIKE ? ${scopeWhere} ORDER BY ${standaloneOrderCol} DESC LIMIT 1`, [codeNorm + '%', ...scopeArgs]); } catch(e) {}
             }
@@ -33622,9 +33667,14 @@ At most 10 findings. summary = two or three plain sentences on what you found an
         const guest = query.get('SELECT * FROM gala_registrations WHERE id = ? OR email = ?', [code, code]);
         if (!guest) return res.status(404).json({ error: 'Gala guest not found' });
         if (guest.checked_in) return res.json({ success: true, already_checked_in: true, attendee: guest, event: 'gala' });
-        // Payment gate — matches /api/admin/checkin/verify. Without it, an unpaid/awaiting
-        // guest could be admitted to the €150 dinner.
-        if (guest.payment_status !== 'paid' && guest.payment_status !== 'vip-comp') {
+        // Payment gate — the one Gala door rule (galaSeatAdmits). Without it, an unpaid/awaiting
+        // guest could be admitted to the €150 dinner. A cancelled seat never opens the door, and
+        // comped guests (comp, waived, vip-comp) always do.
+        if (galaDoorDead(guest.status)) {
+            return res.json({ success: false, valid: false, reason: 'cancelled', event: 'gala',
+                message: 'This Gala registration was cancelled. Do NOT admit.', attendee: guest });
+        }
+        if (!galaDoorSettled(guest.payment_status)) {
             return res.json({ success: false, valid: false, reason: 'not_paid', event: 'gala',
                 message: 'This person has not completed payment. Do NOT admit.', attendee: guest });
         }
@@ -33882,11 +33932,11 @@ At most 10 findings. summary = two or three plain sentences on what you found an
             const record = query.get(lookupSql, lookupParams);
             if (!record) return false;
             // Admissibility (audit 2026-09-16): this cascade admitted ANY gala row by id/email —
-            // unpaid, held by the review gate, or cancelled. Same rules as /api/admin/checkin/verify.
+            // unpaid, held by the review gate, or cancelled. The one Gala door rule (galaSeatAdmits).
             if (table === 'gala_registrations') {
-                const st = String(record.status || ''), ps = String(record.payment_status || '');
-                if (['cancelled', 'rejected', 'pending-review'].includes(st) || !['paid', 'vip-comp', 'comp'].includes(ps)) {
-                    res.status(403).json({ success: false, error: st === 'pending-review' ? 'Registration still under review — do NOT admit.' : (st === 'cancelled' || st === 'rejected') ? 'Registration cancelled — do NOT admit.' : 'Gala seat not paid — do NOT admit.', event: eventName, attendee: { first_name: record.first_name, last_name: record.last_name, email: record.email } });
+                const st = String(record.status || '');
+                if (!galaSeatAdmits(record)) {
+                    res.status(403).json({ success: false, error: st === 'pending-review' ? 'Registration still under review — do NOT admit.' : galaDoorDead(st) ? 'Registration cancelled — do NOT admit.' : 'Gala seat not paid — do NOT admit.', event: eventName, attendee: { first_name: record.first_name, last_name: record.last_name, email: record.email } });
                     return true;
                 }
             }
@@ -43388,6 +43438,17 @@ ${extraCss || ''}
     // Skip paths with file extensions so missing assets 404 properly instead of returning SPA HTML
     app.get('/health', (req, res) => res.json({ ok: true }));
 
+    // Catch-all (round 3 Phase 0a, D1). The old v1 admin page is retired: '/' (express.static runs
+    // with index: false) and every unknown extensionless path redirect to the admin portal. Unknown
+    // /api paths never reach here (the JSON 404 above). This route used to sit inside the KEEP_WARM
+    // keep-alive timer, so it was only registered when KEEP_WARM=1, once per tick.
+    app.get('*', (req, res) => {
+        if (path.extname(req.path)) {
+            return res.status(404).send('Not found');
+        }
+        res.redirect(302, 'https://medx-admin-portal-v2.netlify.app');
+    });
+
     // Start watching shared DB for cross-portal sync
     watchSharedDb();
 
@@ -43512,16 +43573,6 @@ ${extraCss || ''}
         if (process.env.NODE_ENV === 'production' && process.env.KEEP_WARM === '1') { // KEEP_WARM opt-in (2026-07-18): always-on self-ping burned the free instance-hour budget
             setInterval(() => {
                 fetch(KEEP_ALIVE_URL + '/health').catch(() => {});
-
-app.get('*', (req, res) => {
-        if (path.extname(req.path)) {
-            return res.status(404).send('Not found');
-        }
-        res.sendFile(path.join(__dirname, '../frontend/index.html'));
-    });
-
-    // Health check
-    
             }, 14 * 60 * 1000);
             console.log('[KeepAlive] Pinging every 14 min to prevent sleep');
         }

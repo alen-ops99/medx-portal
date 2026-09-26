@@ -36,8 +36,11 @@ const os = require('os');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const USER = 'http://localhost:3121';
-const ADMIN = 'http://localhost:3122';
+// Ports can be moved (parallel builders share one Mac): MEDX_TEST_USER_PORT / MEDX_TEST_ADMIN_PORT.
+const USER_PORT = Number(process.env.MEDX_TEST_USER_PORT || 3121);
+const ADMIN_PORT = Number(process.env.MEDX_TEST_ADMIN_PORT || 3122);
+const USER = 'http://localhost:' + USER_PORT;
+const ADMIN = 'http://localhost:' + ADMIN_PORT;
 const HOST = 'plexus-tables.netlify.app';
 
 const results = [];
@@ -217,10 +220,13 @@ async function bootTests() {
     process.on('exit', cleanup);
 
     try {
-        boot('user-portal/backend', 3121); await waitUp(USER);
-        boot('admin-portal/backend', 3122); await waitUp(ADMIN);
+        boot('user-portal/backend', USER_PORT); await waitUp(USER);
+        boot('admin-portal/backend', ADMIN_PORT); await waitUp(ADMIN);
 
+        // The founder's seeded 'admin123' is replaced on a fresh database by the one-time founder
+        // unlock (admin server.js, founder_recovery_log), so fall back to the other seeded admin.
         let r = await api(ADMIN, '/api/auth/login', { method: 'POST', body: { email: 'juginovic.alen@gmail.com', password: 'admin123' } });
+        if (!(r.status === 200 && r.d && r.d.token)) r = await api(ADMIN, '/api/auth/login', { method: 'POST', body: { email: 'vp@medx.hr', password: 'admin123' } });
         const atok = r.d && r.d.token;
         check('boot: seeded admin login works', r.status === 200 && !!atok);
 
@@ -292,6 +298,32 @@ async function bootTests() {
         // ---- (8) picker ticket at a NON-gala gate → wrong_event ----
         r = await api(ADMIN, '/api/admin/checkin/ticket', { method: 'POST', token: atok, body: { code: ticketUrl, event: 'conference', mark: true } });
         check('picker ticket at conference gate → wrong_event', r.d && r.d.result === 'wrong_event', r.d && r.d.result);
+
+        // ---- (8b) DOOR HARDENING (round 3 Phase 0a) on the legacy gala doors ----
+        // An e-mail counts as a code only when door staff TYPE it (method 'manual').
+        r = await api(ADMIN, '/api/admin/checkin/verify', { method: 'POST', token: atok, body: { event: 'gala', code: paidEmail, mark: false } });
+        check('DOOR: scanned bare e-mail at the gala verify → not_found', r.d && r.d.valid === false && r.d.reason === 'not_found', r.d && r.d.reason);
+        r = await api(ADMIN, '/api/admin/checkin/verify', { method: 'POST', token: atok, body: { event: 'gala', code: paidEmail, mark: false, method: 'manual' } });
+        check('DOOR: the same e-mail TYPED (manual) → the paid seat resolves', r.d && r.d.valid === true, r.d && (r.d.reason || r.d.status_label));
+        // A scanned short fragment is never prefix-matched either.
+        const frag = String(galaRow && galaRow.id).replace(/-/g, '').slice(0, 8);
+        r = await api(ADMIN, '/api/admin/checkin/verify', { method: 'POST', token: atok, body: { event: 'gala', code: frag, mark: false } });
+        check('DOOR: scanned 8-hex fragment at the gala verify → not_found', r.d && r.d.valid === false && r.d.reason === 'not_found', r.d && r.d.reason);
+        r = await api(ADMIN, '/api/admin/checkin/verify', { method: 'POST', token: atok, body: { event: 'gala', code: frag, mark: false, method: 'manual' } });
+        check('DOOR: the same fragment TYPED (manual) → resolves', r.d && r.d.valid === true, r.d && (r.d.reason || r.d.status_label));
+        // An UNPAID gala row never opens a gala door, by id at any of them.
+        const unpaidEmail = 'qa.robot+galaunpaid@example.com';
+        await api(USER, '/api/gala/register', { method: 'POST', body: { first_name: 'Una', last_name: 'Paid', email: unpaidEmail, institution: 'QA', pricing: 'gala' } });
+        const rowU = await readGala(unpaidEmail);
+        check('DOOR: unpaid gala row created', !!rowU && rowU.payment_status !== 'paid', rowU && rowU.payment_status);
+        r = await api(ADMIN, '/api/admin/checkin/verify', { method: 'POST', token: atok, body: { event: 'gala', code: rowU && rowU.id, mark: true } });
+        check('DOOR: unpaid gala row at the gala verify → not_paid', r.d && r.d.valid === false && r.d.reason === 'not_paid', r.d && r.d.reason);
+        r = await api(ADMIN, '/api/admin/gala/checkin', { method: 'POST', token: atok, body: { code: rowU && rowU.id } });
+        check('DOOR: unpaid gala row at /api/admin/gala/checkin → not_paid', r.d && r.d.success === false && r.d.reason === 'not_paid', r.d && r.d.reason);
+        r = await api(ADMIN, '/api/checkin', { method: 'POST', token: atok, body: { code: JSON.stringify({ evt: 'gala', regId: rowU && rowU.id }) } });
+        check('DOOR: unpaid gala row at the universal /api/checkin → 403', r.status === 403 && r.d && r.d.success === false, r.status);
+        const rowU2 = await readGala(unpaidEmail);
+        check('DOOR: the unpaid row was never marked checked in', rowU2 && !Number(rowU2.checked_in));
 
         // ---- (9) REGRESSION: portal conference registration still scans valid; the picker path
         //          never disturbs a real portal token. Also a bogus non-picker code is invalid. ----
