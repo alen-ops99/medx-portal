@@ -11,7 +11,9 @@
  *      a conference registration with includes_gala and payment 'waived').
  *   4. a WAIVED row → admitted.
  *   5. an UNVERIFIED account → sees the e-mail-linked tickets while MEDX_VERIFIED_EMAIL_GATE is OFF
- *      (the default), and none of them once it is ON. A verified account keeps its own.
+ *      (the default), and none of them once it is ON. A verified account keeps its own. A seat the
+ *      account owns by user_id stays visible either way. The member reads run on both lines, the v2
+ *      wallet and member QR only on the redesign line.
  * Plus: vip-comp and the gala-ops VIP / sponsor seats admitted, the invoice path (approved +
  * pending) and a dead status refused, the admin catch-all, the door-staff page script, the seeds.
  *   6. a TYPED invoice number (GALA26-NNNN, PLX26-NNNNNN) never resolves by an id prefix. A letter
@@ -47,6 +49,12 @@ const ADMIN_V2 = 'https://medx-admin-portal-v2.netlify.app';
 const HAS_EVENTDAY = fs.existsSync(path.join(ROOT, 'admin-portal/backend/v2/event-day.js'));
 const HAS_WALLET = fs.existsSync(path.join(ROOT, 'user-portal/backend/v2/wallet.js'));
 const HAS_GALAOPS = fs.existsSync(path.join(ROOT, 'admin-portal/backend/v2/gala-ops.js'));
+// /api/plexus/my-registration reads a public /plexus-form place (croatians_abroad_registrations) by e-mail
+// on the redesign line only. Main reads the Plexus place by user_id alone, so it has nothing to gate there.
+const MEMBER_SRC = fs.readFileSync(path.join(ROOT, 'user-portal/backend/server.js'), 'utf8');
+const MYREG_AT = MEMBER_SRC.indexOf("app.get('/api/plexus/my-registration'");
+const MYREG_END = MEMBER_SRC.indexOf('\n    app.', MYREG_AT + 1);
+const HAS_CA_MYREG = MYREG_AT > 0 && MYREG_END > MYREG_AT && /croatians_abroad_registrations/.test(MEMBER_SRC.slice(MYREG_AT, MYREG_END));
 
 const results = [];
 const check = (name, cond, detail = '') => {
@@ -412,8 +420,10 @@ const waitDown = async (port, ms = 15000) => {
         check('6 the typed short code 12345600 still resolves that registration', r.d && r.d.result === 'valid' && r.d.ticket && r.d.ticket.registration_id === plxId, r.d && r.d.result);
 
         // ============================================================ 5. unverified account (D17)
-        if (HAS_WALLET) {
-            const uEmail = 'door.unverified+' + Date.now() + '@example.com';
+        // The member reads run on both lines. The v2 wallet, the member QR and the ticket PDF only where
+        // they exist (the redesign line).
+        {
+            const uEmail ='door.unverified+' + Date.now() + '@example.com';
             const uTok = await register(uEmail, 'Unverified');
             check('5 setup: unverified signup gets a session token', !!uTok);
             // With no mail provider a scratch signup is born verified; production (a provider set)
@@ -452,6 +462,11 @@ const waitDown = async (port, ms = 15000) => {
             const caId = crypto.randomUUID();
             put(`INSERT INTO croatians_abroad_registrations (id, first_name, last_name, email, selected_conference, conference_status, source, created_at)
                  VALUES (?,?,?,?,?,?,?,?)`, [caId, 'CaOnly', 'Probe', cEmail, 1, 'confirmed', 'plexus', new Date().toISOString()]);
+            // a paid gala seat the same unverified account owns by user_id (bought while signed in): the gate
+            // hides e-mail-linked rows only, so this one stays visible with the gate ON
+            const cUser = tdb.prepare('SELECT id FROM users WHERE lower(email) = ?').get(cEmail.toLowerCase());
+            const cOwnGala = galaRow({ email: cEmail, first: 'CaOnly', status: 'confirmed', pay: 'paid', amount: 150 });
+            put('UPDATE gala_registrations SET user_id = ? WHERE id = ?', [cUser && cUser.id, cOwnGala]);
             const evIds = (d) => [...((d && d.upcoming) || []), ...((d && d.past) || [])].map(i => i.id);
             const memberReads = async (label, on) => {
                 const hide = (cond) => on ? !cond : cond;   // OFF: the row shows. ON: it is hidden.
@@ -466,16 +481,25 @@ const waitDown = async (port, ms = 15000) => {
                 x = await api(USER, '/api/my/events', { token: uTok });
                 check(label + ' /api/my/events ' + (on ? 'hides' : 'shows') + ' the e-mail-linked seat', hide(evIds(x.d).includes(uGala.id)), evIds(x.d).length);
                 check(label + ' /api/my/events keeps the account\'s own user_id-linked registration', evIds(x.d).includes(uOwnReg.registration_id));
-                x = await api(USER, '/api/plexus/my-registration', { token: cTok });
-                check(label + ' /api/plexus/my-registration ' + (on ? 'hides' : 'shows') + ' the e-mail-linked /plexus-form place', hide(x.d && x.d.ca === true && x.d.id === caId), JSON.stringify(x.d).slice(0, 90));
+                x = await api(USER, '/api/gala/my-status', { token: cTok });
+                check(label + ' /api/gala/my-status keeps the seat the account owns by user_id', x.d && x.d.registration && x.d.registration.id === cOwnGala, JSON.stringify(x.d).slice(0, 90));
+                x = await api(USER, '/api/my/events', { token: cTok });
+                check(label + ' /api/my/events keeps the gala seat the account owns by user_id', evIds(x.d).includes(cOwnGala), evIds(x.d).length);
+                if (HAS_CA_MYREG) {
+                    x = await api(USER, '/api/plexus/my-registration', { token: cTok });
+                    check(label + ' /api/plexus/my-registration ' + (on ? 'hides' : 'shows') + ' the e-mail-linked /plexus-form place', hide(x.d && x.d.ca === true && x.d.id === caId), JSON.stringify(x.d).slice(0, 90));
+                } else skip(label + ' /api/plexus/my-registration', 'this line reads the Plexus place by user_id only, so no e-mail-linked /plexus-form row can show');
             };
 
             const ids = (d) => ((d && d.items) || []).map(i => i.id);
-            r = await api(USER, '/api/v2/wallet/tickets', { token: uTok });
-            check('5 gate OFF (default): unverified account sees the e-mail-linked gala ticket', ids(r.d).includes(uGala.id), ids(r.d).length);
-            check('5 gate OFF: no needs_verification flag', r.d && r.d.needs_verification === undefined);
-            r = await api(USER, '/api/v2/wallet/member', { token: qTok });
-            check('5 gate OFF: the member QR encodes the e-mail-linked seat', r.d && r.d.qr && r.d.qr.kind === 'registration' && r.d.qr.reg_id === qGala.id, JSON.stringify(r.d && r.d.qr));
+            const NO_WALLET = 'no user-portal/backend/v2/wallet.js on this line (main serves no v2 member wallet)';
+            if (HAS_WALLET) {
+                r = await api(USER, '/api/v2/wallet/tickets', { token: uTok });
+                check('5 gate OFF (default): unverified account sees the e-mail-linked gala ticket', ids(r.d).includes(uGala.id), ids(r.d).length);
+                check('5 gate OFF: no needs_verification flag', r.d && r.d.needs_verification === undefined);
+                r = await api(USER, '/api/v2/wallet/member', { token: qTok });
+                check('5 gate OFF: the member QR encodes the e-mail-linked seat', r.d && r.d.qr && r.d.qr.kind === 'registration' && r.d.qr.reg_id === qGala.id, JSON.stringify(r.d && r.d.qr));
+            } else skip('5 gate OFF: the wallet and the member QR', NO_WALLET);
             await memberReads('5 gate OFF:', false);
 
             // switch the gate ON: restart the member backend on the same scratch file
@@ -483,16 +507,18 @@ const waitDown = async (port, ms = 15000) => {
             await waitDown(USER_PORT);
             userProc = boot('user-portal/backend', USER_PORT, { MEDX_VERIFIED_EMAIL_GATE: '1' });
             await waitUp(USER);
-            r = await api(USER, '/api/v2/wallet/tickets', { token: uTok });
-            check('5 gate ON: the unverified account no longer sees the e-mail-linked ticket', r.d && !ids(r.d).includes(uGala.id), ids(r.d).join(','));
-            check('5 gate ON: its own user_id-linked registration still shows', r.d && ids(r.d).includes(uOwnReg.registration_id));
-            check('5 gate ON: the response says needs_verification', r.d && r.d.needs_verification === true);
-            r = await api(USER, '/api/v2/wallet/tickets/' + uGala.id + '.pdf', { token: uTok });
-            check('5 gate ON: the e-mail-linked ticket PDF is not served (404)', r.status === 404, r.status);
-            r = await api(USER, '/api/v2/wallet/member', { token: qTok });
-            check('5 gate ON: the member QR falls back to identity (no e-mail-linked seat)', r.d && r.d.qr && r.d.qr.kind === 'identity' && !r.d.qr.reg_id, JSON.stringify(r.d && r.d.qr));
-            r = await api(USER, '/api/v2/wallet/tickets', { token: vTok });
-            check('5 gate ON: a VERIFIED account keeps its e-mail-linked ticket', r.d && ids(r.d).includes(vGala.id) && r.d.needs_verification === undefined, ids(r.d).join(','));
+            if (HAS_WALLET) {
+                r = await api(USER, '/api/v2/wallet/tickets', { token: uTok });
+                check('5 gate ON: the unverified account no longer sees the e-mail-linked ticket', r.d && !ids(r.d).includes(uGala.id), ids(r.d).join(','));
+                check('5 gate ON: its own user_id-linked registration still shows', r.d && ids(r.d).includes(uOwnReg.registration_id));
+                check('5 gate ON: the response says needs_verification', r.d && r.d.needs_verification === true);
+                r = await api(USER, '/api/v2/wallet/tickets/' + uGala.id + '.pdf', { token: uTok });
+                check('5 gate ON: the e-mail-linked ticket PDF is not served (404)', r.status === 404, r.status);
+                r = await api(USER, '/api/v2/wallet/member', { token: qTok });
+                check('5 gate ON: the member QR falls back to identity (no e-mail-linked seat)', r.d && r.d.qr && r.d.qr.kind === 'identity' && !r.d.qr.reg_id, JSON.stringify(r.d && r.d.qr));
+                r = await api(USER, '/api/v2/wallet/tickets', { token: vTok });
+                check('5 gate ON: a VERIFIED account keeps its e-mail-linked ticket', r.d && ids(r.d).includes(vGala.id) && r.d.needs_verification === undefined, ids(r.d).join(','));
+            } else skip('5 gate ON: the wallet, the member QR and the ticket PDF', NO_WALLET);
             // RELEASE GATE for switching MEDX_VERIFIED_EMAIL_GATE on: every member read agrees with the wallet
             await memberReads('RELEASE GATE D17 · gate ON:', true);
             r = await api(USER, '/api/gala/my-status', { token: vTok });
@@ -503,7 +529,7 @@ const waitDown = async (port, ms = 15000) => {
             check('RELEASE GATE D17 · gate ON: a VERIFIED account keeps its table in /api/gala/my-seat', r.d && r.d.assigned === true && r.d.table_label === 'Stol 9', JSON.stringify(r.d));
             r = await api(USER, '/api/my/events', { token: vTok });
             check('RELEASE GATE D17 · gate ON: a VERIFIED account keeps its seat in /api/my/events', evIds(r.d).includes(vGala.id));
-        } else skip('5 unverified account (wallet)', 'no user-portal/backend/v2/wallet.js on this line (main serves no v2 member wallet)');
+        }
 
         // ============================================================ admin catch-all
         r = await api(ADMIN, '/', { redirect: 'manual' });

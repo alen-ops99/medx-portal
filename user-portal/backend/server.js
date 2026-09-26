@@ -5891,6 +5891,20 @@ function activePlexusConf() {
         || query.get("SELECT * FROM conferences WHERE slug = 'plexus-2026'");
 }
 
+// D17 (round 3 Phase 0a): the address a member read may match a row by. The same rule as the redesign
+// line's v2/apple-pass.js emailLinkFor, which this line does not carry. With MEDX_VERIFIED_EMAIL_GATE
+// OFF (the default) it is the address the route passed, untouched, so every response stays as it was.
+// With the gate ON an unverified account gets '__none__', which matches no row. A read that matches by
+// e-mail alone then adds the account's own rows by user_id (memberOwnId), so only e-mail-linked rows hide.
+function memberEmailLink(req, email) {
+    if (!/^(1|true|on|yes)$/i.test(String(process.env.MEDX_VERIFIED_EMAIL_GATE || '').trim())) return email;
+    let v = null;
+    try { v = query.get('SELECT email_verified FROM users WHERE id = ?', [(req && req.user && req.user.id) || null]); } catch (e) {}
+    return v && Number(v.email_verified) === 1 ? email : '__none__';
+}
+// The user_id a read matches as well while the gate hides e-mail-linked rows, null otherwise (matches nothing).
+const memberOwnId = (req, em) => (em === '__none__' ? req.user.id : null);
+
 // ===== CME / HLK ACCREDITATION helpers (queue 5a5c) — identical in both portal server.js files =====
 // Support for the Croatian Medical Chamber CME feature. Deliberately free of app state so the block
 // stays byte-identical across portals. Nothing here touches the rewards/points system.
@@ -13387,11 +13401,12 @@ async function initializeApp() {
         try {
             const user = query.get('SELECT id, email FROM users WHERE id = ?', [req.user.id]);
             if (!user) return res.json({ assigned: false });
+            const em = memberEmailLink(req, user.email || '');   // D17: '__none__' while the gate hides e-mail-linked rows
             // Picker-console import first (gala_table_assignments, email-keyed, admin Gala →
             // Seating CSV upsert) — freshest source in gala week. Falls back to the in-portal
             // seating plan (gala_tables/gala_seat_assignments) below.
             try {
-                const ta = query.get('SELECT table_no FROM gala_table_assignments WHERE lower(email) = lower(?) ORDER BY updated_at DESC LIMIT 1', [user.email || '']);
+                const ta = query.get('SELECT table_no FROM gala_table_assignments WHERE lower(email) = lower(?) ORDER BY updated_at DESC LIMIT 1', [em]);
                 if (ta && String(ta.table_no || '').trim()) {
                     const raw = String(ta.table_no).trim();
                     const label = /^\d+$/.test(raw) ? ('Stol ' + raw) : raw;
@@ -13399,7 +13414,7 @@ async function initializeApp() {
                 }
             } catch (e) { /* table absent on an older DB — fall through to the seating plan */ }
             const ids = [];
-            query.all('SELECT id FROM gala_registrations WHERE user_id = ? OR LOWER(email) = LOWER(?)', [user.id, user.email || '']).forEach(r => ids.push(r.id));
+            query.all('SELECT id FROM gala_registrations WHERE user_id = ? OR LOWER(email) = LOWER(?)', [user.id, em]).forEach(r => ids.push(r.id));
             query.all("SELECT id FROM registrations WHERE user_id = ? AND (registration_type = 'gala' OR includes_gala = 1)", [user.id]).forEach(r => ids.push(r.id));
             if (!ids.length) return res.json({ assigned: false });
             const placeholders = ids.map(() => '?').join(',');
@@ -13419,7 +13434,8 @@ async function initializeApp() {
         try {
             const meUser = query.get('SELECT id, email FROM users WHERE id = ?', [req.user.id]);
             const email = (meUser && meUser.email) || req.user.email || '';
-            const emL = String(email).toLowerCase();
+            const emL = memberEmailLink(req, String(email).toLowerCase());   // D17: '__none__' while the gate hides e-mail-linked rows
+            const own = memberOwnId(req, emL);
             const items = [];
             const q = (sql, params) => { try { return query.all(sql, params) || []; } catch (e) { return []; } };
 
@@ -13430,12 +13446,12 @@ async function initializeApp() {
                     checked_in: !!r.checked_in, calendar: '/calendar/plexus.ics' });
             });
             q(`SELECT gr.id, gr.payment_status, gr.status, gr.checked_in, g.title, g.date, g.venue
-               FROM gala_registrations gr LEFT JOIN gala_settings g ON g.id = 'default' WHERE LOWER(gr.email) = ?`, [emL]).forEach(r => {
+               FROM gala_registrations gr LEFT JOIN gala_settings g ON g.id = 'default' WHERE LOWER(gr.email) = ? OR gr.user_id = ?`, [emL, own]).forEach(r => {
                 items.push({ id: r.id, evt: 'gala', title: r.title || 'Gala Evening', date: r.date, venue: r.venue || '',
                     paid: r.payment_status === 'paid' || ['confirmed', 'vip-comp'].includes(String(r.status || '')), checked_in: !!r.checked_in });
             });
             q(`SELECT br.id, br.status, br.checked_in, e.name, e.event_date, e.event_time, e.venue_name, e.city, e.slug
-               FROM bridges_registrations br JOIN bridges_events e ON br.event_id = e.id WHERE LOWER(br.email) = ?`, [emL]).forEach(r => {
+               FROM bridges_registrations br JOIN bridges_events e ON br.event_id = e.id WHERE LOWER(br.email) = ? OR br.user_id = ?`, [emL, own]).forEach(r => {
                 if (String(r.status || '') === 'cancelled') return;
                 items.push({ id: r.id, evt: (r.slug === 'donor-night' ? 'donor' : 'bridges'), title: r.name || 'Building Bridges',
                     date: r.event_date, venue: [r.venue_name, r.city].filter(Boolean).join(', '), paid: true, checked_in: !!r.checked_in });
@@ -28213,9 +28229,10 @@ By applying to this program, I provide the following consents:
 
     // Get current user's gala registration status
     app.get('/api/gala/my-status', auth, (req, res) => {
+        const em = memberEmailLink(req, req.user.email);   // D17: '__none__' while the gate hides e-mail-linked rows
         const reg = query.get(
-            `SELECT * FROM gala_registrations WHERE email = ? ORDER BY created_at DESC LIMIT 1`,
-            [req.user.email]
+            `SELECT * FROM gala_registrations WHERE email = ? OR user_id = ? ORDER BY created_at DESC LIMIT 1`,
+            [em, memberOwnId(req, em)]
         );
         if (!reg) return res.json({ registered: false });
         res.json({ registered: true, registration: reg });
@@ -28237,7 +28254,7 @@ By applying to this program, I provide the following consents:
                  FROM gala_registrations
                  WHERE (user_id = ? OR lower(email) = lower(?))
                    AND COALESCE(status, '') NOT IN ('rejected', 'declined', 'cancelled')
-                 ORDER BY created_at DESC`, [me.id, me.email || '']);
+                 ORDER BY created_at DESC`, [me.id, memberEmailLink(req, me.email || '')]);   // D17
             res.json(rows.map(r => ({
                 ...r,
                 event_title: settings.title || 'Plexus 2026 — Gala Evening',
