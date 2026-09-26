@@ -21,6 +21,11 @@
 .mx-bb-cardfacts .mx-fact { min-height: 48px; padding: 10px 0; }
 .mx-bb-cardfacts .mx-fact:first-child { border-top: 0; }
 .mx-bb-card .btn-block { width: 100%; min-height: 48px; display: inline-flex; align-items: center; justify-content: center; }
+/* one filled button per screen height: the hero's gold REGISTER, which jumps here, sits within one screen of this card
+   on the large phones and the iPad. The card's register keeps its frozen markup (class included) and wears the
+   house ghost look */
+.mx-bb-card .btn-primary { background: transparent; color: var(--ink); border: 1px solid rgba(25,21,18,.35); }
+@media (hover: hover) { .mx-bb-card .btn-primary:hover { background: transparent; color: var(--ink); border-color: var(--ink); } }
 .mx-bb-rows { margin-top: 16px; }
 
 /* past editions: photo cards in a shelf (city, venue); every card opens its gallery */

@@ -45,7 +45,7 @@ export const COPY = {
     points: [
       'The members’ network and directory, year-round',
       'First call on seats at the May gathering',
-      'The Plexus Gala at the early-bird price (€150)'
+      'The Plexus Gala at the early-bird price (€150), whatever the date'
     ],
     note: 'Gala ticket sold separately.'
   },

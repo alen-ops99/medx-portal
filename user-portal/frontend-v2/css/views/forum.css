@@ -44,6 +44,11 @@
 .mx-fo-code:focus { outline: 1px solid #c9a962; outline-offset: -1px; }
 .mx-fo-err { font: 400 14px/20px Inter, sans-serif; color: #e0a9ad; }
 .mx-fo-acts { display: flex; flex-wrap: wrap; gap: 10px; }
+/* one filled button per screen height: the hero's gold JOIN / YOUR MEMBERSHIP, which jumps here, sits within one
+   screen of this card on the large phones and the iPad. The card's actions keep their frozen markup and wear a gold
+   hairline, which also keeps them apart from the cream hairline of the code field */
+.mx-fo-card .btn-gold { background: transparent; color: #c9a962; border: 1px solid #c9a962; }
+@media (hover: hover) { .mx-fo-card .btn-gold:hover { background: rgba(201,169,98,.12); color: #c9a962; } }
 .mx-fo-voteblock { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin-top: 24px; padding-top: 20px; border-top: 1px solid rgba(247,241,230,.14); }
 .mx-fo-votes { display: flex; gap: 10px; flex-wrap: wrap; }
 .mx-fo-vote { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 16px; border: 1px solid rgba(247,241,230,.35); color: #f7f1e6;
