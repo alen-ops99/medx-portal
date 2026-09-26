@@ -394,10 +394,16 @@ function eventCatalogue(q, { today, now } = {}) {
     // session windows + counts per event
     let stats = {};
     try { q.all("SELECT event_key, COUNT(*) AS n, SUM(COALESCE(is_published, 0)) AS p, SUM(COALESCE(is_tbd, 0)) AS t, MIN(CASE WHEN COALESCE(is_published,0)=1 THEN start_time END) AS s0, MAX(CASE WHEN COALESCE(is_published,0)=1 THEN end_time END) AS e0, MAX(updated_at) AS u FROM sessions WHERE event_key IS NOT NULL GROUP BY event_key").forEach(r => { stats[r.event_key] = r; }); } catch (e) { stats = {}; }
+    // per-day windows: a two-day event's start is its FIRST day's first session and its end the LAST day's last one
+    // (a MIN over both days read day 2's 09:00 as the conference start, 26 Sept 2026), and "live" uses today's window
+    let days = {};
+    try { q.all("SELECT event_key, substr(event_date, 1, 10) AS d, MIN(start_time) AS s, MAX(end_time) AS e FROM sessions WHERE event_key IS NOT NULL AND COALESCE(is_published, 0) = 1 AND event_date IS NOT NULL AND event_date <> '' GROUP BY event_key, substr(event_date, 1, 10)").forEach(r => { if (isYmd(r.d)) (days[r.event_key] = days[r.event_key] || []).push(r); }); } catch (e) { days = {}; }
     for (const e of list) {
         const s = stats[e.key] || {};
+        const dw = (days[e.key] || []).slice().sort((a, b) => String(a.d).localeCompare(String(b.d)));
+        const firstDay = dw[0], lastDay = dw[dw.length - 1];
         e.session_count = Number(s.n || 0); e.published_count = Number(s.p || 0); e.tbd_count = Number(s.t || 0); e.program_updated_at = s.u || null;
-        const start = (e.session_count && hm(s.s0)) || e.start || null, end = (e.session_count && hm(s.e0)) || e.end || null;
+        const start = (e.session_count && ((firstDay && hm(firstDay.s)) || hm(s.s0))) || e.start || null, end = (e.session_count && ((lastDay && hm(lastDay.e)) || hm(s.e0))) || e.end || null;
         e.start = start; e.end = end;
         e.starts_at = zonedIso(e.date, start, e.tz); e.ends_at = zonedIso(e.end_date || e.date, end, e.tz);
         const local = localNow(e.tz, at);
@@ -405,7 +411,8 @@ function eventCatalogue(q, { today, now } = {}) {
         e.today = td;
         e.is_today = !!(e.date && e.date <= td && td <= (e.end_date || e.date));
         // live = the server's clock, in the event's zone, sits inside the session window right now
-        e.is_live = !!(e.date && start && end && local.date >= e.date && local.date <= (e.end_date || e.date) && local.time >= start && local.time <= end);
+        const win = dw.find(d => d.d === local.date), winS = (win && hm(win.s)) || start, winE = (win && hm(win.e)) || end;
+        e.is_live = !!(e.date && winS && winE && local.date >= e.date && local.date <= (e.end_date || e.date) && local.time >= winS && local.time <= winE);
         e.is_past = !!(e.date && (e.end_date || e.date) < td);
         e.is_upcoming = !!(e.date && e.date > td);
         e.times_tbd = !!e.times_tbd; e.tentative = !!e.tentative;

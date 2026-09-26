@@ -34,7 +34,7 @@ const NOMINATIONS_PER_WINDOW = 3;       // a member may put forward at most 3 co
 const NOMINATION_WINDOW_DAYS = 30;      // …per rolling 30 days (429 with a warm message beyond that)
 const GATHERING = {
     slug: 'forum-2027-gathering', title: 'Annual Biomedical Forum 2027',
-    description: 'The annual gathering of the Biomedical Forum — three days each May, closing with the Gala & Awards evening. Split or Zagreb; the venue is announced with your invitation.',
+    description: 'The annual gathering of the Biomedical Forum — two days each May, closing with the Gala & Awards evening. Split or Zagreb. The venue is announced with your invitation.',
     start: '2027-05-28', end: '2027-05-29', where: 'Split or Zagreb — venue announced with your invitation'
 };
 

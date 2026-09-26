@@ -43,7 +43,7 @@ const CAP = 200;
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I — identical to the member side
 const GATHERING = {
     slug: 'forum-2027-gathering', title: 'Annual Biomedical Forum 2027',
-    description: 'The annual gathering of the Biomedical Forum — three days each May, closing with the Gala & Awards evening. Split or Zagreb; the venue is announced with your invitation.',
+    description: 'The annual gathering of the Biomedical Forum — two days each May, closing with the Gala & Awards evening. Split or Zagreb. The venue is announced with your invitation.',
     start: '2027-05-28', end: '2027-05-29', where: 'Split or Zagreb — venue announced with your invitation'
 };
 const QUESTIONS_KEY = 'v2_forum_consideration_questions';
