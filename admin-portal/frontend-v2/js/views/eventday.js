@@ -315,6 +315,7 @@ async function scan(code, opts = {}) {
   try {
     const out = await api.post('/api/v2/eventday/scan', body);
     out._code = code;   // the sheet's ADMIT ONE MORE / override buttons re-scan this code
+    out._method = body.method;   // ...with the method it arrived by (a scanned e-mail stays a scan)
     showResult(out);
     refreshCounts(); refreshDoor();
     return out;
@@ -350,11 +351,14 @@ async function identify(code, opts = {}) {
   // rehearsal TEST-1…6 are built-in practice guests known only to /scan — ID-check would say
   // NOT FOUND (E2E S13), so practice codes keep the classic admit flow
   if (st.rehearsal && /^TEST-\d+$/i.test(String(code).trim())) return scan(code, opts);
+  // door hardening (round 3 Phase 0a): the server resolves an e-mail or a short code only when it
+  // was TYPED (method 'manual'), so the lookup and the ADMIT that follows carry the real method
+  const method = opts.method === 'manual' ? 'manual' : 'qr';
   try {
-    const out = await api.post('/api/v2/eventday/lookup', { code, rehearsal: st.rehearsal });
-    if (!out.ok) { showResult(Object.assign({ ticket: {} }, out, { _code: code })); return out; }
+    const out = await api.post('/api/v2/eventday/lookup', { code, rehearsal: st.rehearsal, method });
+    if (!out.ok) { showResult(Object.assign({ ticket: {} }, out, { _code: code, _method: method })); return out; }
     st.last = null;
-    st.idcard = Object.assign({ _code: code }, out);
+    st.idcard = Object.assign({ _code: code, _method: method }, out);
     presentResult();
     return out;
   } catch (e) {
@@ -1349,26 +1353,27 @@ const handlers = {
     const code = el.dataset.code, key = el.dataset.key;
     if (!code || !key) return;
     const n = parseInt(el.dataset.n, 10) || 1;
+    const how = (st.idcard && st.idcard._method) || 'manual';
     // a meetup place belongs to ITS table, not to whatever the picker currently shows
-    scan(code, { method: 'manual', event: key, admit: n, meetup_id: el.dataset.meetup || undefined }).then(out => {
+    scan(code, { method: how, event: key, admit: n, meetup_id: el.dataset.meetup || undefined }).then(out => {
       if (!out) return;
       // door mode: the sheet now shows the green confirmation + NEXT SCAN (scan() already painted it)
       if (isPhone()) return;
       if (out.message) ui.toast(out.message.toUpperCase().slice(0, 80));
       // stay on the ID card — refresh its counts so the operator sees "2 of 3" live
-      identify(code, { method: 'manual' });
+      identify(code, { method: how });
     });
   },
   idClear: () => { st.idcard = null; st.last = null; presentResult(); },
   admitMore: (el) => {
     const code = el.dataset.code; const n = parseInt(el.dataset.n, 10) || 1;
     if (!code) return;
-    scan(code, { method: 'manual', admit: n }).then(out => { if (out) { out._code = code; showResult(out); } });
+    scan(code, { method: (st.last && st.last._method) || 'manual', admit: n }).then(out => { if (out) { out._code = code; showResult(out); } });
   },
   overrideAdmit: (el) => {
     const code = el.dataset.code;
     const reason = (rootEl.querySelector('[data-role="overrideReason"]') || {}).value || '';
-    scan(code, { method: 'manual', override: true, override_reason: reason.trim() || 'door override' }).then(out => { if (out) { out._code = code; showResult(out); } });
+    scan(code, { method: (st.last && st.last._method) || 'manual', override: true, override_reason: reason.trim() || 'door override' }).then(out => { if (out) { out._code = code; showResult(out); } });
   },
   doorIn: (el) => {
     const ref = el.dataset.ref;

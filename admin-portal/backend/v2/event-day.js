@@ -321,7 +321,9 @@ module.exports = function mountEventDay(app, ctx) {
     // The e-mail and short-code steps run ONLY for a code door staff typed (method 'manual'). A
     // scanned QR that holds an e-mail (bare or in JSON) is not a credential: it admitted whoever
     // owned the address. A typed short code must look like one (hex and dashes, no '@'), so a typed
-    // name is never stripped to hex and prefix-matched (round 3 door hardening, 2026-09-26).
+    // name is never stripped to hex and prefix-matched (round 3 door hardening, 2026-09-26). No
+    // letter prefix is dropped first: no printed short code carries one, and dropping it turned a
+    // typed invoice number (GALA26-0041) into the digits 0041, which prefix-matched a stranger's seat.
     function resolveCode(code, eventKey, method) {
         if (code === null || code === undefined) return null;
         const s = String(code).trim();
@@ -340,8 +342,7 @@ module.exports = function mountEventDay(app, ctx) {
         if (m) { const hit = findByUuid(m[1], eventKey); if (hit) return hit; }
         if (!manual) return null;
         if (s.includes('@')) return findByEmailOrShort(s, eventKey);
-        const cand = s.replace(/^[A-Za-z]{2,6}\d{0,4}-/, '');
-        return /^[0-9a-fA-F-]+$/.test(cand) ? findByEmailOrShort(cand, eventKey) : null;
+        return /^[0-9a-fA-F-]+$/.test(s) ? findByEmailOrShort(s, eventKey) : null;
     }
 
     // Fit the resolved row to the gate. Returns { ok } or { block: <result>, message } — and may
