@@ -129,13 +129,15 @@ module.exports = function mountLive(app, ctx) {
             const s = q.get('SELECT id, name, email FROM speakers WHERE id = ?', [tok.id]); if (!s) return null;
             speakerId = s.id; name = s.name || ''; email = s.email || null;
         } else if (tok.kind === 'user') {
-            const u = req && req.user && req.user.id ? (q.get('SELECT id, email, email_verified, first_name, last_name FROM users WHERE id = ?', [req.user.id]) || { id: req.user.id, email: req.user.email }) : null;
+            const u = req && req.user && req.user.id ? (q.get('SELECT id, email, first_name, last_name FROM users WHERE id = ?', [req.user.id]) || { id: req.user.id, email: req.user.email }) : null;
             if (!u) return null;
             name = nameOf(u) || String(u.email || '').split('@')[0]; email = u.email; ref = u.id;
             // linked registrations: by account, then by e-mail — the address only for rows no account has claimed
             // (a closed account's rows keep its id, so a new sign-up on the freed address never inherits them).
             // D17: the address comes from emailLinkFor, so with the gate on an unverified account links no row by e-mail.
-            const em = emailLinkFor({ email: u.email, email_verified: u.email_verified });
+            let verified = 0;
+            try { const v = q.get('SELECT email_verified FROM users WHERE id = ?', [u.id]); verified = v ? v.email_verified : 0; } catch (e) { /* no email_verified column: counts as unverified */ }
+            const em = emailLinkFor({ email: u.email, email_verified: verified });
             linkEmail = em === '__none__' ? '' : em;
             const cas = q.all('SELECT * FROM croatians_abroad_registrations WHERE user_id = ? OR (user_id IS NULL AND LOWER(email) = LOWER(?) AND ? <> \'\') ORDER BY created_at DESC', [u.id, linkEmail, linkEmail]);
             const galas = q.all('SELECT * FROM gala_registrations WHERE user_id = ? OR (user_id IS NULL AND LOWER(email) = LOWER(?) AND ? <> \'\') ORDER BY created_at DESC', [u.id, linkEmail, linkEmail]);
