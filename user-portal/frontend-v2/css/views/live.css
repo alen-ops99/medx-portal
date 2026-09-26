@@ -498,3 +498,7 @@ html.mx-hc .lv-tab { color: var(--ink); }
 .lv-ev:focus-visible { outline-offset: -2px; }
 .lv-sheet:focus, .lv-sheet-h:focus { outline: none; }   /* focus parks on the title when a sheet opens (live.js openSheet) */
 @media (max-width: 400px) { .lv-card-foot { padding: 0 12px 14px; gap: 8px; } }   /* 390pt phones: ADD TO CALENDAR stays inside the card */
+/* the toggle and ADD TO CALENDAR share a row while they fit; on a narrow phone the link drops to its own row, right-aligned,
+   instead of running past the card or the sheet's edge */
+.lv-card-foot, .lv-sheet-foot { flex-wrap: wrap; row-gap: 2px; }
+.lv-card-foot .lv-ics, .lv-sheet-foot .lv-ics { margin-left: auto; }
