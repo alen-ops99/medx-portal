@@ -3,13 +3,27 @@
 
 .mx-px { background: #f7f1e6; color: #191512; }
 
-/* hero: on a phone the portrait crop keeps the Plexus roll-up and the panel, and leaves the projected slide's lettering at the edge */
-/* phones: the whole screen and the panel in frame (at 75% the slide's words were cut at the left edge, "to Gala / ing") */
-.mx-px-heroimg { object-position: 7% 50%; }
-/* the tall phone hero (GLASS-RULES §1.9.3, 717px at 390) shows a narrower slice of the photo: 27% keeps the slide's
-   lettering whole ("Welcome to Gala Evening") and the panel's faces in frame at 320, 390 and 430 */
-@media (max-width: 500px) { .mx-px-heroimg { object-position: 27% 50%; } }
-@media (min-width: 701px) { .mx-px-heroimg { object-position: 50% 88%; } }
+/* hero: a keynote in the Plexus hall (the old portal's "Keynote Session" photo, assets/photo-keynote.jpg), the stage
+   and the rows of guests, with no words in it. The earlier photo's projected slide read "Welcome to Gala Evening,
+   Plexus Conference 2025" right under the 2026 title on the tall phone hero.
+   On phones the photo's box is at least 1.9 times the screen width tall, anchored to the hero's bottom (the hero clips
+   the rest), so every phone shape shows the same centre slice, about 35% of the width: the stage, the two speakers
+   and the rows, clear of the rotated neon sign and the roll-up on the right and the lit mark on the left. The plain
+   cover crop showed 54% of the width on a 320 x 568 screen and brought the sign in */
+@media (max-width: 500px) {
+  .mx-hero.mx-px-hero > .mx-px-heroimg { top: auto; bottom: 0; height: max(100%, 190vw); object-position: 50% 50%; }
+}
+/* from 501: the box is 1.7 times the hero's height, anchored to its bottom, so the band shows the stage and the rows
+   and leaves the rigging and the neon sign above the hero's top edge (on the iPad at 820 the plain cover crop showed
+   the whole photo, sign included). Across, the slice keeps both speakers and leaves the roll-up's lettering out:
+   35% on the 4:5 hero (501 to 700), 20% on the 540 px band from 701 (from about 1000 the photo is as wide as the hero
+   and the roll-up's top edge, with its small logo, is the one lettering left in frame) */
+@media (min-width: 501px) {
+  /* transform-origin: the hero's centre inside the taller box, so the entry settle (app.css mx-settle) grows from the
+     middle of what is seen and the band does not drift */
+  .mx-hero.mx-px-hero > .mx-px-heroimg { top: auto; bottom: 0; height: 170%; object-position: 35% 85%; transform-origin: 50% 70.6%; }
+}
+@media (min-width: 701px) { .mx-hero.mx-px-hero > .mx-px-heroimg { object-position: 20% 85%; } }
 
 /* ---- the four tabs (the kit's glass segmented control) + the event app row (Overview only) ---- */
 .mx-px-nav { display: flex; flex-direction: column; gap: 12px; }

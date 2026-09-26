@@ -32,7 +32,7 @@ export const COPY = {
   loading: 'Loading the program…',
   tabs: { program: 'Program', schedule: 'My schedule', speakers: 'Speakers', info: 'Info' },
   portal: 'Portal',                       // the back circle's label (aria-label)
-  events: 'Plexus Week events',           // the title menu's sheet (aria-label)
+  events: 'Plexus Week events',           // the title menu's sheet: its title and its aria-label
   now: {
     now: 'NOW', next: 'NEXT', endsIn: m => `ends in ${m}`, late: 'until late', inMin: m => `in ${m}`,
     day: (n, d) => `Day ${n} · ${d}`,
@@ -62,7 +62,7 @@ export const COPY = {
   offlineFoot: t => `Offline · showing the program${t ? ` from ${t}` : ' you loaded last'}`,
   badLink: 'That link is not one of ours — open the app from your ticket.',
   // the no-ticket notice is the compact empty state: one line and the one action (Q11)
-  noTickets: { line: 'No tickets yet.', cta: 'REGISTER FOR PLEXUS WEEK →' },
+  noTickets: { line: 'No tickets yet.', cta: 'REGISTER →' },
   sheet: { close: 'CLOSE', ics: 'ADD TO CALENDAR →', where: 'WHERE', about: 'ABOUT', with: 'WITH' },
   foot: (t) => (t ? `Updated ${t}` : ''), refresh: 'Refresh', retry: 'REFRESH'
 };
@@ -343,11 +343,12 @@ function headParts() {
     : name;
   return { title, meta: meta || COPY.loading, loading: !meta, label: ev.label || '' };
 }
-// the title menu: every event of the week, the one on screen ticked, the ones not on this ticket muted (read-only)
+// the title menu: every event of the week, the one on screen ticked, the ones not on this ticket muted (read-only).
+// Its head carries the sheet's own name (the dialog's label) beside the close, so the head is no longer an empty band
 function eventsSheet() {
   const cur = S.current;
   return `
-    ${sheetHead('')}
+    ${sheetHead('', COPY.events)}
     <div class="lv-sheet-body lv-evs">
       ${menuEvents().map(e => `
       <div data-act="ev" data-key="${esc(e.key)}" role="button" tabindex="0" aria-current="${e.key === cur}" class="lv-ev${e.key === cur ? ' on' : ''}${held(e.key) || !S.token ? '' : ' ro'}">
@@ -779,9 +780,11 @@ function showTab(tab, { push, animate, scroll = true, glide } = {}) {
 // the same sheet turning a page: scrim and sheet hold still, the old page slides out to the left, the new one
 // in from the right, and a quiet ← in the head turns back. Close: it slides away, then leaves the DOM, and
 // focus goes back to what opened it. A sheet is made by a function, so a page turned back to is redrawn fresh.
-function sheetHead(eyebrow) {
+// a sheet with a title (the events menu) sets it on the close button's line, the way the kit's sheets do
+function sheetHead(eyebrow, title) {
   const back = sheetStack.length ? `<span data-act="back" class="lv-sback mx-gbtn" role="button" tabindex="0" aria-label="Back">${ICON_BACK}</span>` : '';
-  return `<div class="lv-sheet-head">${back}<span class="lv-eyebrow ink">${eyebrow}</span><span data-act="close" class="lv-x mx-gbtn" role="button" tabindex="0" aria-label="Close">${ICON_X}</span></div>`;
+  const lead = title ? `<h2 class="lv-sheet-h">${title}</h2>` : `<span class="lv-eyebrow ink">${eyebrow}</span>`;
+  return `<div class="lv-sheet-head${title ? ' has-title' : ''}">${back}${lead}<span data-act="close" class="lv-x mx-gbtn" role="button" tabindex="0" aria-label="Close">${ICON_X}</span></div>`;
 }
 function openSheet(make, label) {
   if (sheet) { sheetStack.push(sheet._make); swapSheet(make, 1); return; }

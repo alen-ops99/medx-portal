@@ -125,6 +125,8 @@
           color: #4a4239; font: 500 14px/20px var(--font-ui); white-space: nowrap; cursor: pointer; transition: color var(--lv-fast) var(--lv-ease); }
 .lv-tab.on { color: var(--ink); font-weight: 600; }
 .lv-tab:focus-visible { outline-offset: -2px; }
+/* the tap area reaches the full 44 px track (the kit's .mx-seg items do the same) */
+.lv-tab::after { content: ""; position: absolute; left: 0; right: 0; top: -4px; bottom: -4px; }
 /* the raised capsule behind the selected tab (no-JS fallback: the selected tab draws its own) */
 .lv-tab-ink { position: absolute; top: 4px; left: 0; z-index: 0; width: 0; height: 36px; border-radius: var(--r-capsule, 999px); background: #fffdf8; box-shadow: 0 1px 3px rgba(25,21,18,.16);
               pointer-events: none; opacity: 0; transition: transform 220ms var(--lv-ease), width 220ms var(--lv-ease); }
@@ -134,10 +136,14 @@
             font: 600 12px var(--font-ui); font-variant-numeric: tabular-nums; letter-spacing: 0; }
 .lv-count.bump { animation: lv-bump var(--lv-slow) var(--lv-ease) backwards; }
 @keyframes lv-bump { from { opacity: 0; transform: scale(.55); } to { opacity: 1; transform: none; } }
-/* small phones: the four share the row (they fit at 320 without a sideways scroll, like the kit's .mx-seg) */
-@media (max-width: 400px) { .lv-tab { flex: 1 1 auto; padding: 0 10px; } }
+/* every phone width (the phone layout ends at 500): the four share the row. Each keeps 4 px of its own padding and the
+   free width is shared out equally (flex-grow), so the side room is about 10 px where there is space and gives way
+   before a label is cut: the longest case (My schedule selected in 600 with a two-digit count) fits whole from 320 to
+   500 with no sideways scroll. A fixed 14 px ran the fourth tab out of the track on the 402 iPhones ("Infc") and a
+   fixed 10 px still did at 375 and 320 with a two-digit count */
+@media (max-width: 500px) { .lv-tab { flex: 1 1 auto; padding: 0 4px; } }
 @media (max-width: 380px) { .lv-tabs { padding-left: 14px; padding-right: 14px; } }
-@media (max-width: 360px) { .lv-tab { padding: 0 7px; font-size: 13px; } }
+@media (max-width: 360px) { .lv-tab { font-size: 13px; } }
 
 /* ---- panels ---- */
 .lv-panels { padding: 0 0 24px; min-height: 60vh; }
@@ -372,6 +378,10 @@ html.mx-hc .lv-tab { color: var(--ink); }
   .lv-sheet-head::before { content: ''; position: absolute; top: 8px; left: 50%; width: 36px; height: 5px; margin-left: -18px; border-radius: var(--r-capsule, 999px); background: rgba(25,21,18,.22); }
 }
 .lv-sheet-head > .lv-eyebrow { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* a titled head (the events menu): the kit sheet's head, the title on the close button's line */
+.lv-sheet-h { flex: 1 1 auto; min-width: 0; margin: 0; font: 400 22px/28px var(--font-display); color: var(--ink); text-wrap: balance; }
+.lv-sheet-head.has-title { padding-bottom: 2px; }
+@media (max-width: 760px) { .lv-sheet-head.has-title { padding-top: 14px; } }
 /* ← back: a quiet twin of the close button, on the left */
 .lv-sback { margin: 0 -2px 0 -8px; color: var(--ink); transition: opacity var(--lv-exit) var(--lv-ease), transform 120ms var(--ease); }   /* the kit's .mx-gbtn */
 .lv-sback svg { transition: transform var(--lv-fast) var(--lv-ease); }

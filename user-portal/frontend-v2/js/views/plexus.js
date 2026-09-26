@@ -88,7 +88,7 @@ export const COPY = {
   prog: {
     lede: dates => `${dates} · Novinarski dom, Zagreb`,
     daysTitle: 'The days',
-    ics: 'Add to calendar', pdf: 'Download the program',
+    ics: 'Add to calendar', pdf: 'Program PDF',
     timesNote: 'Final session times are published closer to the event.',
     register: 'Register — free', mine: 'My Plexus', mineSub: 'You are registered · your pass and schedule',
     sessions: n => `${n} session${n === 1 ? '' : 's'}`,
@@ -106,7 +106,7 @@ export const COPY = {
       { name: 'St. Mark’s Church', note: 'The famous tiled roof' },
       { name: 'Zagreb Cathedral', note: 'Being rebuilt after the 2020 earthquake' },
       { name: 'Dolac Market', note: 'Red umbrellas, morning buzz' },
-      { name: 'Upper Town at dusk', note: 'Stone Gate, hand-lit gas lamps' },
+      { name: 'Upper Town', note: 'Stone Gate, hand-lit gas lamps' },
       { name: 'Tkalčićeva Street', note: 'Café-lined and lively till late' }
     ],
     bonus: { title: 'Advent in Zagreb', note: 'Europe’s best Christmas market, three years running' },
@@ -480,7 +480,7 @@ function ovHero() {
   return `
   <!-- dc: Plexus Conference.dc.html › "Hero" -->
   <section class="mx-hero mx-ink mx-px-hero">
-    <img class="mx-hero-photo mx-px-heroimg" src="/assets/photo-stage.jpg" alt="">
+    <img class="mx-hero-photo mx-px-heroimg" src="/assets/photo-keynote.jpg" alt="">
     <div class="mx-scrim"></div>
     ${ovCountdown()}
     <div class="mx-hero-body">

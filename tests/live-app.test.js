@@ -252,7 +252,7 @@ function stubApp() {
         assert.ok(/const POLL_MS = 60 \* 1000/.test(v), 'poll every 60 s');
         assert.ok(v.includes("'live:program:' + k") && v.includes("'live:attendance:' + t"), 'cache keys');
         assert.ok(v.includes('Program updated'), 'the toast');
-        assert.ok(v.includes('Open this from your ticket link to build your schedule.'), 'the no-token line');
+        assert.ok(v.includes('Open your ticket link to build your schedule.'), 'the no-token line (GLASS-RULES §3.6)');
         assert.ok(v.includes('Everything you registered for appears here on its own'), 'the empty schedule (the schedule builds itself from the registration)');
         assert.ok(v.includes("['program', 'schedule', 'speakers', 'info']"), 'four tabs');
         assert.ok(/KEYNOTE.*TALK.*PANEL.*PRESENTATIONS.*BREAK.*LUNCH.*NETWORKING.*RECEPTION.*CEREMONY/.test(v), 'kind chips');
@@ -263,18 +263,22 @@ function stubApp() {
         assert.ok(/layout: 'bare'/.test(v), 'bare layout declared on the view too');
         const css = read(path.join(FE, 'css/views/live.css'));
         assert.ok(/\.lv \{[^}]*font: 16px/.test(css), 'base 16 px');
-        assert.ok(/\.lv-att \{[^}]*min-height: 46px/.test(css) && /\.lv-tab \{[^}]*min-height: 48px/.test(css), '44 px+ targets');
+        // the tabs are a glass segmented control (GLASS-RULES §1.9.6): 36 px capsules inside a 44 px track, each tab's tap
+        // layer reaching the track's full height (the kit's .mx-seg items do the same)
+        assert.ok(/\.lv-att \{[^}]*min-height: 46px/.test(css) && /\.lv-seg \{[^}]*height: 44px/.test(css)
+            && /\.lv-tab::after \{[^}]*position: absolute;[^}]*top: -4px; bottom: -4px/.test(css), '44 px+ targets');
         assert.ok(/--lv-w: 720px/.test(css), 'the 720 px column');
-        assert.ok(/\.lv-tabs \{ position: sticky; top: 0/.test(css) && /\.lv-day \{ position: sticky; top: 48px/.test(css), 'sticky tabs + day headers');
+        assert.ok(/\.lv-tabs \{ position: sticky; top: 0/.test(css) && /\.lv-day \{ position: sticky; top: var\(--lv-tabs-h/.test(css), 'sticky tabs + day headers (the day sits under the tab bar\'s height)');
         assert.ok(/\.lv-card\.tbd \{ border-style: solid/.test(css), 'TBD placeholders: a solid faint hairline (DESIGN-RULES 2026-09-25: dashed read as broken)');
         assert.ok(/\.lv-att\.on \{[^}]*color: var\(--crimson\)/.test(css) && /\.lv-att\.on::before/.test(css), 'IN MY SCHEDULE reads crimson with a drawn check (a calm ON — registered events start ON)');
     });
 
-    await t('the member pages link to the app: PLEXUS WEEK LIVE → on every Plexus tab strip, EVENT APP → on Building Bridges', () => {
+    await t('the member pages link to the app: Plexus Week Live on the Plexus Overview (under its tab strip), Event app on Building Bridges', () => {
         const plexus = read(path.join(FE, 'js/views/plexus.js')), bridges = read(path.join(FE, 'js/views/bridges.js'));
         assert.ok(/live: 'PLEXUS WEEK LIVE →'/.test(plexus) && plexus.includes('href="/app/live"'), 'Plexus');
-        assert.ok(plexus.indexOf('href="/app/live"') > plexus.indexOf('function tabStrip()') && plexus.indexOf('href="/app/live"') < plexus.indexOf('function blockHelp('), 'inside the tab strip (every tab)');
-        assert.ok(/live: 'EVENT APP →'/.test(bridges) && bridges.includes('href="/app/live"'), 'Bridges');
+        assert.ok(plexus.indexOf('href="/app/live"') > plexus.indexOf('function tabStrip()') && plexus.indexOf('href="/app/live"') < plexus.indexOf('function blockHelp('), 'right under the tab strip, on the Overview only');
+        // Glass Quiet (GLASS-RULES §3.6): the Bridges row reads "Event app" with no sub-line, labelled by its visible text
+        assert.ok(/liveRow: \{ title: 'Event app' \}/.test(bridges) && /<a href="\/app\/live" class="mx-row"[^>]*>[^\n]*\$\{COPY\.liveRow\.title\}/.test(bridges), 'Bridges');
         assert.ok(bridges.indexOf('href="/app/live"') > bridges.indexOf('function blockCrumb()') && bridges.indexOf('href="/app/live"') < bridges.indexOf('function followToggle()'), 'in the breadcrumb row');
     });
 
