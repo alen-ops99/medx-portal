@@ -424,6 +424,7 @@ let bar = { mode: null, dark: false };      // the phone top bar: 'flat' | 'glas
 let tabDark = false;                          // the web tab bar over a dark region
 let heroEl = null;                            // the photo hero the top bar floats over (clear mode), or null
 let barRaf = 0, lastTabbar = '';
+let viewDrawn = false;                       // the first screen has written into #view (the tab bar may be reported visible)
 
 // html.mx-webbar: the web tab bar is drawn (a phone, the portal layout). The css keys --mx-tabbar-h on it, and the tall hero
 // reads that, so it is set before any view draws (mount, and every layout or width change) — never in a later callback
@@ -435,8 +436,11 @@ function overlayOpen() { return document.body.classList.contains('drawer-open') 
 function reportTabbar() {
   const s = state.get(), path = router.path;
   const lit = COPY.mobile.tabs.find(k => tabOn(k, path));
+  // never `true` before the first screen has drawn (viewChanged): the layout defaults to portal until the router knows the
+  // route, so a cold launch to the sign-in screen must not flash the native bar in and out, and a signed-in launch shows
+  // the bar with Home, never over an empty page (§2.5)
   const detail = {
-    visible: isPhonePortal() && !overlayOpen(),
+    visible: viewDrawn && isPhonePortal() && !overlayOpen(),
     active: lit ? TAB_KEYS[lit] : null,
     unread: Number(s.msgUnread) || 0,
     tabs: COPY.mobile.tabs.map(k => ({ key: TAB_KEYS[k], label: plain(COPY.mobile.labels[k]), href: TAB_ROOTS[k] }))
@@ -520,7 +524,11 @@ function updateBar() {
 }
 function scheduleBar() { if (!barRaf) barRaf = requestAnimationFrame(updateBar); }
 // a new screen drew (or was placed): find its hero and settle both bars at once, in the same frame
-function viewChanged() { if (barRaf) { cancelAnimationFrame(barRaf); barRaf = 0; } detectHero(); updateBar(); reportTabbar(); }
+function viewChanged() {
+  if (barRaf) { cancelAnimationFrame(barRaf); barRaf = 0; }
+  if (!viewDrawn) { const v = document.getElementById('view'); viewDrawn = !!(v && v.firstElementChild); }
+  detectHero(); updateBar(); reportTabbar();
+}
 
 // the keyboard (§1.9.1): the visual viewport shrinks by more than 150px while a field has focus → html.mx-vkb (the web bar
 // steps down, --mx-tabbar-h goes to 0). A rotation or a width change starts the measure again
