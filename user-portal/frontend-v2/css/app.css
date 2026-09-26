@@ -1127,7 +1127,10 @@ a.mx-person-row, .mx-person-row[data-act] { cursor: pointer; transition: backgro
 /* the popover's head reads like a sheet title (sentence case, Glass Quiet), its action a quiet crimson link */
 .mx-pop-h { font: 600 17px/22px var(--font-ui); letter-spacing: 0; color: var(--ink); }
 .mx-pop-a { font: 500 14px/20px var(--font-ui); letter-spacing: 0; color: var(--crimson); cursor: pointer; min-height: 44px; display: inline-flex; align-items: center; padding: 0 8px; }
-.mx-pop-x { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; color: var(--soft); cursor: pointer; flex: none; }
+.mx-pop-x { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; color: var(--soft); cursor: pointer; flex: none; border-radius: 50%; }
+/* the title holds focus while ALERTS opens (chrome.js › focusAlertsTitle): read out, never ringed. A keyboard ring on the ×
+   follows its circle */
+.mx-pop-h:focus, .mx-pop-h:focus-visible { outline: none; }
 .mx-pop-row { padding: 12px 20px !important; align-items: center !important; min-height: 56px; box-sizing: border-box; }
 .mx-pop-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--crimson); align-self: flex-start; margin-top: 8px; }
 .mx-pop-dot.is-read { background: transparent; box-shadow: inset 0 0 0 1px rgba(25,21,18,.25); }
@@ -1308,10 +1311,21 @@ a.mx-home-proj:hover { color: var(--ink); }
 }
 
 /* ---- the hero on phones (§1.9.3): a photo hero fills the first screen, only the first block below it peeks. A top scrim
-   joins the bottom one, so the clear bar's controls and the status bar read on any photo ---- */
+   joins the bottom one, so the clear bar's controls and the status bar read on any photo.
+   The height puts the first block's top --mx-hero-peek above the tab bar's top edge: the bar top sits (--mx-tabbar-h − 12px)
+   over the bottom of the screen (the token carries 12px of air above the bar, web and native alike), and the first block
+   under every photo hero is a .mx-sec--tight, 32px down. The peek (tokens.css, 52px, 46 under 375) shows the Plexus and
+   Accelerator tabs whole, the first Gala and Forum fact row and the Bridges tile numbers, and cuts no line of text or
+   control from 320 to 440 wide (checked against the capsule's round ends). min-height 300 keeps that peek on a 320 × 568
+   screen, the email line included (the hero is 416 there, 315 with the line, and the title, one line and the action need
+   under 250). max-height 800 (760 in §1.9.3) keeps
+   the same peek on the tallest phone, 440 × 956 (789 in the app, 798 in Safari), where 760 cut the second Gala fact row in
+   half; it still stops a tall narrow window from growing an endless photo. While the email line shows, the bar stays in the
+   flow above the photo and chrome.js › detectHero puts its height in --mx-hero-top, so the same peek holds */
 @media (max-width: 500px) {
-  .mx-hero:not(.mx-hero--ink):not(.mx-hero--cream) { aspect-ratio: auto; min-height: 440px; max-height: 760px;
-    height: calc(100vh - var(--mx-tabbar-h) - 32px); height: calc(100svh - var(--mx-tabbar-h) - 32px); }
+  .mx-hero:not(.mx-hero--ink):not(.mx-hero--cream) { aspect-ratio: auto; min-height: 300px; max-height: 800px;
+    height: calc(100vh - var(--mx-tabbar-h) + 12px - var(--sp-32) - var(--mx-hero-peek) - var(--mx-hero-top, 0px));
+    height: calc(100svh - var(--mx-tabbar-h) + 12px - var(--sp-32) - var(--mx-hero-peek) - var(--mx-hero-top, 0px)); }
   .mx-hero:not(.mx-hero--ink):not(.mx-hero--cream) > .mx-scrim {
     background: linear-gradient(180deg, rgba(25,21,18,.42) 0, rgba(25,21,18,0) 140px),
                 linear-gradient(180deg, rgba(25,21,18,.15) 0%, rgba(25,21,18,.35) 45%, rgba(25,21,18,.88) 100%); }
@@ -1325,10 +1339,13 @@ a.mx-home-proj:hover { color: var(--ink); }
    tone switch). The keys, the five > a children, their hrefs, aria-selected and the Inbox badge are the iOS contract */
 #mx-tabbar { position: fixed; z-index: 30; left: 21px; right: 21px; bottom: max(12px, calc(env(safe-area-inset-bottom) - 13px)); max-width: 440px; margin: 0 auto;
   height: 62px; padding: 4px; box-sizing: border-box; flex-direction: row; align-items: stretch; border-radius: var(--r-capsule); --i: 0;
-  transition: transform 280ms var(--ease); }
+  transition: transform 280ms var(--ease);
+  /* the bar's own tints (§1.7 ceilings, tokens.css › --glass-bar-*), set as the tokens its .mx-glass layer reads, so the
+     solid fallbacks (no blur, Reduce Transparency, Increase Contrast) still replace them */
+  --glass-light: var(--glass-bar-light); --glass-dark: var(--glass-bar-dark); }
 @media (max-width: 374px) { #mx-tabbar { left: 12px; right: 12px; } }
 #mx-tabbar > .mx-tb-lens { position: absolute; z-index: 0; top: 4px; left: 4px; width: calc((100% - 8px) / 5); height: 54px; border-radius: var(--r-capsule);
-  background: var(--glass-lens-light); pointer-events: none; transform: translateX(calc(var(--i) * 100%));
+  background: var(--glass-bar-lens-light); pointer-events: none; transform: translateX(calc(var(--i) * 100%));
   transition: transform 320ms cubic-bezier(.3, 1.25, .5, 1), background-color var(--t-quick) var(--ease), opacity var(--t-quick) var(--ease); }
 #mx-tabbar.is-dark > .mx-tb-lens { background: var(--glass-lens-dark); }
 #mx-tabbar.no-lens > .mx-tb-lens { opacity: 0; }
@@ -1358,13 +1375,19 @@ html.mx-webbar.mx-vkb:not(.mx-native-tabbar) { --mx-tabbar-h: 0px; }
 
 /* ---- the phone top bar (§1.9.2): three modes, set by chrome.js on #mx-mobile-top and mirrored as html[data-mx-bar] ----
    flat: the page is at its top, nothing under the bar: no layer, no hairline, the bar is part of the page.
-   glass: content runs under it: a light glass layer over the bar and the status bar, feathered 12px at its lower edge
-   (the iOS 26 scroll-edge effect), dark glass when a dark region sits under it (.is-dark).
+   glass: content runs under it: a light glass layer over the bar and the status bar that runs on 40px past the bar and fades
+   out over its last 80px, from the logo's line to 40px below the bar (the iOS 26 soft scroll edge). A line of text passing
+   under the edge then dims evenly: across one 20px line the layer changes by under a third (the 12px feather changed by
+   all of it and cut the line in half, its lower half crisp, and a 40px fade still changed by half). Dark glass when a dark region
+   sits under it (.is-dark). With the email line under the bar (.has-banner), without backdrop-filter, under Reduce
+   Transparency and under Increase Contrast the layer ends crisply at the bar's edge.
    clear: a pushed screen that opens on a photo hero, at its top: no layer, no title, the controls on dark chip glass. */
-#mx-mobile-top.mx-mt::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: 0;
+#mx-mobile-top.mx-mt::before { content: ""; position: absolute; inset: 0 0 -40px; z-index: -1; pointer-events: none; opacity: 0;
   background: var(--glass-light); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
-  -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 12px), transparent); mask-image: linear-gradient(180deg, #000 calc(100% - 12px), transparent);
+  -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 80px), rgba(0,0,0,.84) calc(100% - 62px), rgba(0,0,0,.6) calc(100% - 44px), rgba(0,0,0,.36) calc(100% - 28px), rgba(0,0,0,.14) calc(100% - 12px), transparent);
+  mask-image: linear-gradient(180deg, #000 calc(100% - 80px), rgba(0,0,0,.84) calc(100% - 62px), rgba(0,0,0,.6) calc(100% - 44px), rgba(0,0,0,.36) calc(100% - 28px), rgba(0,0,0,.14) calc(100% - 12px), transparent);
   transition: opacity 200ms var(--ease-fade), background-color var(--t-quick) var(--ease); }
+#mx-mobile-top.mx-mt.has-banner::before { bottom: 0; -webkit-mask-image: none; mask-image: none; }
 #mx-mobile-top.mx-mt.is-glass::before { opacity: 1; }
 #mx-mobile-top.mx-mt.is-glass.is-dark::before { background: var(--glass-dark); }
 #mx-mobile-top.is-clear .mx-mt-title { opacity: 0; }
@@ -1411,6 +1434,7 @@ html.mx-webbar.mx-vkb:not(.mx-native-tabbar) { --mx-tabbar-h: 0px; }
    Increase Contrast (the media query, and html.mx-hc from the iOS app) ---- */
 @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
   .mx-glass::before, .mx-gbtn::before, #mx-mobile-top.mx-mt::before, .mx-seg { background-color: var(--glass-solid-light); }
+  #mx-mobile-top.mx-mt::before { bottom: 0; -webkit-mask-image: none; mask-image: none; }   /* solid, so it ends at the bar's edge */
   .mx-glass.is-dark::before, .mx-glass--chip::before, .mx-tag--glass::before, .mx-gbtn--dark::before, .mx-countdown--chip::before, .mx-toast::before, #mx-drawer::before,
   #mx-mobile-top.is-clear .mx-mt-back::before, #mx-mobile-top.is-glass.is-dark::before, #mx-mobile-top.is-glass.is-dark .mx-mt-back::before, #mx-mobile-top.is-glass.is-dark .mx-mt-caps::before { background: var(--glass-solid-dark); }
 }
@@ -1418,7 +1442,7 @@ html.mx-webbar.mx-vkb:not(.mx-native-tabbar) { --mx-tabbar-h: 0px; }
   .mx-glass::before, .mx-gbtn::before, #mx-mobile-top.mx-mt::before, .mx-glass--chip::before, .mx-tag--glass::before, .mx-countdown--chip::before, .mx-toast::before, #mx-drawer::before,
   #mx-mobile-top .mx-mt-back::before, #mx-mobile-top .mx-mt-caps::before { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
   .mx-glass::before, .mx-gbtn::before, #mx-mobile-top.mx-mt::before { background: var(--glass-solid-light); }
-  #mx-mobile-top.mx-mt::before { -webkit-mask-image: none; mask-image: none; }
+  #mx-mobile-top.mx-mt::before { bottom: 0; -webkit-mask-image: none; mask-image: none; }
   .mx-glass.is-dark::before, .mx-glass--chip::before, .mx-tag--glass::before, .mx-gbtn--dark::before, .mx-countdown--chip::before, .mx-toast::before, #mx-drawer::before,
   #mx-mobile-top.is-clear .mx-mt-back::before, #mx-mobile-top.is-glass.is-dark::before, #mx-mobile-top.is-glass.is-dark .mx-mt-back::before, #mx-mobile-top.is-glass.is-dark .mx-mt-caps::before { background: var(--glass-solid-dark); }
 }
@@ -1426,7 +1450,7 @@ html.mx-rt .mx-glass::before, html.mx-rt .mx-gbtn::before, html.mx-rt #mx-mobile
 html.mx-rt .mx-countdown--chip::before, html.mx-rt .mx-toast::before, html.mx-rt #mx-drawer::before, html.mx-rt #mx-mobile-top .mx-mt-back::before, html.mx-rt #mx-mobile-top .mx-mt-caps::before {
   -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 html.mx-rt .mx-glass::before, html.mx-rt .mx-gbtn::before, html.mx-rt #mx-mobile-top.mx-mt::before { background: var(--glass-solid-light); }
-html.mx-rt #mx-mobile-top.mx-mt::before { -webkit-mask-image: none; mask-image: none; }
+html.mx-rt #mx-mobile-top.mx-mt::before { bottom: 0; -webkit-mask-image: none; mask-image: none; }
 html.mx-rt .mx-glass.is-dark::before, html.mx-rt .mx-glass--chip::before, html.mx-rt .mx-tag--glass::before, html.mx-rt .mx-gbtn--dark::before, html.mx-rt .mx-countdown--chip::before,
 html.mx-rt .mx-toast::before, html.mx-rt #mx-drawer::before, html.mx-rt #mx-mobile-top.is-clear .mx-mt-back::before, html.mx-rt #mx-mobile-top.is-glass.is-dark::before,
 html.mx-rt #mx-mobile-top.is-glass.is-dark .mx-mt-back::before, html.mx-rt #mx-mobile-top.is-glass.is-dark .mx-mt-caps::before { background: var(--glass-solid-dark); }
@@ -1436,12 +1460,14 @@ html.mx-rt #mx-mobile-top.is-glass.is-dark .mx-mt-back::before, html.mx-rt #mx-m
   #mx-mobile-top.is-clear .mx-mt-back::before, #mx-mobile-top.is-glass.is-dark::before { background: var(--glass-solid-dark); box-shadow: inset 0 0 0 1px rgba(247,241,230,.55); }
   #mx-tabbar > a:not([aria-selected="true"]) { color: var(--ink); }
   #mx-tabbar.is-dark > a:not([aria-selected="true"]) { color: var(--cream); }
+  #mx-mobile-top.mx-mt::before { bottom: 0; -webkit-mask-image: none; mask-image: none; }
 }
 html.mx-hc .mx-glass::before, html.mx-hc .mx-gbtn::before, html.mx-hc #mx-mobile-top.mx-mt::before { background: var(--glass-solid-light); box-shadow: inset 0 0 0 1px rgba(25,21,18,.55); }
 html.mx-hc .mx-glass.is-dark::before, html.mx-hc .mx-glass--chip::before, html.mx-hc .mx-tag--glass::before, html.mx-hc .mx-gbtn--dark::before, html.mx-hc .mx-countdown--chip::before,
 html.mx-hc .mx-toast::before, html.mx-hc #mx-drawer::before, html.mx-hc #mx-mobile-top.is-clear .mx-mt-back::before, html.mx-hc #mx-mobile-top.is-glass.is-dark::before {
   background: var(--glass-solid-dark); box-shadow: inset 0 0 0 1px rgba(247,241,230,.55); }
 html.mx-hc #mx-tabbar > a:not([aria-selected="true"]) { color: var(--ink); }
+html.mx-hc #mx-mobile-top.mx-mt::before { bottom: 0; -webkit-mask-image: none; mask-image: none; }
 html.mx-hc #mx-tabbar.is-dark > a:not([aria-selected="true"]) { color: var(--cream); }
 
 /* ---- reduced motion (§1.4): no press scale, no lens slide, no capsule slide; a 120ms colour change instead ---- */

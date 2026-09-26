@@ -93,6 +93,14 @@
   --glass-light-strong: rgba(250, 246, 238, .88);  /* sheets and popovers: long text sits on them */
   --glass-dark: rgba(25, 21, 18, .58);       /* over photos, ink bands (.52 in GLASS-RULES §1.3; raised by the §1.7 check: gold 11px on dark glass over the Forum ink card measured 4.57 at .52) */
   --glass-dark-chip: rgba(25, 21, 18, .40);
+  /* the floating tab bar: its 11px crimson and gold labels sit on whatever scrolls under it, photos included, so it takes the
+     §1.7 ceilings (the iOS 26 native bar's cream is .80 too). Dark .62 is used only when the whole bar sits over a dark
+     region (chrome.js › underIsDark). The light lens sits right behind the selected crimson label, so it darkens less than
+     the shared .07: at .80 with a .07 lens the label measured 4.42 over a dark photo on Projects (§1.7 sweep), with .04 it
+     reads 4.6 over an ink ground. The native bar settled the same way (a 6% lens) */
+  --glass-bar-light: rgba(250, 246, 238, .80);
+  --glass-bar-dark: rgba(25, 21, 18, .62);
+  --glass-bar-lens-light: rgba(25, 21, 18, .04);
   --glass-edge-light: inset 0 1px 0 rgba(255, 255, 255, .70), inset 0 0 0 .5px rgba(255, 255, 255, .50);
   --glass-edge-dark: inset 0 1px 0 rgba(255, 255, 255, .22), inset 0 0 0 .5px rgba(255, 255, 255, .14);
   --glass-shadow: 0 10px 30px rgba(25, 21, 18, .14), 0 1px 3px rgba(25, 21, 18, .10);
@@ -107,7 +115,15 @@
      it in app.css (html.mx-webbar), the iOS layer writes a px value inline on <html> in native mode. JS reads it through
      ui.bottomSpace() (a measured length: before @property support the computed value is the unresolved calc() text) */
   --mx-tabbar-h: 0px;
+  /* how much of the first block under a phone photo hero shows above the tab bar's top edge (§1.9.3): the whole 44px
+     segmented control (Plexus, Accelerator) with 8px of air, the first fact row (Gala, Forum), the tile numbers (Bridges)
+     with their labels under the bar. Measured line by line against the capsule's curved ends: from 375 to 440 wide every
+     peek from 48 to 57 cuts nothing (the Bridges labels start at 64 and poke out at the bar's round ends above 57). Under
+     375 the Bridges "Per evening" label wraps to a line starting at 47, so the peek drops to 46 (the tabs keep 2px of air)
+     (app.css › the hero on phones) */
+  --mx-hero-peek: 52px;
 }
+@media (max-width: 374px) { :root { --mx-hero-peek: 46px; } }
 /* registered as a length where the engine can (iOS 16.4+, Chrome 85+): getComputedStyle then returns "95px", not the calc() */
 @property --mx-tabbar-h { syntax: '<length>'; inherits: true; initial-value: 0px; }
 @supports (animation-timing-function: linear(0, 1)) {

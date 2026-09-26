@@ -182,13 +182,14 @@ function mobileTop() {
   // member's own door, so no avatar here). Pushed screens: a back chevron, the screen's name centred, nothing else.
   const s = state.get(); const path = s.shownPath || router.path;
   const isRoot = Object.values(TAB_ROOTS).includes(path.replace(/\/$/, '')) || path === '/' || path === '/app';
+  const banner = mobileBanner();   // the email line sits right under the bar: the glass layer then stops at the bar's edge
   const title = String(s.viewTitle || '').replace(/<[^>]+>/g, '');
   return `
   <!-- dc: Mobile Portal.dc.html › "Top bar" (phone calm pass 2026-09-25: icons, no caps title, no avatar; Glass Quiet: glass
        controls, and a mode class chrome.js › applyBar() puts back after every draw: is-flat · is-glass · is-clear, is-dark) -->
   <!-- the bar sticks through its host: app.css makes #chrome sticky at phone widths (a sticky bar inside a header
        exactly its own height had no room to stick). Every control is a 44 px target -->
-  <div id="mx-mobile-top" class="mx-mt${isRoot ? ' is-root' : ' is-pushed'}">
+  <div id="mx-mobile-top" class="mx-mt${isRoot ? ' is-root' : ' is-pushed'}${banner ? ' has-banner' : ''}">
     ${isRoot
       ? `<a href="/app/home" class="mx-brand mx-mt-brand" aria-label="Med&amp;X home"><img src="/assets/logo.png" alt="med&amp;X" style="width:auto;height:18px;display:block"></a>
     <div class="mx-mt-fill"></div>
@@ -202,7 +203,7 @@ function mobileTop() {
     <div data-role="popover-m"></div>
   </div>
   <!-- /dc -->
-  ${mobileBanner()}`;
+  ${banner}`;
 }
 function mobileBanner() {
   let dismissed = false; try { dismissed = sessionStorage.getItem(VERIFY_DISMISS_KEY) === 'true'; } catch (e) {}
@@ -247,7 +248,7 @@ function alertsPanel() {
       <span class="mx-pop-d">${fmt.shortDate(n.created_at).replace(/^([A-Z])([A-Z]+)/, (m, a, b) => a + b.toLowerCase())}</span>
     </div>`;
   return `<div class="mx-pop mx-glass mx-glass--sheet" role="dialog" aria-label="Alerts">
-    <div class="mx-pop-head"><span class="mx-pop-h">${COPY.alertsPanel.title}${s.unread ? ' · ' + COPY.alertsPanel.unreadNew(s.unread) : ''}</span><div style="flex:1"></div>${list.length ? `<span data-act="markAll" class="mx-pop-a">${COPY.alertsPanel.markAll}</span>` : ''}<span data-act="closePop" role="button" tabindex="0" aria-label="Close" class="mx-pop-x">${ui.icon('x', 20)}</span></div>
+    <div class="mx-pop-head"><span class="mx-pop-h" tabindex="-1">${COPY.alertsPanel.title}${s.unread ? ' · ' + COPY.alertsPanel.unreadNew(s.unread) : ''}</span><div style="flex:1"></div>${list.length ? `<span data-act="markAll" class="mx-pop-a">${COPY.alertsPanel.markAll}</span>` : ''}<span data-act="closePop" role="button" tabindex="0" aria-label="Close" class="mx-pop-x">${ui.icon('x', 20)}</span></div>
     <div class="mx-pop-list">${s.msgUnread > 0 ? `<div class="mx-pop-row" data-act="openInbox"><span class="mx-pop-dot is-gold"></span><span class="mx-pop-text"><span class="mx-pop-t">${s.msgUnread} unread message${s.msgUnread === 1 ? '' : 's'}</span></span><span class="mx-pop-go">Open →</span></div>` : ''}${list.length ? list.map(row).join('') : s.msgUnread > 0 ? '' : `<div class="empty"><span class="empty-line">${COPY.alertsPanel.emptyLine}</span></div>`}</div>
   </div>`;
 }
@@ -291,7 +292,12 @@ function renderAll() {
   document.body.classList.toggle('authed', session.isAuthed);
   syncWebbar();
   const html = portal ? `<div id="mx-desktop-chrome">${topBar()}${statsStrip()}${banner()}</div>${mobileTop()}` : '';
-  if (html !== els.chrome._html || (portal && !els.chrome.firstElementChild)) { els.chrome.innerHTML = html; els.chrome._html = html; applyBar(); }
+  if (html !== els.chrome._html || (portal && !els.chrome.firstElementChild)) {
+    els.chrome.innerHTML = html; els.chrome._html = html; applyBar();
+    // the email line can come or go after the screen drew (the account loads late, or the member closes it): the bar then
+    // joins or leaves the flow above a photo hero, so find the hero again
+    if (viewDrawn) { detectHero(); scheduleBar(); }
+  }
   renderOverlays(portal);
   if (popover) renderPopover();
   reportTabbar();
@@ -340,10 +346,13 @@ function renderPopover() {
 // SEARCH and ALERTS keep keyboard focus inside themselves while open (the panel is re-drawn when its data
 // lands, so the trap looks it up each time); ALERTS takes focus on opening — it used to stay on <body>
 const popPanel = () => els.chrome && els.chrome.querySelector(popover === 'search' ? '.mx-search-panel' : '.mx-pop');
+// ALERTS takes focus on its title, never on the ×: WebKit rings a control that script focuses after a tap, so the × wore a
+// square crimson ring every time the panel opened. The title (tabindex -1, no ring) is read out, Tab goes on to the controls
+function focusAlertsTitle() { const h = els.chrome.querySelector('.mx-pop .mx-pop-h'); if (h) { try { h.focus({ preventScroll: true }); } catch (e) {} } }
 function openPopover(kind) {
   popover = kind; popOpenedAt = performance.now(); renderPopover();
   if (!popTrap) popTrap = ui.trapFocus(popPanel);
-  if (kind === 'alerts') { const x = els.chrome.querySelector('.mx-pop [data-act="closePop"]'); if (x) { try { x.focus({ preventScroll: true }); } catch (e) {} } }
+  if (kind === 'alerts') focusAlertsTitle();
 }
 // `refocus`: closed by the member (Escape, ×, the scrim) — focus goes back to SEARCH / ALERTS, where it came
 // from, instead of dropping to <body> when the panel leaves. A close that navigates passes nothing.
@@ -473,33 +482,45 @@ function applyBar() {
   const tb = els.overlays && els.overlays.querySelector('#mx-tabbar');
   if (tb) tb.classList.toggle('is-dark', tabDark);
 }
-function underIsDark(el) {
+// is a dark region (§1.5) under a bar? The top bar: two of three points on its centre line. The tab bar (`whole`) is stricter:
+// its gold and cream labels read only on dark glass over a dark ground, while its light glass (.80) reads over anything, so
+// it turns dark only when the region lies under all of it: both ends and the middle, at the icon row and at the label row
+// (half over an ink card and half over cream, the selected gold label fell to 4.1:1)
+function underIsDark(el, whole) {
   const r = el.getBoundingClientRect();
   if (!r.width || !r.height || typeof document.elementsFromPoint !== 'function') return false;
-  const y = r.top + r.height / 2;
+  const ys = whole ? [0.18, 0.85] : [0.5], xs = whole ? [0.08, 0.5, 0.92] : [0.2, 0.5, 0.8];
   let hits = 0;
-  for (const f of [0.2, 0.5, 0.8]) {
+  for (const fy of ys) for (const fx of xs) {
     let under = null;
-    try { under = document.elementsFromPoint(r.left + r.width * f, y).find(n => n !== document.documentElement && n !== document.body && !els.chrome.contains(n) && !els.overlays.contains(n) && !n.closest('.mx-toast')); } catch (e) {}
+    try { under = document.elementsFromPoint(r.left + r.width * fx, r.top + r.height * fy).find(n => n !== document.documentElement && n !== document.body && !els.chrome.contains(n) && !els.overlays.contains(n) && !n.closest('.mx-toast')); } catch (e) {}
     if (under && under.closest(DARK_SEL)) hits++;
+    else if (whole) return false;
   }
-  return hits >= 2;
+  return whole || hits >= 2;
 }
 // the photo hero a pushed screen opens on (§1.9.2 "clear"): the first visible block of #view is a .mx-hero holding an
 // .mx-hero-photo (hidden crumbs do not count). Never while the email line shows (the bar then starts in glass mode).
 // Runs before the new screen paints: #chrome leaves the flow here, so the photo starts under the status bar
 function detectHero() {
-  let hero = null;
+  let first = null;
   const view = document.getElementById('view');
-  if (isPhonePortal() && view && !els.chrome.querySelector('.mx-mt-banner')) {
+  if (isPhonePortal() && view) {
     const h = [...view.querySelectorAll('.mx-hero')].find(x => !x.closest('.mx-leaving'));
     if (h && h.querySelector('.mx-hero-photo') && !h.classList.contains('mx-hero--ink') && !h.classList.contains('mx-hero--cream')) {
       const vr = view.getBoundingClientRect(), hr = h.getBoundingClientRect();
-      if (hr.height > 0 && Math.abs(hr.top - vr.top) < 2) hero = h;
+      if (hr.height > 0 && Math.abs(hr.top - vr.top) < 2) first = h;
     }
   }
+  const banner = !!els.chrome.querySelector('.mx-mt-banner');
+  const hero = banner ? null : first;
   heroEl = hero;
   document.body.classList.toggle('mx-over-hero', !!hero);
+  // with the email line showing, the bar and the line stay in the flow above the photo: the tall phone hero (app.css) gives
+  // their height up, so the first block under it still peeks above the tab bar
+  const inflow = first && banner ? Math.round(els.chrome.getBoundingClientRect().height) : 0;
+  if (inflow) document.documentElement.style.setProperty('--mx-hero-top', inflow + 'px');
+  else document.documentElement.style.removeProperty('--mx-hero-top');
 }
 function updateBar() {
   barRaf = 0;
@@ -513,7 +534,7 @@ function updateBar() {
     if (mode === 'glass') dark = underIsDark(top);
   }
   const tb = els.overlays && els.overlays.querySelector('#mx-tabbar');
-  tabDark = !!(phone && tb && underIsDark(tb));
+  tabDark = !!(phone && tb && underIsDark(tb, true));
   const changed = mode !== bar.mode;
   bar = { mode, dark };
   applyBar();
@@ -555,8 +576,8 @@ const handlers = {
   alerts: async () => {
     if (popover === 'alerts') return closePopover({ refocus: true });
     openPopover('alerts'); await chrome.refresh({ only: 'notifications' });
-    // the refreshed panel is a new node: keep focus in it (on its × unless the member already moved on)
-    if (popover === 'alerts') { const a = document.activeElement; renderPopover(); if (!a || a === document.body || !a.isConnected) { const x = els.chrome.querySelector('.mx-pop [data-act="closePop"]'); if (x) { try { x.focus({ preventScroll: true }); } catch (e) {} } } }
+    // the refreshed panel is a new node: keep focus in it (on its title unless the member already moved on)
+    if (popover === 'alerts') { const a = document.activeElement; renderPopover(); if (!a || a === document.body || !a.isConnected) focusAlertsTitle(); }
   },
   closePop: (el, e) => { if (e && e.target.closest && e.target.closest('[data-stop]') && !(el && el.closest && el.closest('[data-stop]'))) return; closePopover({ refocus: true }); },
   openInbox: () => { closePopover(); router.navigate('/app/messages'); },
