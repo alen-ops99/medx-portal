@@ -100,6 +100,14 @@ const waitDown = async (port, ms = 15000) => {
     check('SEEDS: Washington venue is the Embassy (both blocks)', (seeds.match(/venue_name: 'Embassy of the Republic of Croatia, Washington DC'/g) || []).length === 2);
     check('SEEDS: Zürich venue is "Zunfthaus zur Schmiden" (both blocks)', (seeds.match(/venue_name: 'Zunfthaus zur Schmiden'/g) || []).length === 2);
     check('SEEDS: city names unchanged', /city: 'Zurich'/.test(seeds) && /city: 'Washington DC'/.test(seeds));
+    // The admin v2 editions seed writes the same v2_bridges_editions table as the member seed. On a fresh
+    // database where the admin backend seeds first, these rows are what members see.
+    const BRIDGES_OPS = path.join(ROOT, 'admin-portal/backend/v2/bridges-ops.js');
+    if (fs.existsSync(BRIDGES_OPS)) {
+        const ops = fs.readFileSync(BRIDGES_OPS, 'utf8');
+        const stale = ['NIH Campus', 'ETH Zentrum', 'Where Building Bridges began'].filter(s => ops.includes(s));
+        check('SEEDS: the admin v2 editions seed (v2/bridges-ops.js) has no NIH Campus, ETH Zentrum or "Where Building Bridges began"', stale.length === 0, stale.join(', '));
+    } else skip('SEEDS: the admin v2 editions seed', 'no admin-portal/backend/v2/bridges-ops.js on this line');
 
     if (HAS_WALLET) {
         const ap = require(path.join(ROOT, 'user-portal/backend/v2/apple-pass.js'));
