@@ -490,7 +490,7 @@ function installDelegates() {
 // Controls that already answer the press in css (cards, the tab bar, the phone bar, the event app's rows and
 // links) keep their own look.
 const PRESSABLE = 'a[href], button, [data-act], [data-nav], [role="button"], [role="tab"], [role="switch"], [role="menuitem"], [role="radio"], summary, .mx-pop-row';
-const PRESS_OWN = '#mx-scrim, .mx-search, .mx-modal, .lv-scrim, [data-role="bio-scrim"], #mx-tabbar a, #mx-mobile-top a, #mx-mobile-top [data-act], .mx-gbtn, .mx-glass, .mx-tag--glass, .mx-seg > *, ' +
+const PRESS_OWN = '#mx-scrim, .mx-search, .mx-modal, .lv-scrim, [data-role="bio-scrim"], #mx-tabbar a, #mx-mobile-top a, #mx-mobile-top [data-act], .mx-gbtn, .mx-glass, .mx-tag--glass, ' +
   '.mx-card-link, .mx-proj-card, .lv-card-body, .lv-person, .lv-now-item, .lv-slot, .lv-mini, .lv-tab, .lv-x, .lv-sback, .lv-ics, .lv-links a, ' +
   '.lv-glance-map, .lv-refresh, .lv-back, .lv-info-body a, .lv-glance-list a, input, textarea, select, [contenteditable]';
 function installPress() {
