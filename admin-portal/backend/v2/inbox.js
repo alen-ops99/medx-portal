@@ -791,12 +791,12 @@ ${paragraphs(body)}` }),
         let changed = false;
         pending.forEach(p => {
             try {
-                const counts = { pending_approval: 0, scheduled: 0, sent: 0, cancelled: 0, failed: 0 };
+                const counts = { pending_approval: 0, scheduled: 0, sending: 0, sent: 0, cancelled: 0, failed: 0 };   // 'sending' = claimed by a drainer this minute
                 all('SELECT status, COUNT(*) AS n FROM scheduled_emails WHERE batch_id = ? GROUP BY status', [p.batch_id])
                     .forEach(r => { counts[r.status] = Number(r.n) || 0; });
                 const total = Object.values(counts).reduce((a, b) => a + b, 0);
                 if (!total || counts.pending_approval > 0) return;               // still waiting for the OK
-                if (counts.scheduled + counts.sent + counts.failed > 0) {        // approved → post to the member feed
+                if (counts.scheduled + counts.sending + counts.sent + counts.failed > 0) {        // approved → post to the member feed
                     const feedId = randomUUID();
                     run(`INSERT INTO feed_items (id, type, title, body, link_url, link_label, posted_at, published, digest, created_by)
                          VALUES (?, 'news', ?, ?, NULL, NULL, datetime('now'), 1, 0, ?)`,

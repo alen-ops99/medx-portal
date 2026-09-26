@@ -249,7 +249,7 @@ module.exports = function mountBridgesOps(app, ctx) {
     }
     // event-scoped queued check (the event id travels inside payload_json via an html comment)
     function eventQueued(sourceEngine, eventId) {
-        return count(`SELECT COUNT(*) AS c FROM scheduled_emails WHERE source_engine = ? AND status IN ('pending_approval','scheduled','sent') AND payload_json LIKE ?`,
+        return count(`SELECT COUNT(*) AS c FROM scheduled_emails WHERE source_engine = ? AND status IN ('pending_approval','scheduled','sending','sent') AND payload_json LIKE ?`,
             [sourceEngine, '%' + eventId + '%']) > 0;
     }
     // ---- per-event head counts. The home (Zagreb) edition is the exception: its guests register
