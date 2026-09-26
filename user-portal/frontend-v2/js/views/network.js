@@ -234,7 +234,7 @@ function cardRequest(m) {
           <div class="mx-person-row mx-net-row is-request" data-card="${esc(m.id)}">
             <span class="mx-net-peek" data-act="peek" data-id="${esc(m.id)}" role="button" tabindex="0" aria-label="${esc(m.name)}">
               ${ui.portrait({ name: m.name, src: photoUrl(m.photo_url), size: 64, alt: '' })}
-              <span class="mx-person-text"><span class="mx-person-name">${esc(m.name)}</span><span class="mx-person-role">${m.institution ? esc(m.institution) : esc(COPY.forYou.requestSub)}</span><span class="mx-person-tag">${COPY.forYou.requestTag}</span></span>
+              <span class="mx-person-text"><span class="mx-person-name">${esc(m.name)}</span>${m.institution ? `<span class="mx-person-role">${esc(m.institution)}</span>` : ''}<span class="mx-person-tag">${COPY.forYou.requestTag}</span></span>
             </span>
             <span class="mx-person-act">${moreButton({ id: m.id, name: m.name })}</span>
             <span class="mx-net-reqbtns">

@@ -497,3 +497,4 @@ html.mx-hc .lv-tab { color: var(--ink); }
 .lv-ev.ro .lv-ev-t { color: var(--soft); }
 .lv-ev:focus-visible { outline-offset: -2px; }
 .lv-sheet:focus, .lv-sheet-h:focus { outline: none; }   /* focus parks on the title when a sheet opens (live.js openSheet) */
+@media (max-width: 400px) { .lv-card-foot { padding: 0 12px 14px; gap: 8px; } }   /* 390pt phones: ADD TO CALENDAR stays inside the card */

@@ -489,15 +489,19 @@ function applyBar() {
 function underIsDark(el, whole) {
   const r = el.getBoundingClientRect();
   if (!r.width || !r.height || typeof document.elementsFromPoint !== 'function') return false;
-  const ys = whole ? [0.18, 0.85] : [0.5], xs = whole ? [0.08, 0.5, 0.92] : [0.2, 0.5, 0.8];
-  let hits = 0;
-  for (const fy of ys) for (const fx of xs) {
+  const dark = (x, y) => {
     let under = null;
-    try { under = document.elementsFromPoint(r.left + r.width * fx, r.top + r.height * fy).find(n => n !== document.documentElement && n !== document.body && !els.chrome.contains(n) && !els.overlays.contains(n) && !n.closest('.mx-toast')); } catch (e) {}
-    if (under && under.closest(DARK_SEL)) hits++;
-    else if (whole) return false;
+    try { under = document.elementsFromPoint(x, y).find(n => n !== document.documentElement && n !== document.body && !els.chrome.contains(n) && !els.overlays.contains(n) && !n.closest('.mx-toast')); } catch (e) {}
+    return !!(under && under.closest(DARK_SEL));
+  };
+  if (whole) {
+    for (const fy of [0.18, 0.85]) for (const fx of [0.08, 0.5, 0.92]) if (!dark(r.left + r.width * fx, r.top + r.height * fy)) return false;
+    return true;
   }
-  return whole || hits >= 2;
+  // the top bar: its rect includes the status-bar padding, so judge the bar's own row (its centre) and the row's lower edge,
+  // where the soft edge starts. Dark only when both are over a dark region, so a photo that covers just the clock strip
+  // never turns the whole row and its soft edge brown over cream content
+  return [r.bottom - 28, r.bottom - 6].every(y => [0.2, 0.5, 0.8].filter(fx => dark(r.left + r.width * fx, y)).length >= 2);
 }
 // the photo hero a pushed screen opens on (§1.9.2 "clear"): the first visible block of #view is a .mx-hero holding an
 // .mx-hero-photo (hidden crumbs do not count). Never while the email line shows (the bar then starts in glass mode).
