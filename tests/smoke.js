@@ -11,6 +11,9 @@
  *
  *   MEDX_BASE_URL=http://localhost:2011 MEDX_ADMIN_URL=http://localhost:2012 node tests/smoke.js
  *
+ * MEDX_MEMBER_APP_URL and MEDX_ADMIN_APP_URL name where / on each backend redirects (the member
+ * app and the admin portal), for a target whose backend points somewhere else.
+ *
  * Exits 1 if anything regresses. Hooks straight into CI later.
  *
  * The checks here are NON-MUTATING by design — they GET endpoints and POST
@@ -21,6 +24,12 @@
 
 const PROD = process.env.MEDX_BASE_URL || 'https://medx-user-portal.onrender.com';
 const ADMIN = process.env.MEDX_ADMIN_URL || 'https://medx-admin-portal.onrender.com';
+// Neither backend serves a page at / any more (round 3 Phase 0a): the user backend opens the member
+// app, the admin backend the admin portal. The security headers are read from pages they still serve.
+const MEMBER_APP = (process.env.MEDX_MEMBER_APP_URL || 'https://medx-member-portal-v2.netlify.app').replace(/\/+$/, '');
+const ADMIN_APP = (process.env.MEDX_ADMIN_APP_URL || 'https://medx-admin-portal-v2.netlify.app').replace(/\/+$/, '');
+const USER_PAGE = '/terms';
+const ADMIN_PAGE = '/health';
 
 const tests = [];
 let passed = 0, failed = 0;
@@ -28,6 +37,8 @@ let passed = 0, failed = 0;
 const check = (name, fn) => tests.push({ name, fn });
 const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
 const get = async (path, base = PROD) => fetch(base + path);
+// A redirect is checked as the redirect itself, never by following it to the other host.
+const peek = async (path, base = PROD) => fetch(base + path, { redirect: 'manual' });
 const post = async (path, body, base = PROD) => fetch(base + path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -35,44 +46,29 @@ const post = async (path, body, base = PROD) => fetch(base + path, {
 });
 
 // ───────────────────────── User portal — basic ─────────────────────────
-check('user portal HTTP 200', async () => {
-    const r = await get('/');
-    assert(r.status === 200, `got ${r.status}`);
-});
-
-// The app script was split out of index.html into /assets/app.partN.js — the markers below now live
-// in those parts, so read every first-party <script src> the HTML actually references.
-let _appJs = null;
-async function appJs() {
-    if (_appJs !== null) return _appJs;
-    const html = await (await get('/')).text();
-    const srcs = [...html.matchAll(/<script[^>]+src="(\/assets\/[^"]+)"/g)].map(m => m[1]);
-    assert(srcs.length > 0, 'no /assets/*.js script tags in index.html');
-    _appJs = (await Promise.all(srcs.map(async s => (await get(s)).text()))).join('\n');
-    return _appJs;
-}
-
-check('user portal app defines MEDX_DATES global (PR #1)', async () => {
-    assert((await appJs()).includes('window.MEDX_DATES'), 'MEDX_DATES global missing — pre-PR-#1 build?');
-});
-
-check('user portal supports path-style direct links (PR #4)', async () => {
-    assert((await appJs()).includes("window.location.pathname.match"), 'path-style direct-link handler missing — pre-PR-#4 build?');
+// / opens the member app. The query string rides along, so the email-confirm (?verified=) and the
+// Stripe (?payment=) returns reach the app's entry handler.
+check('user portal / opens the member app (302 to /app/home)', async () => {
+    for (const [path, want] of [['/', MEMBER_APP + '/app/home'], ['/?verified=true', MEMBER_APP + '/app/home?verified=true']]) {
+        const r = await peek(path);
+        assert(r.status === 302, `${path}: got ${r.status}`);
+        assert(r.headers.get('location') === want, `${path}: Location ${r.headers.get('location')}, expected ${want}`);
+    }
 });
 
 // ───────────────────────── Security headers — PR #6 ─────────────────────────
 check('HSTS header present (PR #6)', async () => {
-    const v = (await get('/')).headers.get('strict-transport-security');
+    const v = (await get(USER_PAGE)).headers.get('strict-transport-security');
     assert(v && v.includes('max-age='), `HSTS missing/malformed: ${v}`);
 });
 
 check('CSP header sets frame-ancestors none', async () => {
-    const v = (await get('/')).headers.get('content-security-policy');
+    const v = (await get(USER_PAGE)).headers.get('content-security-policy');
     assert(v && v.includes("frame-ancestors 'none'"), 'CSP missing or weak');
 });
 
 check('CSP allows Stripe + jsdelivr + cdnjs', async () => {
-    const v = (await get('/')).headers.get('content-security-policy');
+    const v = (await get(USER_PAGE)).headers.get('content-security-policy');
     assert(v.includes('js.stripe.com'), 'Stripe not in CSP allowlist');
     assert(v.includes('cdn.jsdelivr.net'), 'jsdelivr not in CSP allowlist');
     assert(v.includes('cdnjs.cloudflare.com'), 'cdnjs not in CSP allowlist');
@@ -83,8 +79,8 @@ check('CSP allows Stripe + jsdelivr + cdnjs', async () => {
 // This is a regression catcher: if helmet upgrades or someone tightens the policy,
 // the smoke test fails before users hit dead buttons.
 check('CSP script-src-attr permits inline event handlers (PR #6 fix)', async () => {
-    for (const target of [PROD, ADMIN]) {
-        const v = (await get('/', target)).headers.get('content-security-policy') || '';
+    for (const [target, page] of [[PROD, USER_PAGE], [ADMIN, ADMIN_PAGE]]) {
+        const v = (await get(page, target)).headers.get('content-security-policy') || '';
         const m = v.match(/script-src-attr\s+([^;]+)/);
         if (!m) continue; // unset → falls back to script-src which already allows 'unsafe-inline'
         assert(!/'none'/.test(m[1]), `${target}: script-src-attr is 'none' — every inline onclick= is blocked. Add "script-src-attr": ["'unsafe-inline'"] to helmet config.`);
@@ -92,7 +88,7 @@ check('CSP script-src-attr permits inline event handlers (PR #6 fix)', async () 
 });
 
 check('X-Frame-Options + X-Content-Type-Options present', async () => {
-    const r = await get('/');
+    const r = await get(USER_PAGE);
     assert(r.headers.get('x-frame-options'), 'X-Frame-Options missing');
     assert(r.headers.get('x-content-type-options') === 'nosniff', 'X-Content-Type-Options missing/wrong');
 });
@@ -157,13 +153,14 @@ check('Forum direct-link path-style returns 200 (PR #4)', async () => {
 
 // ───────────────────────── Admin portal ─────────────────────────
 check('admin portal HSTS (PR #6)', async () => {
-    const v = (await get('/', ADMIN)).headers.get('strict-transport-security');
+    const v = (await get(ADMIN_PAGE, ADMIN)).headers.get('strict-transport-security');
     assert(v && v.includes('max-age='), `admin HSTS missing: ${v}`);
 });
 
-check('admin portal serves theme-fresh CSS (PR #3)', async () => {
-    const t = await (await get('/', ADMIN)).text();
-    assert(t.includes('theme-fresh'), 'admin theme-fresh missing — pre-PR-#3 build?');
+check('admin portal / opens the admin portal (302)', async () => {
+    const r = await peek('/', ADMIN);
+    assert(r.status === 302, `got ${r.status}`);
+    assert(r.headers.get('location') === ADMIN_APP, `Location ${r.headers.get('location')}, expected ${ADMIN_APP}`);
 });
 
 // ───────────────────────── Admin observability ─────────────────────────

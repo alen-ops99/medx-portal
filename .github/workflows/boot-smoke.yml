@@ -40,12 +40,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # root_redirect: where GET / sends a browser. Neither backend serves a page at / any more
+          # (round 3 Phase 0a): the user backend opens the member app, the admin backend the admin portal.
           - name: user
             dir: user-portal/backend
             port: 3101
+            root_redirect: https://medx-member-portal-v2.netlify.app/app/home
           - name: admin
             dir: admin-portal/backend
             port: 3102
+            root_redirect: https://medx-admin-portal-v2.netlify.app
     steps:
       - uses: actions/checkout@v4
 
@@ -99,9 +103,14 @@ jobs:
           echo "GET /health -> $h"
           [ "$h" = "200" ] || { echo "::error::/health expected 200, got $h"; fail=1; }
 
-          r="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$base/" || echo 000)"
-          echo "GET / -> $r"
-          [ "$r" = "200" ] || { echo "::error::GET / expected 200, got $r"; fail=1; }
+          # GET / is a 302 into the app. The Location is read from the raw header (curl's
+          # %{redirect_url} normalizes it and adds a trailing slash).
+          hdrs="$(curl -s -o /dev/null -D - --max-time 5 "$base/" || true)"
+          r="$(printf '%s\n' "$hdrs" | head -n 1 | awk '{print $2}' || true)"
+          loc="$(printf '%s\n' "$hdrs" | grep -i '^location:' | head -n 1 | sed 's/^[Ll][Oo][Cc][Aa][Tt][Ii][Oo][Nn]:[[:space:]]*//' | tr -d '\r' || true)"
+          echo "GET / -> ${r:-000} ${loc}"
+          [ "$r" = "302" ] || { echo "::error::GET / expected 302, got ${r:-000}"; fail=1; }
+          [ "$loc" = "${{ matrix.root_redirect }}" ] || { echo "::error::GET / expected Location ${{ matrix.root_redirect }}, got '${loc}'"; fail=1; }
 
           # Bad credentials must be handled (400/401), never a 500 crash.
           l="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -X POST "$base/api/auth/login" \

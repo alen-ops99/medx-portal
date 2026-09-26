@@ -992,7 +992,7 @@ app.get('/invite-cancelled', (req, res) => {
 const _LEGAL_CSS = `
 .sheet.doc{max-width:760px;text-align:left;padding:clamp(30px,6vw,48px) clamp(22px,5vw,46px);}
 .doc h1{font-family:'Fraunces','Georgia','Times New Roman',serif;font-weight:600;font-size:clamp(30px,6.4vw,40px);line-height:1.08;letter-spacing:-.4px;color:#241d18;margin:0 0 12px;}
-.doc .updated{font-size:11px;font-weight:600;letter-spacing:1.8px;text-transform:uppercase;color:#8a7a5f;margin:0 0 26px;padding-bottom:22px;border-bottom:1px solid var(--gold-soft);}
+.doc .updated{font-size:12px;font-weight:600;letter-spacing:1.8px;text-transform:uppercase;color:#8a7a5f;margin:0 0 26px;padding-bottom:22px;border-bottom:1px solid var(--gold-soft);}
 .doc h2{font-family:'Fraunces','Georgia','Times New Roman',serif;font-weight:600;font-size:20px;line-height:1.25;letter-spacing:-.1px;color:#241d18;margin:32px 0 10px;}
 .doc h3{font-size:14.5px;font-weight:600;color:#2c2521;margin:20px 0 6px;}
 .doc p,.doc li{font-size:15px;line-height:1.7;color:#3a322b;margin:0 0 10px;overflow-wrap:anywhere;}
@@ -12138,7 +12138,8 @@ async function initializeApp() {
                 kicker: 'Password reset',
                 headline: 'Link invalid or expired',
                 lede: 'This password reset link is no longer valid. Reset links expire one hour after they are sent.',
-                primary: { label: 'Request a new link', href: `${MEMBER_APP_URL}/app/auth/reset` }
+                primary: { label: 'Request a new link', href: `${MEMBER_APP_URL}/app/auth/reset` },
+                css: '.kicker{font-size:12px;}'
             }));
         }
         const email = escapeHtml(user.email);
@@ -12152,7 +12153,7 @@ async function initializeApp() {
             css: `
 [hidden]{display:none!important;}
 .rp{margin:26px auto 0;max-width:400px;text-align:left;}
-.rp-l{display:block;font-size:11px;font-weight:600;letter-spacing:1.6px;text-transform:uppercase;color:var(--muted);margin:16px 0 7px;}
+.rp-l{display:block;font-size:12px;font-weight:600;letter-spacing:1.6px;text-transform:uppercase;color:var(--muted);margin:16px 0 7px;}
 .rp-i{display:block;width:100%;height:52px;padding:0 16px;font-family:inherit;font-size:16px;color:var(--text);background:#fff;
   border:1px solid rgba(43,33,25,.18);border-radius:11px;outline:none;-webkit-appearance:none;appearance:none;transition:border-color .15s,box-shadow .15s;}
 .rp-i::placeholder{color:#a3968a;}
@@ -12162,6 +12163,8 @@ async function initializeApp() {
 .rp-err a{color:var(--crimson);font-weight:600;text-decoration:none;white-space:nowrap;}
 .rp-go{width:100%;margin-top:24px;}
 .rp-go:disabled{opacity:.62;cursor:wait;transform:none;}
+.kicker{font-size:12px;}
+.lede strong{overflow-wrap:anywhere;}
 `,
             bodyHtml: `<form class="rp" id="rpForm" novalidate>
   <input hidden type="email" autocomplete="username" value="${email}">
