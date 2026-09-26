@@ -49,6 +49,15 @@ const GATE_KEYS = ['conference', 'gala', 'donor', 'bridges', 'meetup'];
 const MEETUP_GATE = 'meetup';
 const MAX_ADMIT_PER_SCAN = 12;
 
+// The Gala door rule (round 3 Phase 0a, from the live counts of 2026-09-26). A gala seat admits only
+// when it is alive AND settled: paid, vip-comp (VIP invite link), comp (Fellowship laureates, staff
+// comps) or waived (speaker and VIP seats). The invoice path (approved + pending) waits for payment.
+// Twin: galaDoorSettled / galaDoorDead in admin-portal/backend/server.js. Keep the two lists equal.
+const GALA_DOOR_SETTLED = ['paid', 'vip-comp', 'comp', 'waived'];
+const GALA_DOOR_DEAD = ['cancelled', 'rejected', 'declined', 'pending-review', 'expired'];
+const galaSettled = ps => GALA_DOOR_SETTLED.includes(String(ps || '').trim().toLowerCase());
+const galaDead = st => GALA_DOOR_DEAD.includes(String(st || '').trim().toLowerCase());
+
 // Rehearsal practice guests (names from the Admin Event Day.dc.html door list — test data only).
 const TEST_GUESTS = [
     { ref: 'TEST-1', name: 'Ivana Barišić',   meta: 'Gala · paid · table TBD',      party: 2, events: ['gala'], paid: true },
@@ -309,22 +318,30 @@ module.exports = function mountEventDay(app, ctx) {
 
     // Every legacy code format resolves here: checkin_token → JSON {id|reg_id|regId} → uuid anywhere
     // in the string (MEDX:<uuid>, /qr/<uuid>.png) → email → short id prefix (per-gate tables).
-    function resolveCode(code, eventKey) {
+    // The e-mail and short-code steps run ONLY for a code door staff typed (method 'manual'). A
+    // scanned QR that holds an e-mail (bare or in JSON) is not a credential: it admitted whoever
+    // owned the address. A typed short code must look like one (hex and dashes, no '@'), so a typed
+    // name is never stripped to hex and prefix-matched (round 3 door hardening, 2026-09-26).
+    function resolveCode(code, eventKey, method) {
         if (code === null || code === undefined) return null;
         const s = String(code).trim();
         if (!s) return null;
+        const manual = method === 'manual';
         try { const r = q.get('SELECT * FROM registrations WHERE checkin_token = ?', [s]); if (r) return { table: 'registrations', row: r }; } catch (e) {}
         if (s[0] === '{') {
             try {
                 const j = JSON.parse(s);
                 const id = j.id || j.reg_id || j.regId || j.registration_id;
                 if (id) { const hit = findByUuid(String(id), eventKey); if (hit) return hit; }
-                if (j.email) { const hit = findByEmailOrShort(String(j.email), eventKey); if (hit) return hit; }
+                if (j.email && manual && String(j.email).includes('@')) { const hit = findByEmailOrShort(String(j.email), eventKey); if (hit) return hit; }
             } catch (e) {}
         }
         const m = s.match(UUID_RE);
         if (m) { const hit = findByUuid(m[1], eventKey); if (hit) return hit; }
-        return findByEmailOrShort(s, eventKey);
+        if (!manual) return null;
+        if (s.includes('@')) return findByEmailOrShort(s, eventKey);
+        const cand = s.replace(/^[A-Za-z]{2,6}\d{0,4}-/, '');
+        return /^[0-9a-fA-F-]+$/.test(cand) ? findByEmailOrShort(cand, eventKey) : null;
     }
 
     // Fit the resolved row to the gate. Returns { ok } or { block: <result>, message } — and may
@@ -341,20 +358,25 @@ module.exports = function mountEventDay(app, ctx) {
             if (Number(r.revoked)) return { block: 'revoked', message: 'Cancelled or revoked — do NOT admit.' };
             if (String(r.status || '').toLowerCase() === 'cancelled') return { block: 'cancelled', message: 'This registration was cancelled. Do NOT admit.' };
             if (eventKey === 'conference') return { ok: true, hit };
-            if (eventKey === 'gala' && Number(r.includes_gala)) return { ok: true, hit };
+            // A conference ticket that includes the Gala opens it only when the ticket itself is
+            // settled (the speaker and VIP model: payment 'waived'). Otherwise the gala seat is found
+            // by the e-mail hop below and must pass the Gala door rule like every other seat.
+            if (eventKey === 'gala' && Number(r.includes_gala) && galaSettled(r.payment_status)) return { ok: true, hit };
             const alt = swapByEmail();
             if (alt) return fitForGate(alt, eventKey, override);
             return override ? { ok: true, hit } : { block: 'wrong_event', message: 'A conference ticket — not valid at this door.' };
         }
         if (t === 'gala_registrations') {
-            if (String(r.status || '').toLowerCase() === 'cancelled') return { block: 'cancelled', message: 'This registration was cancelled. Do NOT admit.' };
+            const gst = String(r.status || '').toLowerCase();
+            if (gst === 'cancelled') return { block: 'cancelled', message: 'This registration was cancelled. Do NOT admit.' };
             if (eventKey !== 'gala') {
                 const alt = swapByEmail();
                 if (alt) return fitForGate(alt, eventKey, override);
                 return override ? { ok: true, hit } : { block: 'wrong_event', message: 'A Gala seat — switch the scanner to the Gala door.' };
             }
-            const paid = ['paid', 'vip-comp'].includes(String(r.payment_status || ''));
-            if (!paid && !override) return { block: 'not_paid', message: 'Payment not completed. Do NOT admit without an override.' };
+            if (gst === 'pending-review' && !override) return { block: 'not_confirmed', message: 'Still under review, not approved. Do NOT admit without an override.' };
+            if (galaDead(gst) && !override) return { block: 'cancelled', message: 'This registration was cancelled. Do NOT admit.' };
+            if (!galaSettled(r.payment_status) && !override) return { block: 'not_paid', message: 'Payment not completed. Do NOT admit without an override.' };
             return { ok: true, hit };
         }
         if (t === 'croatians_abroad_registrations') {
@@ -366,7 +388,8 @@ module.exports = function mountEventDay(app, ctx) {
                     } catch (e) {}
                 }
                 if (!Number(r.selected_gala) && !override) return { block: 'not_registered_for_event', message: 'Not registered for the Gala Evening.' };
-                if (String(r.gala_payment_status || '') !== 'paid' && !override) return { block: 'not_paid', message: 'Gala payment not completed. Do NOT admit without an override.' };
+                if (galaDead(r.gala_status) && !override) return { block: 'cancelled', message: 'This Gala place was cancelled. Do NOT admit.' };
+                if (!galaSettled(r.gala_payment_status) && !override) return { block: 'not_paid', message: 'Gala payment not completed. Do NOT admit without an override.' };
                 return { ok: true, hit };
             }
             if (eventKey === 'conference') {
@@ -405,14 +428,15 @@ module.exports = function mountEventDay(app, ctx) {
             return ['Conference', ticket || 'free entry', row.payment_status === 'paid' ? 'paid' : null].filter(Boolean).join(' · ');
         }
         if (table === 'gala_registrations') {
-            const pay = row.payment_status === 'paid' ? 'paid' : row.payment_status === 'vip-comp' ? 'VIP' : 'payment pending';
+            const ps = String(row.payment_status || '').toLowerCase();
+            const pay = ps === 'paid' ? 'paid' : ps === 'vip-comp' ? 'VIP' : (ps === 'comp' || ps === 'waived') ? 'complimentary' : 'payment pending';
             let table_ = row.seat_number || '';
             try { if (!table_ && row.email) { const ta = q.get('SELECT table_no FROM gala_table_assignments WHERE lower(email)=lower(?) ORDER BY updated_at DESC LIMIT 1', [row.email]); if (ta && String(ta.table_no || '').trim()) table_ = /^\d+$/.test(String(ta.table_no).trim()) ? 'Stol ' + String(ta.table_no).trim() : String(ta.table_no).trim(); } } catch (e) {}
             return ['Gala', pay, table_ ? table_ : 'table TBD'].join(' · ');
         }
         if (table === 'croatians_abroad_registrations') {
             const what = [Number(row.selected_conference) ? 'Conference' : null, Number(row.selected_bridges) ? 'Bridges' : null, Number(row.selected_gala) ? 'Gala' : null].filter(Boolean).join(' + ');
-            const pay = Number(row.selected_gala) ? (String(row.gala_payment_status || '') === 'paid' ? 'gala paid' : 'gala pending') : null;
+            const pay = Number(row.selected_gala) ? (galaSettled(row.gala_payment_status) ? 'gala paid' : 'gala pending') : null;
             return [what || 'Croatians abroad', pay].filter(Boolean).join(' · ');
         }
         let ev = '';
@@ -525,7 +549,7 @@ module.exports = function mountEventDay(app, ctx) {
             ref = testHit.ref; regTable = 'test'; partySize = testHit.party;
             ticket = { name: testHit.name, email: '', meta: testHit.meta, kind: 'test' };
         } else {
-            const hit = resolveCode(codeStr, eventKey);
+            const hit = resolveCode(codeStr, eventKey, method);
             if (!hit) return fail('not_found', 'No registration found for this code.');
             const fitted = fitForGate(hit, eventKey, override);
             if (fitted.block) {
@@ -749,8 +773,8 @@ module.exports = function mountEventDay(app, ctx) {
             if (like && !(name.toLowerCase().includes(like.slice(1, -1)) || String(r.email || '').toLowerCase().includes(like.slice(1, -1)))) return;
             // UXFIX-A1 #2: unpaid gala flag — feeds the crimson "€150 DUE" chip on the door row
             const unpaid = eventKey !== 'gala' ? 0
-                : table === 'gala_registrations' ? (['paid', 'vip-comp'].includes(String(r.payment_status || '')) ? 0 : 1)
-                : table === 'croatians_abroad_registrations' ? (String(r.gala_payment_status || '') === 'paid' ? 0 : 1)
+                : table === 'gala_registrations' ? (galaSettled(r.payment_status) ? 0 : 1)
+                : table === 'croatians_abroad_registrations' ? (galaSettled(r.gala_payment_status) ? 0 : 1)
                 : 0;
             rows.push({ ref: String(r.id), table, name, email: r.email || '', meta: sub, party_size: party(r), legacy_in: 0, unpaid, sort: name.toLowerCase() });
         };
@@ -892,6 +916,8 @@ module.exports = function mountEventDay(app, ctx) {
             const b = req.body || {};
             const code = String(b.code || '').trim();
             if (!code) return res.status(400).json({ ok: false, result: 'bad_code', message: 'Scan or type a code first.' });
+            // Typed by door staff = 'manual' (e-mail and short code allowed). Absent = a scan.
+            const method = b.method === 'manual' ? 'manual' : 'qr';
             if (!schemaReady) ensureSchema();
             const T = admitTableFor(!!b.rehearsal);
             let person = null;
@@ -923,7 +949,7 @@ module.exports = function mountEventDay(app, ctx) {
             for (const k of GATE_KEYS) {
                 if (k === MEETUP_GATE) continue;                 // handled above; never resolvable here
                 let hit = null;
-                try { hit = resolveCode(code, k); } catch (e) {}
+                try { hit = resolveCode(code, k, method); } catch (e) {}
                 if (!hit) continue;
                 const fitted = fitForGate(hit, k, false);
                 const use = (fitted.ok && (fitted.hit || hit)) || null;
@@ -1123,7 +1149,7 @@ body{margin:0;background:#191512;color:#f7f1e6;font-family:Inter,-apple-system,s
 (function(){
   var TOKEN=${JSON.stringify(String(t.token))};
   var QKEY='medx_door_queue_'+TOKEN.slice(0,8);
-  var lastCode='',lastAt=0,stream=null,video=null,raf=0;
+  var lastCode='',lastAt=0,lastMethod='qr',stream=null,video=null,raf=0;
   var $=function(id){return document.getElementById(id)};
   function queue(){try{return JSON.parse(localStorage.getItem(QKEY)||'[]')}catch(e){return[]}}
   function setQueue(a){try{localStorage.setItem(QKEY,JSON.stringify(a))}catch(e){}
@@ -1134,15 +1160,15 @@ body{margin:0;background:#191512;color:#f7f1e6;font-family:Inter,-apple-system,s
     $('resName').textContent=(out.ticket&&out.ticket.name)||'';
     $('resMeta').textContent=(out.ticket&&out.ticket.meta)||'';
     $('resMsg').textContent=out.message||'';
-    var m=$('more');if(out.ok&&out.remaining>0){m.style.display='block';m.onclick=function(){send(out._code||lastCode,1)}}else{m.style.display='none'}}
-  function send(code,admit){
-    fetch('/api/v2/door/'+TOKEN+'/scan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:code,admit:admit||1})})
+    var m=$('more');if(out.ok&&out.remaining>0){m.style.display='block';m.onclick=function(){send(out._code||lastCode,1,out._method||lastMethod)}}else{m.style.display='none'}}
+  function send(code,admit,how){how=how==='manual'?'manual':'qr';
+    fetch('/api/v2/door/'+TOKEN+'/scan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:code,admit:admit||1,method:how})})
     .then(function(r){if(r.status===410){document.body.innerHTML='<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:30px"><div><div style="font-family:Georgia,serif;font-style:italic;font-size:28px">This door link has ended.</div></div></div>';throw new Error('ended')}return r.json()})
-    .then(function(out){out._code=code;show(out.ok?(out.remaining>0?'warn':'ok'):(out.result==='over_capacity'||out.result==='not_paid'||out.result==='revoked'?'bad':'warn'),out);refresh()})
-    .catch(function(e){if(e&&e.message==='ended')return;var a=queue();a.push({code:code,admit:admit||1,ts:Date.now()});setQueue(a);
+    .then(function(out){out._code=code;out._method=how;show(out.ok?(out.remaining>0?'warn':'ok'):(out.result==='over_capacity'||out.result==='not_paid'||out.result==='revoked'?'bad':'warn'),out);refresh()})
+    .catch(function(e){if(e&&e.message==='ended')return;var a=queue();a.push({code:code,admit:admit||1,method:how,ts:Date.now()});setQueue(a);
       show('warn',{result:'queued offline',message:'No connection — saved on this phone, syncs by itself when the network is back.',ticket:{name:code}})})}
   function flush(){var a=queue();if(!a.length)return;var item=a[0];
-    fetch('/api/v2/door/'+TOKEN+'/scan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:item.code,admit:item.admit,method:'manual'})})
+    fetch('/api/v2/door/'+TOKEN+'/scan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:item.code,admit:item.admit,method:item.method==='manual'?'manual':'qr'})})
     .then(function(r){return r.json()}).then(function(){a.shift();setQueue(a);if(a.length)flush();else refresh()}).catch(function(){})}
   function refresh(){fetch('/api/v2/door/'+TOKEN+'/status').then(function(r){return r.json()}).then(function(s){if(s&&s.gate)$('count').textContent=s.gate.admitted+' OF '+s.gate.expected+' IN'}).catch(function(){})}
   function tick(){if(!video)return;raf=requestAnimationFrame(tick);
@@ -1150,12 +1176,12 @@ body{margin:0;background:#191512;color:#f7f1e6;font-family:Inter,-apple-system,s
     var c=document.createElement('canvas');c.width=video.videoWidth;c.height=video.videoHeight;
     var x=c.getContext('2d');x.drawImage(video,0,0,c.width,c.height);
     try{var img=x.getImageData(0,0,c.width,c.height);var hit=window.jsQR&&jsQR(img.data,img.width,img.height,{inversionAttempts:'dontInvert'});
-      if(hit&&hit.data){var now=Date.now();if(hit.data!==lastCode||now-lastAt>4000){lastCode=hit.data;lastAt=now;send(hit.data,1)}}}catch(e){}}
+      if(hit&&hit.data){var now=Date.now();if(hit.data!==lastCode||now-lastAt>4000){lastCode=hit.data;lastAt=now;lastMethod='qr';send(hit.data,1,'qr')}}}catch(e){}}
   $('camBtn').onclick=function(){
     if(stream){stream.getTracks().forEach(function(t){t.stop()});stream=null;video&&video.remove();video=null;cancelAnimationFrame(raf);$('camBtn').textContent='START CAMERA';$('camHint').style.display='';return}
     navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}).then(function(s){stream=s;video=document.createElement('video');video.setAttribute('playsinline','');video.srcObject=s;video.play();$('cam').appendChild(video);$('camHint').style.display='none';$('camBtn').textContent='STOP CAMERA';tick()})
     .catch(function(){$('camHint').textContent='camera unavailable — type the code below'})};
-  $('manual').addEventListener('submit',function(e){e.preventDefault();var v=$('code').value.trim();if(!v)return;lastCode=v;send(v,1);$('code').value=''});
+  $('manual').addEventListener('submit',function(e){e.preventDefault();var v=$('code').value.trim();if(!v)return;lastCode=v;lastMethod='manual';send(v,1,'manual');$('code').value=''});
   window.addEventListener('online',flush);setInterval(flush,20000);setQueue(queue());refresh();
 })();
 </script></body></html>`;

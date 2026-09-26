@@ -20,8 +20,11 @@ const os = require('os');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const USER = 'http://localhost:3201';
-const ADMIN = 'http://localhost:3202';
+// Ports can be moved (parallel builders share one Mac): MEDX_TEST_USER_PORT / MEDX_TEST_ADMIN_PORT.
+const USER_PORT = Number(process.env.MEDX_TEST_USER_PORT || 3201);
+const ADMIN_PORT = Number(process.env.MEDX_TEST_ADMIN_PORT || 3202);
+const USER = 'http://localhost:' + USER_PORT;
+const ADMIN = 'http://localhost:' + ADMIN_PORT;
 const ISSUER = '3388000000023175280';
 const APPROVED_CLASS = '3388000000023175280.3388000000023175280.plexus_week_2026';
 
@@ -110,16 +113,22 @@ const decodeJwt = (t) => JSON.parse(Buffer.from(t.split('.')[1].replace(/-/g, '+
     process.on('exit', cleanup);
 
     try {
-        const up = boot('user-portal/backend', 3201);
+        const up = boot('user-portal/backend', USER_PORT);
         await waitUp(USER);
-        const ap = boot('admin-portal/backend', 3202);
+        const ap = boot('admin-portal/backend', ADMIN_PORT);
         await waitUp(ADMIN);
 
         // --- admin login ---
-        let r = await api(ADMIN, '/api/auth/login', { method: 'POST', body: { email: 'juginovic.alen@gmail.com', password: 'admin123' } });
+        // The founder's seeded 'admin123' is replaced on a fresh database by the one-time founder
+        // unlock (admin server.js, founder_recovery_log), so fall back to the other seeded admin.
+        let adminEmail = 'juginovic.alen@gmail.com';
+        let r = await api(ADMIN, '/api/auth/login', { method: 'POST', body: { email: adminEmail, password: 'admin123' } });
+        if (!(r.status === 200 && r.d && r.d.token)) {
+            adminEmail = 'vp@medx.hr';
+            r = await api(ADMIN, '/api/auth/login', { method: 'POST', body: { email: adminEmail, password: 'admin123' } });
+        }
         const atok = r.d && r.d.token;
-        check('scratch boot: seeded admin login works', r.status === 200 && !!atok, JSON.stringify(r.d).slice(0, 120));
-        const adminEmail = 'juginovic.alen@gmail.com';
+        check('scratch boot: seeded admin login works', r.status === 200 && !!atok, adminEmail + ' ' + JSON.stringify(r.d).slice(0, 120));
 
         // --- create a conference (fires the auto-wallet-class hook) + a €0 ticket type ---
         r = await api(ADMIN, '/api/admin/conferences', { method: 'POST', token: atok, body: { name: 'Wallet Test Conf', year: 2026 } });
@@ -138,7 +147,34 @@ const decodeJwt = (t) => JSON.parse(Buffer.from(t.split('.')[1].replace(/-/g, '+
         const regMain = await makeReg(atok);
         check('registration create → registration_id + invoice', !!regMain.registration_id && !!regMain.invoice_number, regMain.invoice_number);
         r = await api(USER, '/api/gala/register', { method: 'POST', token: atok, body: { first_name: 'Alen', last_name: 'Juginovic', email: adminEmail } });
-        check('gala registration for admin email (grants gala access)', r.status === 200 || r.status === 201);
+        check('gala registration for admin email (unpaid for now)', r.status === 200 || r.status === 201);
+
+        // --- DOOR HARDENING (round 3 Phase 0a): an UNPAID gala row no longer opens the Gala door.
+        //     passAccess used to add 'gala' for ANY gala_registrations row with the same e-mail. ---
+        r = await api(ADMIN, '/api/admin/checkin/resolve?code=' + regMain.registration_id, { token: atok });
+        check('DOOR: unpaid gala row → pass does NOT include gala', r.d && r.d.ticket && !r.d.ticket.events.includes('gala'), r.d && r.d.ticket && r.d.ticket.events.join(','));
+        r = await api(ADMIN, '/api/admin/checkin/ticket', { method: 'POST', token: atok, body: { code: regMain.registration_id, event: 'gala', mark: false } });
+        check('DOOR: unpaid gala row → gala gate says wrong_event (not admitted)', r.d && r.d.valid === false && r.d.result === 'wrong_event', r.d && r.d.result);
+        let galaList = await api(ADMIN, '/api/admin/gala/registrations', { token: atok });
+        const adminGala = (Array.isArray(galaList.d) ? galaList.d : []).find(x => String(x.email || '').toLowerCase() === adminEmail);
+        r = await api(ADMIN, '/api/admin/registrant/gala/' + (adminGala && adminGala.id) + '/mark-paid', { method: 'POST', token: atok });
+        check('DOOR: admin gala row marked paid', r.status === 200 && r.d && r.d.success, JSON.stringify(r.d).slice(0, 120));
+
+        // --- DOOR HARDENING: the short-code prefix is for TYPED codes only. A scanned string is
+        //     never stripped to hex and prefix-matched (ana@fa.hr → 'aafa' admitted a stranger). ---
+        const hex8 = String(regMain.registration_id).replace(/-/g, '').slice(0, 8);
+        r = await api(ADMIN, '/api/admin/checkin/ticket', { method: 'POST', token: atok, body: { code: hex8, event: 'conference', mark: false, method: 'qr' } });
+        check('DOOR: scanned 8-hex fragment (method qr) → invalid, no prefix match', r.d && r.d.result === 'invalid', r.d && r.d.result);
+        r = await api(ADMIN, '/api/admin/checkin/ticket', { method: 'POST', token: atok, body: { code: hex8, event: 'conference', mark: false } });
+        check('DOOR: no method given → treated as a scan → invalid', r.d && r.d.result === 'invalid', r.d && r.d.result);
+        r = await api(ADMIN, '/api/admin/checkin/ticket', { method: 'POST', token: atok, body: { code: 'zz' + hex8.slice(0, 4) + '@ttt.rs', event: 'conference', mark: false, method: 'manual' } });
+        check('DOOR: typed string with @ → never prefix-matched, even manual', r.d && r.d.result === 'invalid', r.d && r.d.result);
+        r = await api(ADMIN, '/api/admin/checkin/ticket', { method: 'POST', token: atok, body: { code: hex8.toUpperCase(), event: 'conference', mark: false, method: 'manual' } });
+        check('DOOR: the same 8-hex code TYPED (manual) → resolves the pass', r.d && r.d.result === 'valid' && r.d.ticket && r.d.ticket.registration_id === regMain.registration_id, r.d && r.d.result);
+        r = await api(ADMIN, '/api/admin/checkin/resolve?method=manual&code=' + hex8, { token: atok });
+        check('DOOR: resolve preview with method=manual → found', r.d && r.d.found === true);
+        r = await api(ADMIN, '/api/admin/checkin/resolve?code=' + hex8, { token: atok });
+        check('DOOR: resolve preview without method → not found', r.d && r.d.found === false);
 
         // --- gates / event selector ---
         r = await api(ADMIN, '/api/admin/checkin/events', { token: atok });

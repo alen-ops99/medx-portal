@@ -42,6 +42,9 @@ const path = require('path');
 const crypto = require('crypto');
 const { PassThrough } = require('stream');
 const emailLayout = require('../../../shared/email-layout');   // THE Med&X email layout
+// D17 verified-email gate (MEDX_VERIFIED_EMAIL_GATE, OFF by default): the one helper apple-pass.js
+// also uses, so the ticket list, the member QR and the Wallet passes always agree.
+const { emailLinkFor, verifiedEmailGateOn } = require('./apple-pass.js');
 
 module.exports = function mountWallet(app, ctx) {
     const { auth, sendEmail, ROOT, log } = ctx;
@@ -107,7 +110,7 @@ module.exports = function mountWallet(app, ctx) {
     const escapeHtml = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
     function me(req) {
-        const u = tryGet('SELECT id, email, first_name, last_name, institution, created_at FROM users WHERE id = ?', [req.user.id]);
+        const u = tryGet('SELECT id, email, email_verified, first_name, last_name, institution, created_at FROM users WHERE id = ?', [req.user.id]);
         if (!u) return { id: req.user.id, email: (req.user.email || '').toLowerCase(), first_name: '', last_name: '' };
         u.email = String(u.email || '').toLowerCase();
         return u;
@@ -200,7 +203,7 @@ module.exports = function mountWallet(app, ctx) {
     }
 
     function allItems(user) {
-        const em = user.email || '__none__';
+        const em = emailLinkFor(user);   // '__none__' while the D17 gate hides e-mail-linked rows
         const items = [];
         tryAll(`SELECT r.*, c.name AS conference_name, c.start_date, c.end_date, c.venue_name, c.venue_city,
                        t.name AS ticket_name, u.first_name AS u_first, u.last_name AS u_last, u.email AS u_email
@@ -232,7 +235,7 @@ module.exports = function mountWallet(app, ctx) {
 
     // Resolve ONE item by id, ownership enforced in each WHERE (404 otherwise).
     function findItem(id, user) {
-        const em = user.email || '__none__';
+        const em = emailLinkFor(user);
         let r = tryGet(`SELECT r.*, c.name AS conference_name, c.start_date, c.end_date, c.venue_name, c.venue_city,
                                t.name AS ticket_name, u.first_name AS u_first, u.last_name AS u_last, u.email AS u_email
                           FROM registrations r JOIN conferences c ON r.conference_id = c.id
@@ -479,7 +482,10 @@ module.exports = function mountWallet(app, ctx) {
             // reachable home for a receipt).
             const purchases = active.filter(i => i.receipt)
                 .sort((a, b) => String(b.order_date || '').localeCompare(String(a.order_date || '')));
-            res.json({ items, upcoming, purchases, count: active.length, generated_at: new Date().toISOString() });
+            // needs_verification: the D17 gate is on and hides this account's e-mail-linked tickets
+            // until the address is confirmed (the app's "verify to see your tickets" nudge reads it).
+            const needsVerification = verifiedEmailGateOn() && Number(user.email_verified) !== 1;
+            res.json({ items, upcoming, purchases, count: active.length, generated_at: new Date().toISOString(), ...(needsVerification ? { needs_verification: true } : {}) });
         } catch (e) { console.error('[v2 wallet] tickets failed:', e.message); res.status(500).json({ error: 'Failed to load your tickets' }); }
     });
 

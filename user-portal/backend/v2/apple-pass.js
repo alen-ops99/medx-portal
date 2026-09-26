@@ -309,12 +309,25 @@ function qrPayloadFor(item) {                        // byte-compatible with wal
     const EVT = { plexus: 'plexus', bridges: 'bridges', donor: 'bridges', forum: 'forum', 'signup-form': 'signup-form' };
     return { type: 'MEDX_MEMBER', regId: item.id, evt: EVT[item.kind] || item.kind };
 }
-// Item bags by id, probed in wallet.js findItem order. owner = {id, email} enforces ownership
-// (the authed /link route); null trusts the caller (a verified token).
+// D17 (round 3 Phase 0a): a ticket linked to an account by e-mail alone (a user_id NULL row, or a
+// forum or sign-up row, which carry no user_id) shows only once the account's e-mail is verified.
+// Switched by MEDX_VERIFIED_EMAIL_GATE=1, OFF by default and until a week after the confirm e-mails.
+// OFF → the e-mail link works exactly as before. → the address to match, or the '__none__' sentinel
+// that matches no row. wallet.js uses the same helper, so the app list, the QR and the pass agree.
+function verifiedEmailGateOn() { return /^(1|true|on|yes)$/i.test(String(process.env.MEDX_VERIFIED_EMAIL_GATE || '').trim()); }
+function emailLinkFor(user) {
+    const em = String((user && user.email) || '').trim().toLowerCase();
+    if (!em) return '__none__';
+    if (verifiedEmailGateOn() && Number(user.email_verified) !== 1) return '__none__';
+    return em;
+}
+
+// Item bags by id, probed in wallet.js findItem order. owner = {id, email, email_verified} enforces
+// ownership (the authed /link route); null trusts the caller (a verified token).
 function resolveItem(id, owner) {
     const Q = q();
     const uid = owner ? owner.id : null;
-    const em = owner ? ((owner.email || '__none__').toLowerCase()) : null;
+    const em = owner ? emailLinkFor(owner) : null;
     let r = Q.get(`SELECT r.*, c.name AS conference_name, c.start_date, c.end_date, c.venue_name, c.venue_city,
                           t.name AS ticket_name, u.first_name AS u_first, u.last_name AS u_last, u.email AS u_email
                      FROM registrations r JOIN conferences c ON r.conference_id = c.id
@@ -429,7 +442,7 @@ function memberQrValue(user) {                       // mirrors wallet.js member
                         WHERE r.user_id = ? AND COALESCE(r.revoked,0) = 0 AND COALESCE(r.status,'') <> 'cancelled'
                         ORDER BY c.is_active DESC, c.year DESC, r.created_at DESC LIMIT 1`, [user.id]);
     if (reg) return ensureRegToken(reg);
-    const em = (user.email || '__none__').toLowerCase();
+    const em = emailLinkFor(user);
     const others = [];
     Q.all(`SELECT id, created_at AS od, status, payment_status FROM gala_registrations
             WHERE (user_id = ? OR (user_id IS NULL AND lower(email) = ?)) AND COALESCE(status,'') NOT IN ('rejected','declined','cancelled')`, [user.id, em])
@@ -613,7 +626,7 @@ module.exports = function mountApplePass(app, ctx) {
             const t = verifyToken(String(req.params.token || ''));
             if (!t) return res.status(401).json({ error: 'This pass link is invalid or has expired — open My Med&X for a fresh one.' });
             if (t.kind === 'member') {
-                const user = q().get('SELECT id, email, first_name, last_name, created_at, deleted_at FROM users WHERE id = ?', [t.id]);
+                const user = q().get('SELECT id, email, email_verified, first_name, last_name, created_at, deleted_at FROM users WHERE id = ?', [t.id]);
                 // a link minted before the member closed the account builds nothing for the tombstone
                 if (!user || user.deleted_at) return res.status(404).json({ error: 'Member not found' });
                 delete user.deleted_at;
@@ -640,8 +653,8 @@ module.exports = function mountApplePass(app, ctx) {
                 if (id && id !== 'me' && id !== String(req.user.id)) return res.status(403).json({ error: 'You can only mint your own member card link.' });
                 mintKind = 'member'; mintId = req.user.id;
             } else if (kind === 'ticket') {
-                const user = q().get('SELECT id, email FROM users WHERE id = ?', [req.user.id]) || { id: req.user.id, email: req.user.email || '' };
-                const item = resolveItem(id, { id: user.id, email: user.email });
+                const user = q().get('SELECT id, email, email_verified FROM users WHERE id = ?', [req.user.id]) || { id: req.user.id, email: req.user.email || '' };
+                const item = resolveItem(id, { id: user.id, email: user.email, email_verified: user.email_verified });
                 if (!item) return res.status(404).json({ error: 'We could not find that ticket on your account.' });
                 if (['cancelled', 'revoked', 'waitlisted'].includes(item.status)) return res.status(400).json({ error: 'This registration is not active, so no pass can be issued.' });
                 mintKind = 'ticket'; mintId = item.id;
@@ -664,3 +677,5 @@ module.exports.isConfigured = isConfigured;
 module.exports.buildPkpass = buildPkpass;
 module.exports.respondMemberPass = respondMemberPass;
 module.exports.respondTicketPass = respondTicketPass;
+module.exports.emailLinkFor = emailLinkFor;
+module.exports.verifiedEmailGateOn = verifiedEmailGateOn;
