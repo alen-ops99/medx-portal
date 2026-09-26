@@ -22466,7 +22466,7 @@ By applying to this program, I provide the following consents:
         try {
             const rows = query.all("SELECT status FROM scheduled_emails WHERE source_engine = 'speaker-itinerary' AND batch_id LIKE ?", ['speaker-itinerary-' + id + '-%']);
             if (!rows.length) return 'not_sent';
-            if (rows.some(r => r.status === 'sent' || r.status === 'scheduled')) return 'sent';
+            if (rows.some(r => r.status === 'sent' || r.status === 'scheduled' || r.status === 'sending')) return 'sent';   // 'sending' = claimed by a drainer
             if (rows.some(r => r.status === 'pending_approval')) return 'staged';
             return 'not_sent';
         } catch (e) { return 'not_sent'; }
