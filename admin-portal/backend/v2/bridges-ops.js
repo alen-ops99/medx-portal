@@ -75,10 +75,10 @@ module.exports = function mountBridgesOps(app, ctx) {
     try {
         if (!q.get('SELECT id FROM v2_bridges_editions LIMIT 1')) {
             const seed = [
-                [1, 'Washington DC', 'United States', 'NIH Campus', 'Where Building Bridges began — researchers from the institutes met the Croatian community of the capital region.', 'PHOTO · WASHINGTON EVENING'],
+                [1, 'Washington DC', 'United States', 'Embassy of the Republic of Croatia, Washington DC', 'An embassy-level forum in the US capital, bringing Croatian and American biomedical leaders to the same table.', 'PHOTO · WASHINGTON EVENING'],
                 [2, 'London', 'United Kingdom', 'Embassy of Croatia', 'At the Croatian Embassy — the UK’s Croatian medical community met London’s institutions.', 'PHOTO · LONDON RECEPTION'],
                 [3, 'New York', 'United States', 'Consulate General of Croatia', 'An evening at the Consulate General with Croatian-American physicians and researchers.', 'PHOTO · CONSULATE EVENING, NEW YORK'],
-                [4, 'Zürich', 'Switzerland', 'ETH Zentrum', 'Clinicians and engineers from across the Swiss research hub, in one room.', 'PHOTO · ZÜRICH EVENING']
+                [4, 'Zürich', 'Switzerland', 'Zunfthaus zur Schmiden', 'An evening in a historic guild house, opened by Croatia’s ambassador to Switzerland, for Croatian and Swiss physicians and scientists.', 'PHOTO · ZÜRICH EVENING']
             ];
             const now = new Date().toISOString();
             seed.forEach(([no, city, country, venue, note, label]) => {

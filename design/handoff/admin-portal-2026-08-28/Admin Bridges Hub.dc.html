@@ -203,10 +203,10 @@ class Component extends DCLogic {
       ncAdd: () => { const c = s.ncCity.trim(); if (!c) return; this.setState(x => ({ extraEvents: [{ date: (x.ncWhen.trim() || 'TBD').toUpperCase(), city: c, venue: 'Venue to scout', upcoming: true, past: false, stats: '', action: 'PLAN →', href: 'Admin Member Pages.dc.html' }].concat(x.extraEvents), ncCity: '', ncWhen: '', newCityOpen: false })); },
       events: s.extraEvents.concat([
         { date: 'SEP 18–21', city: 'Boston', venue: 'Venue announced soon · exact date TBA', upcoming: true, past: false, stats: '', action: 'MANAGE →', href: 'Admin Member Pages.dc.html' },
-        { date: 'EDITION 04', city: 'Zürich', venue: 'ETH Zentrum', upcoming: false, past: true, stats: 'guest count — add on recap', action: 'RECAP', href: 'Building Bridges.dc.html' },
+        { date: 'EDITION 04', city: 'Zürich', venue: 'Zunfthaus zur Schmiden', upcoming: false, past: true, stats: 'guest count — add on recap', action: 'RECAP', href: 'Building Bridges.dc.html' },
         { date: 'EDITION 03', city: 'New York', venue: 'Consulate General of Croatia', upcoming: false, past: true, stats: 'guest count — add on recap', action: 'RECAP', href: 'Building Bridges.dc.html' },
         { date: 'EDITION 02', city: 'London', venue: 'Embassy of Croatia', upcoming: false, past: true, stats: 'guest count — add on recap', action: 'RECAP', href: 'Building Bridges.dc.html' },
-        { date: 'EDITION 01', city: 'Washington DC', venue: 'NIH Campus', upcoming: false, past: true, stats: 'guest count — add on recap', action: 'RECAP', href: 'Building Bridges.dc.html' }
+        { date: 'EDITION 01', city: 'Washington DC', venue: 'Embassy of the Republic of Croatia, Washington DC', upcoming: false, past: true, stats: 'guest count — add on recap', action: 'RECAP', href: 'Building Bridges.dc.html' }
       ]),
       checklist: [
         { name: 'Dates locked — Sep 18–21 window', done: true },
