@@ -704,7 +704,7 @@ function blockNlCards() {
   const hist = (D.nl.history || []).slice(0, 6);
   const histRow = h => {
     const stateLine = h.status === 'pending_approval' ? n.stateWaiting(h.count)
-      : h.status === 'scheduled' ? n.stateScheduled
+      : h.status === 'scheduled' || h.status === 'sending' ? n.stateScheduled
       : h.status === 'sent' ? n.stateSent(h.count)
       : n.stateCancelled;
     const portal = h.portal === 'posted' ? ' ' + n.portalPosted : h.portal === 'pending' ? ' ' + n.portalPending : '';

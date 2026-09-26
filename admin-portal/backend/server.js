@@ -44174,6 +44174,9 @@ app.get('*', (req, res) => {
 
         async function drainScheduledEmails() {
             let due;
+            // a row a process claimed and never finished (it died mid-send) is surfaced as failed after 30 min for an admin
+            // to check and resend, never re-sent automatically (it may already have gone out)
+            try { db.run("UPDATE scheduled_emails SET status = 'failed', last_error = 'interrupted while sending: check before resending' WHERE status = 'sending' AND sent_at < datetime('now', '-30 minutes')"); } catch (e) {}
             try {
                 due = query.all(
                     "SELECT * FROM scheduled_emails WHERE status = 'scheduled' AND (scheduled_for IS NULL OR scheduled_for <= datetime('now')) ORDER BY scheduled_for LIMIT 25"
@@ -44186,6 +44189,11 @@ app.get('*', (req, res) => {
                 catch (e) { return { success: false, error: e.message }; }
             };
             for (const row of due) {
+                // CLAIM FIRST. Two admin processes drain this Outbox (medx-staging and medx-admin-portal share one database)
+                // and each reads a replica up to 60 s behind, so a row could be sent by both (7 emails went out twice,
+                // Jul–Sep 2026). Only the process whose UPDATE moves the row from 'scheduled' to 'sending' sends it.
+                try { db.run("UPDATE scheduled_emails SET status = 'sending', sent_at = datetime('now') WHERE id = ? AND status = 'scheduled'", [row.id]); } catch (e) { continue; }
+                if (db.getRowsModified() !== 1) continue;
                 let payload = {};
                 try { payload = row.payload_json ? JSON.parse(row.payload_json) : {}; } catch (e) { payload = {}; }
                 const to = payload.to || row.recipient_email;
