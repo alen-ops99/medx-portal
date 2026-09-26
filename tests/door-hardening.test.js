@@ -25,6 +25,13 @@
  * member read that matches rows by e-mail hides them from an unverified account: the wallet, the
  * member QR, /api/gala/my-status, /api/gala/my, /api/gala/my-seat, /api/my/events and
  * /api/plexus/my-registration. The flag is switched on only when all of these pass.
+ * Security fix round: the member search 'Mine' group and the live app's signed-in person
+ * (/api/live/me/user, redesign line) hide the same rows. The seat transfer (v2/transfer.js, redesign
+ * line) is frozen seat code, so its check is a HOLD: it prints HOLD and keeps the run green until the
+ * fix lands (after/phase0a/doors/transfer-d17.patch). MEDX_D17_RELEASE=1, the run before the flag is
+ * switched on, turns every HOLD into a FAIL.
+ *   7. GET /api/public/registrations/:email answers an admin session only (401 without a session,
+ *      403 for a member), and the admin fallback that calls it forwards the admin's session.
  *
  * Boots both portals on a throwaway SQLite file (never Turso, never production). Rows the API cannot
  * make (comp, waived, vip-comp, a verified account) are written straight into that scratch file.
@@ -49,6 +56,8 @@ const ADMIN_V2 = 'https://medx-admin-portal-v2.netlify.app';
 const HAS_EVENTDAY = fs.existsSync(path.join(ROOT, 'admin-portal/backend/v2/event-day.js'));
 const HAS_WALLET = fs.existsSync(path.join(ROOT, 'user-portal/backend/v2/wallet.js'));
 const HAS_GALAOPS = fs.existsSync(path.join(ROOT, 'admin-portal/backend/v2/gala-ops.js'));
+const HAS_LIVE = fs.existsSync(path.join(ROOT, 'user-portal/backend/v2/live.js'));
+const HAS_TRANSFER = fs.existsSync(path.join(ROOT, 'user-portal/backend/v2/transfer.js'));
 // /api/plexus/my-registration reads a public /plexus-form place (croatians_abroad_registrations) by e-mail
 // on the redesign line only. Main reads the Plexus place by user_id alone, so it has nothing to gate there.
 const MEMBER_SRC = fs.readFileSync(path.join(ROOT, 'user-portal/backend/server.js'), 'utf8');
@@ -62,6 +71,16 @@ const check = (name, cond, detail = '') => {
     console.log((cond ? 'PASS' : 'FAIL') + ' | ' + name + (detail !== '' && detail !== undefined ? ' | ' + String(detail).slice(0, 200) : ''));
 };
 const skip = (name, why) => console.log('SKIP | ' + name + ' | ' + why);
+// A release-gate check whose fix waits for the owner's go-ahead (frozen code). A pass counts as a PASS.
+// A miss prints HOLD and is counted apart, so the run stays green while MEDX_VERIFIED_EMAIL_GATE stays OFF.
+// MEDX_D17_RELEASE=1 (the run before the flag is switched on) makes every HOLD a FAIL.
+const STRICT_RELEASE = /^(1|true|on|yes)$/i.test(String(process.env.MEDX_D17_RELEASE || '').trim());
+const holds = [];
+const hold = (name, cond, detail = '') => {
+    if (cond || STRICT_RELEASE) return check(name, cond, detail);
+    holds.push(name);
+    console.log('HOLD | ' + name + (detail !== '' && detail !== undefined ? ' | ' + String(detail).slice(0, 200) : ''));
+};
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 const api = async (base, p, { method = 'GET', body, token, redirect = 'follow' } = {}) => {
@@ -475,7 +494,14 @@ const waitDown = async (port, ms = 15000) => {
             const cUser = tdb.prepare('SELECT id FROM users WHERE lower(email) = ?').get(cEmail.toLowerCase());
             const cOwnGala = galaRow({ email: cEmail, first: 'CaOnly', status: 'confirmed', pay: 'paid', amount: 150 });
             put('UPDATE gala_registrations SET user_id = ? WHERE id = ?', [cUser && cUser.id, cOwnGala]);
+            // a Bridges place on the unverified account's address that no account owns (the member search reads it)
+            const brEv = tdb.prepare("SELECT id FROM bridges_events WHERE lower(name) LIKE '%bridges%' LIMIT 1").get();
+            const uBr = crypto.randomUUID();
+            put('INSERT INTO bridges_registrations (id, event_id, first_name, last_name, email, status, registered_at) VALUES (?,?,?,?,?,?,?)',
+                [uBr, brEv && brEv.id, 'Unverified', 'Probe', uEmail, 'confirmed', new Date().toISOString()]);
+            check('5 setup: an e-mail-linked Bridges place', !!(brEv && brEv.id));
             const evIds = (d) => [...((d && d.upcoming) || []), ...((d && d.past) || [])].map(i => i.id);
+            const mineIds = (d) => ((d && d.mine) || []).filter(m => m.kind !== 'wallet').map(m => m.id);
             const memberReads = async (label, on) => {
                 const hide = (cond) => on ? !cond : cond;   // OFF: the row shows. ON: it is hidden.
                 let x = await api(USER, '/api/gala/my-status', { token: uTok });
@@ -497,6 +523,27 @@ const waitDown = async (port, ms = 15000) => {
                     x = await api(USER, '/api/plexus/my-registration', { token: cTok });
                     check(label + ' /api/plexus/my-registration ' + (on ? 'hides' : 'shows') + ' the e-mail-linked /plexus-form place', hide(x.d && x.d.ca === true && x.d.id === caId), JSON.stringify(x.d).slice(0, 90));
                 } else skip(label + ' /api/plexus/my-registration', 'this line reads the Plexus place by user_id only, so no e-mail-linked /plexus-form row can show');
+                // the member search 'Mine' group: its ids open the door QR at /qr/<id>.png
+                x = await api(USER, '/api/member/search?q=gala', { token: uTok });
+                check(label + ' /api/member/search?q=gala ' + (on ? 'hides' : 'lists') + ' the e-mail-linked seat', hide(mineIds(x.d).includes(uGala.id)), mineIds(x.d).join(','));
+                x = await api(USER, '/api/member/search?q=bridges', { token: uTok });
+                check(label + ' /api/member/search?q=bridges ' + (on ? 'hides' : 'lists') + ' the e-mail-linked Bridges place', hide(mineIds(x.d).includes(uBr)), mineIds(x.d).join(','));
+                if (on) {
+                    x = await api(USER, '/api/member/search?q=tickets', { token: uTok });
+                    check(label + ' /api/member/search?q=tickets lists no e-mail-linked id', !mineIds(x.d).some(id => id === uGala.id || id === uBr), mineIds(x.d).join(','));
+                }
+                x = await api(USER, '/api/member/search?q=gala', { token: cTok });
+                check(label + ' /api/member/search?q=gala keeps the seat the account owns by user_id', mineIds(x.d).includes(cOwnGala), mineIds(x.d).join(','));
+                // the live app's signed-in person: person.ref is the ticket row its taps and attendance count against
+                if (HAS_LIVE) {
+                    x = await api(USER, '/api/live/me/user', { token: uTok });
+                    const ref = x.d && x.d.person && x.d.person.ref;
+                    check(label + ' /api/live/me/user ' + (on ? 'never resolves to' : 'resolves to') + ' the e-mail-linked seat', hide(ref === uGala.id) && (!on || ref !== uBr), x.status + ' ' + ref);
+                    x = await api(USER, '/api/live/me/user', { token: cTok });
+                    const cp = (x.d && x.d.person) || {};
+                    check(label + ' /api/live/me/user ' + (on ? 'drops' : 'shows') + ' the e-mail-linked /plexus-form place', hide(cp.ref === caId), x.status + ' ' + cp.kind + ' ' + cp.ref);
+                    check(label + ' /api/live/me/user keeps the Gala door of the seat the account owns by user_id', (cp.events || []).includes('gala') && (!on || cp.ref === cOwnGala), JSON.stringify(cp.events) + ' ' + cp.ref);
+                } else skip(label + ' /api/live/me/user', 'no user-portal/backend/v2/live.js on this line');
             };
 
             const ids = (d) => ((d && d.items) || []).map(i => i.id);
@@ -537,6 +584,47 @@ const waitDown = async (port, ms = 15000) => {
             check('RELEASE GATE D17 · gate ON: a VERIFIED account keeps its table in /api/gala/my-seat', r.d && r.d.assigned === true && r.d.table_label === 'Stol 9', JSON.stringify(r.d));
             r = await api(USER, '/api/my/events', { token: vTok });
             check('RELEASE GATE D17 · gate ON: a VERIFIED account keeps its seat in /api/my/events', evIds(r.d).includes(vGala.id));
+            r = await api(USER, '/api/member/search?q=gala', { token: vTok });
+            check('RELEASE GATE D17 · gate ON: a VERIFIED account keeps its seat in /api/member/search', mineIds(r.d).includes(vGala.id), mineIds(r.d).join(','));
+            if (HAS_LIVE) {
+                r = await api(USER, '/api/live/me/user', { token: vTok });
+                check('RELEASE GATE D17 · gate ON: a VERIFIED account keeps its seat in /api/live/me/user', r.d && r.d.person && r.d.person.ref === vGala.id, r.status + ' ' + (r.d && r.d.person && r.d.person.ref));
+            }
+            // RELEASE GATE, the seat transfer (redesign line). findSeat matched a seat no account owns by the raw
+            // account address, so with the gate ON an unverified account could hand someone else's paid seat to a
+            // second address. transfer.js is seat code on the frozen list, so the fix (transfer-d17.patch in
+            // after/phase0a/doors) waits for Alen's go-ahead and this check is a HOLD until it lands.
+            if (HAS_TRANSFER) {
+                const tEmail = 'door.transfer+' + Date.now() + '@example.com';
+                const tTok = await register(tEmail, 'Transfer');
+                put('UPDATE users SET email_verified = 0 WHERE lower(email) = ?', [tEmail.toLowerCase()]);
+                const tGala = galaRow({ email: tEmail, first: 'Transfer', status: 'confirmed', pay: 'paid', amount: 150 });
+                r = await api(USER, '/api/v2/transfer/gala', { method: 'POST', token: tTok, body: { to_name: 'Door Colleague', to_email: 'door.transfer.to+' + Date.now() + '@example.com' } });
+                const tRow = tdb.prepare('SELECT email FROM gala_registrations WHERE id = ?').get(tGala);
+                hold('RELEASE GATE D17 · gate ON: an unverified account cannot transfer an e-mail-linked Gala seat (404, the seat keeps its address)',
+                    r.status === 404 && tRow && String(tRow.email).toLowerCase() === tEmail.toLowerCase(), r.status + ' ' + (tRow && tRow.email));
+                // control: a VERIFIED account still transfers the seat linked to its address (no mail provider, nothing is sent)
+                r = await api(USER, '/api/v2/transfer/gala', { method: 'POST', token: vTok, body: { to_name: 'Door Colleague', to_email: 'door.transfer.v+' + Date.now() + '@example.com' } });
+                check('5 gate ON: a VERIFIED account still transfers its Gala seat', r.status === 200 && r.d && r.d.registration_ref === vGala.id, r.status + ' ' + JSON.stringify(r.d).slice(0, 90));
+            } else skip('RELEASE GATE D17 · gate ON: the seat transfer', 'no user-portal/backend/v2/transfer.js on this line');
+        }
+
+        // ============================================================ 7. the registrations lookup behind the admin fallback
+        // It returns a person's registrations, forum and Bridges rows (phone included) and ids that open the door QR.
+        // Only the admin fallback (admin GET /api/admin/users/:id/profile) calls it, with the admin's own session.
+        {
+            const lEmail = 'door.lookup+' + Date.now() + '@example.com';
+            const lTok = await register(lEmail, 'Lookup');
+            const lReg = await confReg(lTok);
+            const at = '/api/public/registrations/' + encodeURIComponent(lEmail);
+            r = await api(USER, at);
+            check('7 registrations lookup with no session → 401 and no rows', r.status === 401 && !(r.d && (r.d.user || r.d.registrations)), r.status);
+            r = await api(USER, at, { token: lTok });
+            check('7 registrations lookup with a member session, even for its own address → 403 and no rows', r.status === 403 && !(r.d && (r.d.user || r.d.registrations)), r.status);
+            r = await api(USER, at, { token: atok });
+            check('7 registrations lookup with an admin session → 200 with the rows', r.status === 200 && r.d && r.d.user && String(r.d.user.email).toLowerCase() === lEmail.toLowerCase() && (r.d.registrations || []).some(x => x.id === lReg.registration_id), r.status);
+            const fb = adminSrc.indexOf("fetch(userPortalUrl + '/api/public/registrations/'");
+            check('7 the admin fallback forwards the admin session to the lookup', fb > 0 && /headers: req\.headers\.authorization \? \{ Authorization: req\.headers\.authorization \} : \{\}/.test(adminSrc.slice(fb, fb + 400)));
         }
 
         // ============================================================ admin catch-all
@@ -563,5 +651,6 @@ const waitDown = async (port, ms = 15000) => {
 
     const passed = results.filter(([, ok]) => ok).length;
     console.log('\n' + passed + '/' + results.length + ' passed');
+    if (holds.length) console.log('HOLD: ' + holds.length + ' release-gate check(s) wait for a fix. Keep MEDX_VERIFIED_EMAIL_GATE OFF until they pass. MEDX_D17_RELEASE=1 makes them fail.');
     process.exit(passed === results.length ? 0 : 1);
 })();

@@ -11376,7 +11376,9 @@ async function initializeApp() {
             if (totalLocal === 0 && user.email) {
                 try {
                     const userPortalUrl = userPortalBase();
+                    // The member route answers an admin session only, so the admin's own Authorization goes along.
                     const cpResp = await fetch(userPortalUrl + '/api/public/registrations/' + encodeURIComponent(user.email), {
+                        headers: req.headers.authorization ? { Authorization: req.headers.authorization } : {},
                         signal: AbortSignal.timeout(10000)
                     });
                     if (cpResp.ok) {
