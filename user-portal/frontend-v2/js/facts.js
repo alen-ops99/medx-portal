@@ -11,7 +11,7 @@ export const FACTS = Object.freeze({
     startAt: '2026-12-04T17:00:00+01:00',           // countdown fallback — the live value is plexusStartsAt() below
     dateRange: 'December 4–5, 2026', dateShort: 'Dec 4–5',
     venue: 'Novinarski dom', city: 'Zagreb', country: 'Croatia',
-    free: true, cap: 100, abstracts: false
+    free: true, cap: 150, abstracts: false
   }),
   gala: Object.freeze({
     name: 'Gala Evening', date: '2026-12-05', weekday: 'Sat', dateLabel: 'Sat, December 5', time: '19:00',

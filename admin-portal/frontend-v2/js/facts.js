@@ -13,7 +13,7 @@ export const FACTS = Object.freeze({
     // first — `conf.venue_name || FACTS.plexus.venue` — so a venue change in Plexus settings
     // reaches the whole admin without a deploy. Never print this constant on its own.
     venue: 'Novinarski dom', city: 'Zagreb', country: 'Croatia',
-    free: true, cap: 100, abstracts: false,
+    free: true, cap: 150, abstracts: false,
     parts: 'Conference + Gala + Donor Night'
   }),
   gala: Object.freeze({
